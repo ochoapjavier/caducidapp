@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+# Librería de conexión a PostgreSQL
+psycopg2-binary
+# ORM o herramienta de conexión a DB
+sqlalchemy

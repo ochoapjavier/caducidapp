@@ -1,0 +1,39 @@
+version: '3.8'
+services:
+  # 1. Base de Datos PostgreSQL
+  postgres:
+    image: postgres:14-alpine
+    container_name: inventory_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: receipt_inventory
+    volumes:
+      # Monta el script SQL de inicialización
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+      # *** VOLUMEN DE PERSISTENCIA AÑADIDO ***
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  # 2. Servicio de la API Core (Python FastAPI)
+  core-api:
+    # IMPORTANTE: 2 espacios antes de 'build'
+    build:
+      # IMPORTANTE: 4 espacios antes de 'context' y 'dockerfile'
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: core_api
+    depends_on:
+      - postgres
+    ports:
+      - "8000:8000"
+    environment:
+      # URL de conexión a la DB, usa el nombre del servicio (postgres)
+      DATABASE_URL: postgresql://user:password@postgres:5432/receipt_inventory
+    # Recarga automática en desarrollo
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+# *** DEFINICIÓN DEL VOLUMEN PERSISTENTE ***
+volumes:
+  db_data:
