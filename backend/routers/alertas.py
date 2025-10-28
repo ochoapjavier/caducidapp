@@ -4,13 +4,14 @@ from sqlalchemy.orm import Session
 from database import get_db
 from schemas import AlertaResponse
 from services import AlertaService
+from auth.firebase_auth import get_current_user
 
 router = APIRouter()
 
 def get_alerta_service(db: Session = Depends(get_db)):
     return AlertaService(db)
 
-@router.get("/proxima-semana", response_model=AlertaResponse)
+@router.get("/proxima-semana", response_model=AlertaResponse, dependencies=[Depends(get_current_user)])
 def get_alertas_endpoint(
     service: AlertaService = Depends(get_alerta_service)
 ):
