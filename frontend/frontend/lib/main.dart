@@ -108,15 +108,32 @@ class MainAppScreen extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Gestión de Caducidades'),
-          actions: [
-            // Añadimos un botón para cerrar sesión
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Cerrar Sesión',
-              onPressed: () {
-                FirebaseAuth.instance.signOut();
+          actions: [ // Usaremos un PopupMenuButton para un menú de usuario más elegante
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.account_circle), // Icono de perfil
+              onSelected: (value) {
+                if (value == 'logout') {
+                  FirebaseAuth.instance.signOut();
+                }
               },
-            ),
+              itemBuilder: (BuildContext context) {
+                // Obtenemos el usuario actual de forma síncrona
+                final user = FirebaseAuth.instance.currentUser;
+                return [
+                  // Opción 1: Muestra el email (no es clickeable)
+                  PopupMenuItem<String>(
+                    enabled: false, // Para que no parezca un botón
+                    child: Text(
+                      user?.email ?? 'Usuario', // Muestra el email o 'Usuario' si es nulo
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const PopupMenuDivider(),
+                  // Opción 2: El botón para cerrar sesión
+                  const PopupMenuItem<String>(value: 'logout', child: Text('Cerrar Sesión')),
+                ];
+              },
+            )
           ],
           bottom: const TabBar(
             tabs: [
