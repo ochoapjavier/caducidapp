@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "961732200215",
+    "project_id": "caducidapp",
+    "storage_bucket": "caducidapp.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:961732200215:android:f6949739082ab897585952",
+        "android_client_info": {
+          "package_name": "com.example.frontend"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyChrbVLgSVdngqkDaqz39y9didOEjGxnbY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
