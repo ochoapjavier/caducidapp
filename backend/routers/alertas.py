@@ -10,7 +10,7 @@ router = APIRouter()
 def get_alerta_service(db: Session = Depends(get_db)):
     return AlertaService(db)
 
-@router.get("/alertas/proxima-semana", response_model=AlertaResponse)
+@router.get("/proxima-semana", response_model=AlertaResponse)
 def get_alertas_endpoint(
     service: AlertaService = Depends(get_alerta_service)
 ):

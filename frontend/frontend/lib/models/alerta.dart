@@ -15,14 +15,20 @@ class AlertaItem {
   });
 
   // Constructor de Fábrica: Convierte el JSON que viene de tu API a un objeto Dart
-  // Busca: {"producto": "Leche", "cantidad": 1, "fecha_caducidad": "2025-10-14"}
   factory AlertaItem.fromJson(Map<String, dynamic> json) {
+    // Extraemos los objetos anidados para mayor claridad y seguridad.
+    final productoObj = json['producto_obj'] as Map<String, dynamic>;
+    final ubicacionObj = json['ubicacion_obj'] as Map<String, dynamic>;
+
     return AlertaItem(
-      producto: json['producto'] as String,
-      cantidad: json['cantidad'] as int,
+      // Accedemos a la propiedad 'nombre' dentro de cada objeto anidado.
+      producto: productoObj['nombre'] as String,
+      ubicacion: ubicacionObj['nombre'] as String,
+
+      // Las propiedades de nivel superior se mantienen igual.
+      cantidad: json['cantidad_actual'] as int,
       // Parsear el string ISO 8601 que envía FastAPI (ej. "2025-10-14")
       fechaCaducidad: DateTime.parse(json['fecha_caducidad'] as String), 
-      ubicacion: json['ubicacion'] as String,
     );
   }
 }

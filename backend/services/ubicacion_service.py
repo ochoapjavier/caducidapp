@@ -1,54 +1,62 @@
 # backend/services/ubicacion_service.py
 from fastapi import HTTPException
 from sqlalchemy.orm import Session
-from repositories import UbicacionRepository
-from schemas import UbicacionCreate
+from sqlalchemy.exc import IntegrityError
+from repositories.ubicacion_repository import UbicacionRepository
+from schemas.ubicacion import UbicacionCreate
+from repositories.models import Ubicacion
 
 class UbicacionService:
     def __init__(self, db: Session):
         self.repo = UbicacionRepository(db)
 
-    def create_new_ubicacion(self, ubicacion_data: UbicacionCreate):
+    def create_new_ubicacion(self, ubicacion_data: UbicacionCreate) -> Ubicacion:
+        existing_ubicacion = self.repo.get_ubicacion_by_name(ubicacion_data.nombre)
+        if existing_ubicacion:
+            raise HTTPException(status_code=409, detail="El nombre de la ubicación ya existe.")
+        
         try:
-            ubicacion_id = self.repo.create_ubicacion(ubicacion_data.nombre)
-            return {"id": ubicacion_id, "nombre": ubicacion_data.nombre}
+            return self.repo.create_ubicacion(ubicacion_data.nombre)
+        except IntegrityError:
+             raise HTTPException(status_code=409, detail="Error de integridad, es posible que el nombre ya exista.")
         except Exception as e:
-            raise HTTPException(status_code=400, detail="Error al crear ubicación. El nombre podría ser duplicado.")
+            # Log the exception e
+            raise HTTPException(status_code=500, detail="Ocurrió un error interno al crear la ubicación.")
 
-    def get_all_ubicaciones(self):
+    def get_all_ubicaciones(self) -> list[Ubicacion]:
         return self.repo.get_all_ubicaciones()
 
     def delete_ubicacion(self, id_ubicacion: int):
+        ubicacion = self.repo.get_ubicacion_by_id(id_ubicacion)
+        if not ubicacion:
+            raise HTTPException(
+                status_code=4.04, 
+                detail=f"No se encontró una ubicación con el ID {id_ubicacion}."
+            )
+
         if self.repo.is_ubicacion_in_use(id_ubicacion):
             raise HTTPException(
                 status_code=409,  # 409 Conflict
-                detail="La ubicación no se puede eliminar porque está en uso por uno o más productos en el inventario."
+                detail="La ubicación no se puede eliminar porque está en uso."
             )
         
-        deleted_count = self.repo.delete_ubicacion_by_id(id_ubicacion)
-
-        if deleted_count == 0:
-            raise HTTPException(
-                status_code=404, 
-                detail=f"No se encontró una ubicación con el ID {id_ubicacion}."
-            )
+        self.repo.delete_ubicacion(ubicacion)
             
         return {"status": "success", "message": "Ubicación eliminada correctamente."}
 
-    def update_ubicacion(self, id_ubicacion: int, new_name: str):
-        existing_id = self.repo.get_ubicacion_id_by_name(new_name)
-        if existing_id is not None and existing_id != id_ubicacion:
-            raise HTTPException(
-                status_code=409,  # Conflict
-                detail=f"El nombre '{new_name}' ya está en uso por otra ubicación."
-            )
-
-        updated_count = self.repo.update_ubicacion_by_id(id_ubicacion, new_name)
-
-        if updated_count == 0:
+    def update_ubicacion(self, id_ubicacion: int, new_name: str) -> Ubicacion:
+        ubicacion_to_update = self.repo.get_ubicacion_by_id(id_ubicacion)
+        if not ubicacion_to_update:
             raise HTTPException(
                 status_code=404,
                 detail=f"No se encontró una ubicación con el ID {id_ubicacion} para actualizar."
             )
-            
-        return {"status": "success", "message": "Ubicación actualizada correctamente."}
+
+        existing_ubicacion_with_new_name = self.repo.get_ubicacion_by_name(new_name)
+        if existing_ubicacion_with_new_name and existing_ubicacion_with_new_name.id_ubicacion != id_ubicacion:
+            raise HTTPException(
+                status_code=409,  # Conflict
+                detail=f"El nombre '{new_name}' ya está en uso por otra ubicación."
+            )
+        
+        return self.repo.update_ubicacion(ubicacion_to_update, new_name)

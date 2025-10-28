@@ -59,7 +59,8 @@ Future<void> createUbicacion(String nombre) async {
     }),
   );
 
-  if (response.statusCode!= 200) {
+  // Un código de estado que no está en el rango 2xx (ej. 200, 201) indica un error.
+  if (response.statusCode < 200 || response.statusCode >= 300) {
     // Si da error 400 (ej. nombre duplicado), lanza excepción
     final errorBody = json.decode(response.body);
     throw Exception(errorBody['detail']?? 'Error desconocido al crear ubicación');

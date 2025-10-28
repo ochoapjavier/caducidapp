@@ -11,4 +11,4 @@ class Ubicacion(UbicacionBase):
     id_ubicacion: int
 
     class Config:
-        orm_mode = True
+        from_attributes = True
