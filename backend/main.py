@@ -15,11 +15,16 @@ from routers import router as inventory_router
 app = FastAPI(title="Core Inventory API (Modular)")
 
 # Configuración de CORS
-origins = ["*"]
+# En desarrollo, Flutter web puede usar cualquier puerto. Usamos una expresión regular
+# para permitir cualquier puerto en localhost.
+# En producción, deberías añadir aquí el dominio de tu aplicación web.
+origins = [
+    "http://localhost", # Para pruebas locales directas
+]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origin_regex=r'http://localhost:\d+', # Permite http://localhost:CUALQUIER_PUERTO
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

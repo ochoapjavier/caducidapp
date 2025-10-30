@@ -3,18 +3,26 @@
 -- Tabla 1: Ubicaciones (Ej. Nevera, Despensa)
 CREATE TABLE ubicacion (
     id_ubicacion SERIAL PRIMARY KEY,
-    nombre VARCHAR(100) UNIQUE NOT NULL
+    nombre VARCHAR(100) NOT NULL,
+    user_id VARCHAR(255) NOT NULL, -- ID de usuario de Firebase
+    UNIQUE(nombre, user_id) -- El nombre de la ubicación debe ser único POR USUARIO
 );
 
 -- Tabla 2: Productos Maestros (Para evitar redundancia de nombres)
 CREATE TABLE producto_maestro (
     id_producto SERIAL PRIMARY KEY,
-    nombre VARCHAR(255) UNIQUE NOT NULL
+    barcode VARCHAR(20) UNIQUE, -- El código de barras (EAN/UPC). Único pero puede ser NULL.
+    nombre VARCHAR(255) NOT NULL,
+    marca VARCHAR(100) -- La marca del producto, puede ser NULL.
 );
+
+-- Índice para búsquedas eficientes de nombres en productos sin código de barras
+CREATE INDEX idx_producto_maestro_nombre_sin_barcode ON producto_maestro (LOWER(nombre)) WHERE barcode IS NULL;
 
 -- Tabla 3: Inventario Activo (El centro de la aplicación)
 CREATE TABLE inventario_stock (
     id_stock SERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL, -- ID de usuario de Firebase
     -- Referencia al producto
     fk_producto_maestro INTEGER REFERENCES producto_maestro(id_producto) NOT NULL,
     -- Referencia a la ubicación física
@@ -23,14 +31,3 @@ CREATE TABLE inventario_stock (
     fecha_caducidad DATE NOT NULL,
     estado VARCHAR(50) DEFAULT 'Activo'
 );
-
--- Datos iniciales (Seed Data)
-INSERT INTO ubicacion (nombre) VALUES ('Nevera'), ('Despensa'), ('Congelador');
-
--- Inserción de prueba para verificar las alertas
-INSERT INTO producto_maestro (nombre) VALUES ('Leche Entera'), ('Yogur de Fresa');
-
-INSERT INTO inventario_stock (fk_producto_maestro, fk_ubicacion, cantidad_actual, fecha_caducidad)
-VALUES
-(1, 1, 1, '2025-10-30'), -- Caduca mañana (en rango de 7 días)
-(2, 1, 6, '2025-11-20'); -- Caduca mucho más tarde

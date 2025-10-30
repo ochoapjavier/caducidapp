@@ -1,33 +1,46 @@
 # backend/schemas/item.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 from datetime import date
-from .ubicacion import Ubicacion
-from .producto import Producto
 
-class ItemBase(BaseModel):
-    nombre_producto: str
+class ItemCreate(BaseModel):
+    """Schema para crear un nuevo item en el inventario."""
+    product_name: str
+    ubicacion_id: int
     cantidad: int
     fecha_caducidad: date
 
-class ItemCreate(ItemBase):
-    nombre_ubicacion: str
-
 class Item(BaseModel):
+    """Schema para devolver un item del inventario."""
     id_stock: int
-    fk_producto_maestro: int
-    fk_ubicacion: int
-    cantidad_actual: int
+    cantidad_actual: int # Coincide con el nombre del atributo en el modelo InventarioStock
     fecha_caducidad: date
-    estado: str
-
-    class Config:
-        from_attributes = True
+    # Estos campos se poblarán desde las relaciones de SQLAlchemy
+    producto_maestro: "ProductoMaestroSchema" # Referencia al schema anidado
+    ubicacion: "UbicacionSchema" # Referencia al schema anidado
+    
+    # Configuración para que Pydantic pueda mapear desde objetos SQLAlchemy
+    model_config = ConfigDict(from_attributes=True)
 
 class ItemStock(BaseModel):
-    cantidad_actual: int
+    """Schema para las alertas, similar a Item pero puede evolucionar por separado."""
+    id_stock: int
+    cantidad_actual: int # Coincide con el nombre del atributo en el modelo InventarioStock
     fecha_caducidad: date
-    producto_obj: Producto
-    ubicacion_obj: Ubicacion
+    producto_maestro: "ProductoMaestroSchema" # Referencia al schema anidado
+    ubicacion: "UbicacionSchema" # Referencia al schema anidado
+    
+    model_config = ConfigDict(from_attributes=True)
 
-    class Config:
-        from_attributes = True
+
+# Schemas auxiliares para las relaciones anidadas
+class ProductoMaestroSchema(BaseModel):
+    nombre: str
+    marca: str | None = None
+    model_config = ConfigDict(from_attributes=True)
+
+class UbicacionSchema(BaseModel):
+    nombre: str
+    model_config = ConfigDict(from_attributes=True)
+
+Item.model_rebuild()
+ItemStock.model_rebuild()

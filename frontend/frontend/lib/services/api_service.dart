@@ -115,3 +115,29 @@ Future<void> updateUbicacion(int id, String newName) async {
     throw Exception(errorBody['detail'] ?? 'Error desconocido al actualizar la ubicación.');
   }
 }
+
+/// Añade un nuevo item de stock al inventario del usuario.
+Future<void> addManualStockItem({
+  required String productName,
+  required int ubicacionId,
+  required int cantidad,
+  required DateTime fechaCaducidad,
+}) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.post(
+    Uri.parse('$apiUrl/stock/manual'), // El nuevo endpoint
+    headers: headers,
+    body: jsonEncode({
+      'product_name': productName,
+      'ubicacion_id': ubicacionId,
+      'cantidad': cantidad,
+      // Formateamos la fecha a 'YYYY-MM-DD'
+      'fecha_caducidad': fechaCaducidad.toIso8601String().split('T').first,
+    }),
+  );
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    final errorBody = json.decode(response.body);
+    throw Exception(errorBody['detail'] ?? 'Error desconocido al añadir el producto.');
+  }
+}

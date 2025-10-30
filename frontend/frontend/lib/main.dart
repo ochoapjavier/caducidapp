@@ -8,6 +8,7 @@ import 'models/alerta.dart';
 import 'services/api_service.dart';
 import 'widgets/ubicacion_manager.dart';
 import 'theme/app_theme.dart';
+import 'widgets/add_item_view.dart'; // Importamos el nuevo widget
 import 'screens/auth_screen.dart'; // Importamos la pantalla de autenticación
 
 void main() async {
@@ -104,7 +105,7 @@ class MainAppScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 2,
+      length: 3, // Cambiamos a 3 pestañas
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Gestión de Caducidades'),
@@ -139,6 +140,7 @@ class MainAppScreen extends StatelessWidget {
             tabs: [
               Tab(text: 'Alertas', icon: Icon(Icons.notifications_active_outlined)),
               Tab(text: 'Ubicaciones', icon: Icon(Icons.location_on_outlined)),
+              Tab(text: 'Añadir', icon: Icon(Icons.add_circle_outline)), // Nueva pestaña
             ],
           ),
         ),
@@ -146,6 +148,7 @@ class MainAppScreen extends StatelessWidget {
           children: [
             AlertasDashboard(),
             UbicacionManager(),
+            AddItemView(), // Usamos nuestro nuevo widget
           ],
         ),
       ),

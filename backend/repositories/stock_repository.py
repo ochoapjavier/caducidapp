@@ -1,39 +1,40 @@
 # backend/repositories/stock_repository.py
 from sqlalchemy.orm import Session, joinedload
 from datetime import date, timedelta
-from typing import List
 from .models import InventarioStock, ProductoMaestro, Ubicacion
 
 class StockRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def add_stock_item(self, prod_id: int, ubic_id: int, cantidad: int, fecha: date) -> InventarioStock:
-        nuevo_item = InventarioStock(
-            fk_producto_maestro=prod_id,
-            fk_ubicacion=ubic_id,
-            cantidad_actual=cantidad,
-            fecha_caducidad=fecha,
-            estado='Activo'
+    def create_stock_item(self, user_id: str, fk_producto_maestro: int, fk_ubicacion: int, cantidad_actual: int, fecha_caducidad: date) -> InventarioStock:
+        new_item = InventarioStock(
+            user_id=user_id,
+            fk_producto_maestro=fk_producto_maestro,
+            fk_ubicacion=fk_ubicacion,
+            cantidad_actual=cantidad_actual,
+            fecha_caducidad=fecha_caducidad
         )
-        self.db.add(nuevo_item)
+        self.db.add(new_item)
         self.db.commit()
-        self.db.refresh(nuevo_item)
-        return nuevo_item
+        self.db.refresh(new_item)
+        return new_item
 
-    def get_alertas_caducidad(self, days: int = 7) -> List[InventarioStock]:
-        fecha_inicio = date.today()
-        fecha_fin = fecha_inicio + timedelta(days=days)
-        
+    def get_alertas_caducidad_for_user(self, days: int, user_id: str) -> list[InventarioStock]:
+        today = date.today()
+        limit_date = today + timedelta(days=days)
+
         return (
             self.db.query(InventarioStock)
-            .join(ProductoMaestro, InventarioStock.fk_producto_maestro == ProductoMaestro.id_producto)
-            .join(Ubicacion, InventarioStock.fk_ubicacion == Ubicacion.id_ubicacion)
-            .options(joinedload(InventarioStock.producto_obj), joinedload(InventarioStock.ubicacion_obj))
-            .filter(
-                InventarioStock.estado == 'Activo',
-                InventarioStock.fecha_caducidad.between(fecha_inicio, fecha_fin)
+            .options(
+                joinedload(InventarioStock.producto_maestro),
+                joinedload(InventarioStock.ubicacion)
             )
-            .order_by(InventarioStock.fecha_caducidad.asc())
+            .filter(
+                InventarioStock.user_id == user_id,
+                InventarioStock.fecha_caducidad >= today,
+                InventarioStock.fecha_caducidad <= limit_date
+            )
+            .order_by(InventarioStock.fecha_caducidad)
             .all()
         )

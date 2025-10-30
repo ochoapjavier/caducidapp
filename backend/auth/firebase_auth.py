@@ -32,3 +32,12 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido")
     except Exception:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudo verificar el token")
+
+def get_current_user_id(user: dict = Depends(get_current_user)) -> str:
+    """
+    Dependencia que extrae y devuelve el UID del usuario desde el token decodificado.
+    """
+    user_id = user.get("uid")
+    if not user_id:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="No se pudo encontrar el ID de usuario en el token")
+    return user_id

@@ -1,36 +1,32 @@
 # backend/repositories/models.py
-from sqlalchemy import Column, Integer, String, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from database import Base
 
 class Ubicacion(Base):
-    __tablename__ = "ubicacion"
-
+    __tablename__ = 'ubicacion'
     id_ubicacion = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, unique=True, index=True, nullable=False)
-    
-    # Relación inversa
-    items = relationship("InventarioStock", back_populates="ubicacion_obj") # Renombrado para evitar conflicto con el atributo 'ubicacion'
+    nombre = Column(String(100), nullable=False)
+    user_id = Column(String(255), nullable=False, index=True)
+    __table_args__ = (UniqueConstraint('nombre', 'user_id', name='_nombre_user_uc'),)
 
 class ProductoMaestro(Base):
-    __tablename__ = "producto_maestro"
-
+    __tablename__ = 'producto_maestro'
     id_producto = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String, unique=True, index=True, nullable=False)
-
-    # Relación inversa
-    items = relationship("InventarioStock", back_populates="producto_obj") # Renombrado para evitar conflicto con el atributo 'producto'
+    barcode = Column(String(20), unique=True, index=True, nullable=True)
+    nombre = Column(String(255), nullable=False)
+    marca = Column(String(100), nullable=True)
 
 class InventarioStock(Base):
-    __tablename__ = "inventario_stock"
-
+    __tablename__ = 'inventario_stock'
     id_stock = Column(Integer, primary_key=True, index=True)
-    fk_producto_maestro = Column(Integer, ForeignKey("producto_maestro.id_producto"), nullable=False)
-    fk_ubicacion = Column(Integer, ForeignKey("ubicacion.id_ubicacion"), nullable=False)
+    user_id = Column(String(255), nullable=False, index=True)
+    fk_producto_maestro = Column(Integer, ForeignKey('producto_maestro.id_producto'), nullable=False)
+    fk_ubicacion = Column(Integer, ForeignKey('ubicacion.id_ubicacion'), nullable=False)
     cantidad_actual = Column(Integer, nullable=False)
     fecha_caducidad = Column(Date, nullable=False)
-    estado = Column(String, default='Activo')
+    estado = Column(String(50), default='Activo')
 
-    # Relaciones para el ORM
-    producto_obj = relationship("ProductoMaestro", back_populates="items") # Renombrado
-    ubicacion_obj = relationship("Ubicacion", back_populates="items") # Renombrado
+    # Relaciones para acceder a los objetos completos
+    producto_maestro = relationship("ProductoMaestro")
+    ubicacion = relationship("Ubicacion")
