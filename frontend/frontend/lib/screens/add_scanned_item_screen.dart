@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/models/ubicacion.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/screens/date_scanner_screen.dart';
 
 class AddScannedItemScreen extends StatefulWidget {
   final String barcode;
@@ -51,6 +52,17 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
     );
     if (pickedDate != null) {
       setState(() => _selectedDate = pickedDate);
+    }
+  }
+
+  void _scanDate() async {
+    final scannedDate = await Navigator.of(context).push<DateTime>(
+      MaterialPageRoute(builder: (ctx) => const DateScannerScreen()),
+    );
+    if (scannedDate != null) {
+      setState(() {
+        _selectedDate = scannedDate;
+      });
     }
   }
 
@@ -148,11 +160,24 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
                 },
               ),
               const SizedBox(height: 24),
-              ListTile(
-                leading: const Icon(Icons.calendar_today),
-                title: Text(_selectedDate == null ? 'Seleccionar Fecha de Caducidad' : 'Caduca: ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'),
-                onTap: _pickDate,
-                shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(4)),
+              Row(
+                children: [
+                  Expanded(
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12.0),
+                      leading: const Icon(Icons.calendar_today),
+                      title: Text(_selectedDate == null ? 'Seleccionar Fecha de Caducidad' : 'Caduca: ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'),
+                      onTap: _pickDate,
+                      shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(4)),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.camera_alt_outlined, size: 30),
+                    onPressed: _scanDate,
+                    tooltip: 'Escanear fecha con la cámara',
+                  ),
+                ],
               ),
               const SizedBox(height: 32),
               if (_isLoading)
