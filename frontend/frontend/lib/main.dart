@@ -1,6 +1,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_localizations/flutter_localizations.dart'; // Importar
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart'; // Archivo generado por FlutterFire CLI
 
@@ -8,6 +9,7 @@ import 'models/alerta.dart';
 import 'services/api_service.dart';
 import 'widgets/ubicacion_manager.dart';
 import 'theme/app_theme.dart';
+import 'widgets/inventory_view.dart'; // Importamos la nueva vista de inventario
 import 'widgets/add_item_view.dart'; // Importamos el nuevo widget
 import 'screens/auth_screen.dart'; // Importamos la pantalla de autenticación
 
@@ -105,7 +107,7 @@ class MainAppScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3, // Cambiamos a 3 pestañas
+      length: 4, // Cambiamos a 4 pestañas
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Gestión de Caducidades'),
@@ -139,14 +141,16 @@ class MainAppScreen extends StatelessWidget {
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Alertas', icon: Icon(Icons.notifications_active_outlined)),
+              Tab(text: 'Inventario', icon: Icon(Icons.inventory_2_outlined)), // Nueva pestaña
               Tab(text: 'Ubicaciones', icon: Icon(Icons.location_on_outlined)),
-              Tab(text: 'Añadir', icon: Icon(Icons.add_circle_outline)), // Nueva pestaña
+              Tab(text: 'Añadir', icon: Icon(Icons.add_circle_outline)),
             ],
           ),
         ),
         body: const TabBarView(
           children: [
             AlertasDashboard(),
+            InventoryView(), // Usamos nuestro nuevo widget de inventario
             UbicacionManager(),
             AddItemView(), // Usamos nuestro nuevo widget
           ],
@@ -164,6 +168,17 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
         title: 'Gestión de Caducidades',
         theme: AppTheme.lightTheme,
+        // --- INICIO DE CAMBIOS PARA LOCALIZACIÓN ---
+        localizationsDelegates: const [
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
+        supportedLocales: const [
+          Locale('es', 'ES'), // Español, España
+        ],
+        locale: const Locale('es', 'ES'), // Forzar el locale a español
+        // --- FIN DE CAMBIOS PARA LOCALIZACIÓN ---
         debugShowCheckedModeBanner: false,
         home: StreamBuilder(
             stream: FirebaseAuth.instance.authStateChanges(),

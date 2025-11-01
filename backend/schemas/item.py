@@ -9,6 +9,15 @@ class ItemCreate(BaseModel):
     cantidad: int
     fecha_caducidad: date
 
+class ItemCreateFromScan(BaseModel):
+    """Schema para crear un item desde un escaneo."""
+    barcode: str
+    product_name: str
+    brand: str | None = None
+    ubicacion_id: int
+    cantidad: int
+    fecha_caducidad: date
+
 class Item(BaseModel):
     """Schema para devolver un item del inventario."""
     id_stock: int

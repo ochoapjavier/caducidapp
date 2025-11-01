@@ -1,4 +1,4 @@
-// frontend/lib/screens/add_manual_item_screen.dart
+// frontend/lib/screens/add_scanned_item_screen.dart
 
 import 'package:flutter/material.dart';
 import 'package:frontend/models/ubicacion.dart';
@@ -6,109 +6,60 @@ import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/date_scanner_screen.dart';
 import 'package:intl/intl.dart'; // Importamos el paquete intl
 
-class AddManualItemScreen extends StatefulWidget {
-  const AddManualItemScreen({super.key});
+class AddScannedItemScreen extends StatefulWidget {
+  final String barcode;
+  final String productName;
+  final String? brand;
+
+  const AddScannedItemScreen({
+    super.key,
+    required this.barcode,
+    required this.productName,
+    this.brand,
+  });
 
   @override
-  State<AddManualItemScreen> createState() => _AddManualItemScreenState();
+  State<AddScannedItemScreen> createState() => _AddScannedItemScreenState();
 }
 
-class _AddManualItemScreenState extends State<AddManualItemScreen> {
-  // Clave para nuestro formulario, para validación y guardado.
+class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
   final _formKey = GlobalKey<FormState>();
-
-  // Controladores para los campos de texto.
-  final _productNameController = TextEditingController();
-  final _quantityController = TextEditingController(text: '1'); // Valor por defecto
+  final _quantityController = TextEditingController(text: '1');
   final _dateController = TextEditingController(); // Controlador para la fecha
 
-  // Variables para almacenar los valores del formulario.
   int? _selectedUbicacionId;
   DateTime? _selectedDate;
-  
-  // Estado para manejar la carga de la API y el Future para las ubicaciones.
   var _isLoading = false;
   late Future<List<Ubicacion>> _ubicacionesFuture;
 
   @override
   void initState() {
     super.initState();
-    // Al iniciar la pantalla, cargamos las ubicaciones del usuario.
     _ubicacionesFuture = fetchUbicaciones();
   }
 
   @override
   void dispose() {
-    // Limpiamos los controladores cuando la pantalla se destruye.
-    _productNameController.dispose();
     _quantityController.dispose();
     _dateController.dispose();
     super.dispose();
   }
 
-  /// Muestra el selector de fecha y actualiza el estado.
   void _presentDatePicker() {
     showDatePicker(
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(2101),
-      // El locale se toma automáticamente de la configuración en main.dart
     ).then((pickedDate) {
       if (pickedDate == null) {
         return;
       }
       setState(() {
         _selectedDate = pickedDate;
-        // Usamos intl para formatear la fecha a dd/MM/yyyy
         _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate!);
       });
     });
-  }
-
-  /// Valida y envía el formulario al backend.
-  void _submitForm() async {
-    final isValid = _formKey.currentState?.validate() ?? false;
-
-    if (!isValid || _selectedDate == null) {
-      // Si la fecha no está seleccionada, muestra un mensaje.
-      if (_selectedDate == null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor, selecciona una fecha de caducidad.')),
-        );
-      }
-      return;
-    }
-
-    _formKey.currentState!.save();
-
-    setState(() { _isLoading = true; });
-
-    try {
-      await addManualStockItem(
-        productName: _productNameController.text,
-        ubicacionId: _selectedUbicacionId!,
-        cantidad: int.parse(_quantityController.text),
-        fechaCaducidad: _selectedDate!,
-      );
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Producto añadido con éxito.'), backgroundColor: Colors.green),
-        );
-        Navigator.of(context).pop(); // Vuelve a la pantalla anterior.
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Theme.of(context).colorScheme.error),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() { _isLoading = false; });
-      }
-    }
   }
 
   void _scanDate() async {
@@ -118,7 +69,51 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
     if (scannedDate != null) {
       setState(() {
         _selectedDate = scannedDate;
+        _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate!);
       });
+    }
+  }
+
+  void _submitForm() async {
+    final isValid = _formKey.currentState?.validate() ?? false;
+    if (!isValid || _selectedDate == null) {
+      if (_selectedDate == null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Por favor, selecciona una fecha de caducidad.')),
+        );
+      }
+      return;
+    }
+    _formKey.currentState!.save();
+    setState(() => _isLoading = true);
+
+    try {
+      await addScannedStockItem(
+        barcode: widget.barcode,
+        productName: widget.productName,
+        brand: widget.brand,
+        ubicacionId: _selectedUbicacionId!,
+        cantidad: int.parse(_quantityController.text),
+        fechaCaducidad: _selectedDate!,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Producto añadido con éxito.'), backgroundColor: Colors.green),
+        );
+        // Cierra la pantalla de confirmación y la del escáner, volviendo a la principal.
+        Navigator.of(context).popUntil((route) => route.isFirst);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Theme.of(context).colorScheme.error),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -126,24 +121,23 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Añadir Producto Manualmente'),
+        title: const Text('Confirmar Producto'),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: ListView( // Usamos ListView para evitar desbordamientos en pantallas pequeñas.
+          child: ListView(
             children: [
-              // --- CAMPO NOMBRE DEL PRODUCTO ---
-              TextFormField(
-                controller: _productNameController,
-                decoration: const InputDecoration(labelText: 'Nombre del Producto'),
-                textCapitalization: TextCapitalization.sentences,
-                validator: (value) => (value == null || value.trim().isEmpty) ? 'Introduce un nombre.' : null,
+              // Mostramos la información del producto (no editable)
+              ListTile(
+                leading: const Icon(Icons.label_important_outline),
+                title: Text(widget.productName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                subtitle: Text(widget.brand ?? 'Marca no disponible'),
               ),
-              const SizedBox(height: 16),
+              const Divider(height: 32),
 
-              // --- DROPDOWN DE UBICACIONES ---
+              // El resto del formulario es igual al manual
               FutureBuilder<List<Ubicacion>>(
                 future: _ubicacionesFuture,
                 builder: (context, snapshot) {
@@ -151,30 +145,18 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
                     return const Center(child: CircularProgressIndicator());
                   }
                   if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
-                    return const Text('No se pudieron cargar las ubicaciones. Añade una en la pestaña "Ubicaciones".');
+                    return const Text('No se pudieron cargar las ubicaciones.');
                   }
-                  
                   return DropdownButtonFormField<int>(
                     value: _selectedUbicacionId,
                     decoration: const InputDecoration(labelText: 'Ubicación'),
-                    items: snapshot.data!.map((ubicacion) {
-                      return DropdownMenuItem(
-                        value: ubicacion.id,
-                        child: Text(ubicacion.nombre),
-                      );
-                    }).toList(),
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedUbicacionId = value;
-                      });
-                    },
+                    items: snapshot.data!.map((ubicacion) => DropdownMenuItem(value: ubicacion.id, child: Text(ubicacion.nombre))).toList(),
+                    onChanged: (value) => setState(() => _selectedUbicacionId = value),
                     validator: (value) => (value == null) ? 'Selecciona una ubicación.' : null,
                   );
                 },
               ),
               const SizedBox(height: 16),
-
-              // --- CAMPO CANTIDAD ---
               TextFormField(
                 controller: _quantityController,
                 decoration: const InputDecoration(labelText: 'Cantidad'),
@@ -186,8 +168,6 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
                 },
               ),
               const SizedBox(height: 24),
-
-              // --- SELECTOR DE FECHA ---
               Row(
                 children: [
                   Expanded(child: TextFormField(
@@ -197,12 +177,10 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
                       prefixIcon: Icon(Icons.calendar_today),
                       border: OutlineInputBorder(),
                     ),
-                    readOnly: true, // Para forzar el uso del picker
+                    readOnly: true,
                     onTap: _presentDatePicker,
                     validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Por favor, selecciona una fecha.';
-                      }
+                      if (value == null || value.isEmpty) return 'Selecciona una fecha.';
                       return null;
                     },
                   )),
@@ -215,8 +193,6 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
                 ],
               ),
               const SizedBox(height: 32),
-
-              // --- BOTÓN DE GUARDAR ---
               if (_isLoading)
                 const Center(child: CircularProgressIndicator())
               else
@@ -224,9 +200,7 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
                   onPressed: _submitForm,
                   icon: const Icon(Icons.save),
                   label: const Text('Guardar Producto'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
+                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
                 ),
             ],
           ),

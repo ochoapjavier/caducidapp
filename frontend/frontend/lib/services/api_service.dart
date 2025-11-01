@@ -6,8 +6,10 @@ import 'package:firebase_auth/firebase_auth.dart'; // Importamos Firebase Auth
 import '../models/alerta.dart';
 import '../models/ubicacion.dart';
 
-// URL base de tu API Core (usando el host y el prefijo de FastAPI)
-const String apiUrl = 'http://localhost:8000/api/v1/inventory';
+// URL base de tu API Core.
+// Usa 'http://10.0.2.2:8000' para el emulador de Android.
+// Usa la IP local de tu PC (ej. http://192.168.1.145:8000) para un dispositivo físico.
+const String apiUrl = 'http://192.168.1.145:8000/api/v1/inventory'; // <-- ¡CAMBIA ESTA IP POR LA TUYA!
 
 // Función auxiliar para obtener las cabeceras con el token de autenticación
 Future<Map<String, String>> _getAuthHeaders() async {
@@ -139,5 +141,95 @@ Future<void> addManualStockItem({
   if (response.statusCode < 200 || response.statusCode >= 300) {
     final errorBody = json.decode(response.body);
     throw Exception(errorBody['detail'] ?? 'Error desconocido al añadir el producto.');
+  }
+}
+
+/// Busca un producto en la API de Open Food Facts usando su código de barras.
+Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(String barcode) async {
+  final uri = Uri.parse('https://world.openfoodfacts.org/api/v2/product/$barcode.json');
+  try {
+    final response = await http.get(uri);
+
+    if (response.statusCode == 200) {
+      final data = json.decode(response.body);
+      // La API devuelve status: 0 si no encuentra el producto.
+      if (data['status'] == 0) {
+        return null;
+      }
+      return data['product'];
+    }
+    return null;
+  } catch (e) {
+    // Si hay un error de red o de parsing, devolvemos null.
+    return null;
+  }
+}
+
+/// Añade un nuevo item de stock desde un escaneo.
+Future<void> addScannedStockItem({
+  required String barcode,
+  required String productName,
+  String? brand,
+  required int ubicacionId,
+  required int cantidad,
+  required DateTime fechaCaducidad,
+}) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.post(
+    Uri.parse('$apiUrl/stock/from-scan'), // El endpoint para escaneos
+    headers: headers,
+    body: jsonEncode({
+      'barcode': barcode,
+      'product_name': productName,
+      'brand': brand,
+      'ubicacion_id': ubicacionId,
+      'cantidad': cantidad,
+      'fecha_caducidad': fechaCaducidad.toIso8601String().split('T').first,
+    }),
+  );
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    final errorBody = json.decode(response.body);
+    throw Exception(errorBody['detail'] ?? 'Error desconocido al añadir el producto escaneado.');
+  }
+}
+
+/// Obtiene todos los items de stock para el usuario actual.
+/// Opcionalmente puede filtrar por un término de búsqueda.
+Future<List<dynamic>> fetchStockItems({String? searchTerm}) async {
+  final headers = await _getAuthHeaders();
+  var uri = Uri.parse('$apiUrl/stock/');
+
+  if (searchTerm != null && searchTerm.isNotEmpty) {
+    uri = uri.replace(queryParameters: {'search': searchTerm});
+  }
+
+  final response = await http.get(uri, headers: headers);
+
+  if (response.statusCode == 200) {
+    // El backend devuelve una lista de objetos JSON.
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    throw Exception('Error al cargar el inventario: ${response.statusCode}');
+  }
+}
+
+/// Llama al endpoint para consumir una unidad de un item de stock.
+Future<Map<String, dynamic>> consumeStockItem(int stockId) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.patch(
+    Uri.parse('$apiUrl/stock/$stockId/consume'),
+    headers: headers,
+  );
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    try {
+      final errorBody = json.decode(utf8.decode(response.bodyBytes));
+      throw Exception(errorBody['detail'] ?? 'Error desconocido al consumir el producto.');
+    } catch (e) {
+      throw Exception('Error al consumir el producto. Código: ${response.statusCode}');
+    }
   }
 }
