@@ -193,3 +193,43 @@ Future<void> addScannedStockItem({
     throw Exception(errorBody['detail'] ?? 'Error desconocido al añadir el producto escaneado.');
   }
 }
+
+/// Obtiene todos los items de stock para el usuario actual.
+/// Opcionalmente puede filtrar por un término de búsqueda.
+Future<List<dynamic>> fetchStockItems({String? searchTerm}) async {
+  final headers = await _getAuthHeaders();
+  var uri = Uri.parse('$apiUrl/stock/');
+
+  if (searchTerm != null && searchTerm.isNotEmpty) {
+    uri = uri.replace(queryParameters: {'search': searchTerm});
+  }
+
+  final response = await http.get(uri, headers: headers);
+
+  if (response.statusCode == 200) {
+    // El backend devuelve una lista de objetos JSON.
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    throw Exception('Error al cargar el inventario: ${response.statusCode}');
+  }
+}
+
+/// Llama al endpoint para consumir una unidad de un item de stock.
+Future<Map<String, dynamic>> consumeStockItem(int stockId) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.patch(
+    Uri.parse('$apiUrl/stock/$stockId/consume'),
+    headers: headers,
+  );
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    try {
+      final errorBody = json.decode(utf8.decode(response.bodyBytes));
+      throw Exception(errorBody['detail'] ?? 'Error desconocido al consumir el producto.');
+    } catch (e) {
+      throw Exception('Error al consumir el producto. Código: ${response.statusCode}');
+    }
+  }
+}

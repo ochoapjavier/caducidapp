@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/models/ubicacion.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/date_scanner_screen.dart';
+import 'package:intl/intl.dart'; // Importamos el paquete intl
 
 class AddManualItemScreen extends StatefulWidget {
   const AddManualItemScreen({super.key});
@@ -19,6 +20,7 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
   // Controladores para los campos de texto.
   final _productNameController = TextEditingController();
   final _quantityController = TextEditingController(text: '1'); // Valor por defecto
+  final _dateController = TextEditingController(); // Controlador para la fecha
 
   // Variables para almacenar los valores del formulario.
   int? _selectedUbicacionId;
@@ -40,24 +42,28 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
     // Limpiamos los controladores cuando la pantalla se destruye.
     _productNameController.dispose();
     _quantityController.dispose();
+    _dateController.dispose();
     super.dispose();
   }
 
   /// Muestra el selector de fecha y actualiza el estado.
-  void _pickDate() async {
-    final now = DateTime.now();
-    final pickedDate = await showDatePicker(
+  void _presentDatePicker() {
+    showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: now, // No se pueden seleccionar fechas pasadas.
-      lastDate: DateTime(now.year + 5),
-    );
-
-    if (pickedDate != null) {
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
+      // El locale se toma automáticamente de la configuración en main.dart
+    ).then((pickedDate) {
+      if (pickedDate == null) {
+        return;
+      }
       setState(() {
         _selectedDate = pickedDate;
+        // Usamos intl para formatear la fecha a dd/MM/yyyy
+        _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate!);
       });
-    }
+    });
   }
 
   /// Valida y envía el formulario al backend.
@@ -184,22 +190,22 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
               // --- SELECTOR DE FECHA ---
               Row(
                 children: [
-                  Expanded(
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12.0),
-                      leading: const Icon(Icons.calendar_today),
-                      title: Text(
-                        _selectedDate == null
-                            ? 'Seleccionar Fecha de Caducidad'
-                            : 'Caduca: ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}',
-                      ),
-                      onTap: _pickDate,
-                      shape: RoundedRectangleBorder(
-                        side: BorderSide(color: Colors.grey.shade400),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
+                  Expanded(child: TextFormField(
+                    controller: _dateController,
+                    decoration: const InputDecoration(
+                      labelText: 'Fecha de Caducidad',
+                      prefixIcon: Icon(Icons.calendar_today),
+                      border: OutlineInputBorder(),
                     ),
-                  ),
+                    readOnly: true, // Para forzar el uso del picker
+                    onTap: _presentDatePicker,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor, selecciona una fecha.';
+                      }
+                      return null;
+                    },
+                  )),
                   const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.camera_alt_outlined, size: 30),

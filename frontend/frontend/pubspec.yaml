@@ -31,6 +31,10 @@ dependencies:
   flutter:
     sdk: flutter
 
+  flutter_localizations: # <-- AÑADE ESTA LÍNEA
+    sdk: flutter         # <-- AÑADE ESTA LÍNEA
+  intl: ^0.20.2          # <-- AÑADE ESTA LÍNEA (o la versión más reciente)
+
   firebase_core: ^2.32.0
   firebase_auth: ^4.20.0
 

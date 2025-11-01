@@ -4,6 +4,7 @@ import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/screens/add_manual_item_screen.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/add_scanned_item_screen.dart';
+import 'package:intl/intl.dart';
 
 class AddItemView extends StatelessWidget {
   const AddItemView({super.key});
@@ -41,11 +42,20 @@ class AddItemView extends StatelessWidget {
                   if (productData != null && context.mounted) {
                     // Producto encontrado, navegamos a la pantalla de confirmación
                     Navigator.of(context).push(MaterialPageRoute(
-                      builder: (ctx) => AddScannedItemScreen(
-                        barcode: barcode,
-                        productName: productData['product_name'] ?? 'Nombre no encontrado',
-                        brand: productData['brands'],
-                      ),
+                      builder: (ctx) {
+                        // --- INICIO DE LA NUEVA LÓGICA DE SELECCIÓN DE NOMBRE ---
+                        final nameEs = productData['product_name_es'] as String?;
+                        final nameEn = productData['product_name_en'] as String?;
+                        final nameGeneric = productData['product_name'] as String?;
+
+                        final productName = (nameEs != null && nameEs.isNotEmpty) ? nameEs
+                                          : (nameEn != null && nameEn.isNotEmpty) ? nameEn
+                                          : (nameGeneric != null && nameGeneric.isNotEmpty) ? nameGeneric
+                                          : 'Nombre no encontrado';
+                        // --- FIN DE LA NUEVA LÓGICA ---
+
+                        return AddScannedItemScreen(barcode: barcode, productName: productName, brand: productData['brands']);
+                      },
                     ));
                   } else if (context.mounted) {
                     // Producto no encontrado

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/models/ubicacion.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/date_scanner_screen.dart';
+import 'package:intl/intl.dart'; // Importamos el paquete intl
 
 class AddScannedItemScreen extends StatefulWidget {
   final String barcode;
@@ -24,6 +25,7 @@ class AddScannedItemScreen extends StatefulWidget {
 class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
   final _formKey = GlobalKey<FormState>();
   final _quantityController = TextEditingController(text: '1');
+  final _dateController = TextEditingController(); // Controlador para la fecha
 
   int? _selectedUbicacionId;
   DateTime? _selectedDate;
@@ -39,20 +41,25 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
   @override
   void dispose() {
     _quantityController.dispose();
+    _dateController.dispose();
     super.dispose();
   }
 
-  void _pickDate() async {
-    final now = DateTime.now();
-    final pickedDate = await showDatePicker(
+  void _presentDatePicker() {
+    showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: now,
-      lastDate: DateTime(now.year + 5),
-    );
-    if (pickedDate != null) {
-      setState(() => _selectedDate = pickedDate);
-    }
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
+    ).then((pickedDate) {
+      if (pickedDate == null) {
+        return;
+      }
+      setState(() {
+        _selectedDate = pickedDate;
+        _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate!);
+      });
+    });
   }
 
   void _scanDate() async {
@@ -62,6 +69,7 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
     if (scannedDate != null) {
       setState(() {
         _selectedDate = scannedDate;
+        _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate!);
       });
     }
   }
@@ -162,15 +170,20 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  Expanded(
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12.0),
-                      leading: const Icon(Icons.calendar_today),
-                      title: Text(_selectedDate == null ? 'Seleccionar Fecha de Caducidad' : 'Caduca: ${_selectedDate!.day}/${_selectedDate!.month}/${_selectedDate!.year}'),
-                      onTap: _pickDate,
-                      shape: RoundedRectangleBorder(side: BorderSide(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(4)),
+                  Expanded(child: TextFormField(
+                    controller: _dateController,
+                    decoration: const InputDecoration(
+                      labelText: 'Fecha de Caducidad',
+                      prefixIcon: Icon(Icons.calendar_today),
+                      border: OutlineInputBorder(),
                     ),
-                  ),
+                    readOnly: true,
+                    onTap: _presentDatePicker,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) return 'Selecciona una fecha.';
+                      return null;
+                    },
+                  )),
                   const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.camera_alt_outlined, size: 30),
