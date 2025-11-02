@@ -17,6 +17,7 @@ class ProductoMaestro(Base):
     barcode = Column(String(20), index=True, nullable=True)
     nombre = Column(String(255), nullable=False)
     marca = Column(String(100), nullable=True)
+    image_url = Column(String(512), nullable=True) # <-- AÑADIR ESTA LÍNEA
     # AÑADIDO: La columna user_id que faltaba en el modelo.
     user_id = Column(String(255), nullable=False, index=True)
 

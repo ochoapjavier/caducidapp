@@ -138,12 +138,54 @@ class InventoryViewState extends State<InventoryView> {
                           final productName = item['producto_maestro']['nombre'];
                           final brand = item['producto_maestro']['marca'];
                           final quantity = item['cantidad_actual'];
+                          final imageUrl = item['producto_maestro']['image_url']; // <-- OBTENEMOS LA URL
                           final expiryDate = DateTime.parse(item['fecha_caducidad']);
                           final stockId = item['id_stock'];
 
                           return ListTile(
                             contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                            title: Text(brand != null ? '$productName - $brand' : productName),
+                            // --- INICIO: WIDGET DE IMAGEN ---
+                            // Aumentamos el radio del CircleAvatar para una imagen más grande y visible.
+                            leading: CircleAvatar(
+                              radius: 28, // <-- TAMAÑO AUMENTADO
+                              backgroundColor: Colors.grey[200],
+                              // Si hay URL, intentamos cargar la imagen de red.
+                              // Si no, mostramos un icono por defecto.
+                              child: imageUrl != null
+                                ? ClipOval(
+                                    child: Image.network(
+                                      imageUrl,
+                                      fit: BoxFit.cover,
+                                      width: 56, // <-- TAMAÑO AUMENTADO (2 * radio)
+                                      height: 56, // <-- TAMAÑO AUMENTADO (2 * radio)
+                                      // Widget que se muestra mientras carga la imagen
+                                      loadingBuilder: (context, child, progress) => progress == null ? child : const CircularProgressIndicator(strokeWidth: 2),
+                                      // Widget que se muestra si hay un error al cargar
+                                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, color: Colors.grey),
+                                    ),
+                                  )
+                                : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 28),
+                            ),
+                            // --- FIN: WIDGET DE IMAGEN ---
+                            // --- INICIO: TÍTULO MEJORADO (UX/UI) ---
+                            // Usamos una Columna para separar el nombre y la marca,
+                            // dando más jerarquía visual al nombre del producto.
+                            title: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(productName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                                if (brand != null && brand.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 2.0),
+                                    child: Text(
+                                      brand,
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            // --- FIN: TÍTULO MEJORADO (UX/UI) ---
                             subtitle: Text('Caduca: ${expiryDate.day}/${expiryDate.month}/${expiryDate.year}'),
                             trailing: Row(
                               mainAxisSize: MainAxisSize.min,

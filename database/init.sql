@@ -15,6 +15,7 @@ CREATE TABLE producto_maestro (
     barcode VARCHAR(20), -- El código de barras (EAN/UPC). Puede ser NULL.
     nombre VARCHAR(255) NOT NULL,
     marca VARCHAR(100), -- La marca del producto, puede ser NULL.
+    image_url VARCHAR(512), -- NUEVO: URL a la miniatura de la imagen del producto.
     -- El código de barras debe ser único POR USUARIO.
     UNIQUE(barcode, user_id)
 );

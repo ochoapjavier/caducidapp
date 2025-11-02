@@ -10,6 +10,7 @@ class AddScannedItemScreen extends StatefulWidget {
   final String barcode;
   final String initialProductName;
   final String? initialBrand;
+  final String? initialImageUrl; // <-- NUEVO: Recibimos la URL de la imagen
   final bool isFromLocalDB; // Para saber si debemos ofrecer la actualización
 
   const AddScannedItemScreen({
@@ -17,6 +18,7 @@ class AddScannedItemScreen extends StatefulWidget {
     required this.barcode,
     required this.initialProductName,
     this.initialBrand,
+    this.initialImageUrl,
     required this.isFromLocalDB,
   });
 
@@ -155,6 +157,7 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
         barcode: widget.barcode,
         productName: _productNameController.text,
         brand: _brandController.text.isNotEmpty ? _brandController.text : null,
+        imageUrl: widget.initialImageUrl, // <-- NUEVO: Pasamos la URL al guardar
         ubicacionId: _selectedUbicacionId!,
         cantidad: int.parse(_quantityController.text),
         fechaCaducidad: _selectedDate!,

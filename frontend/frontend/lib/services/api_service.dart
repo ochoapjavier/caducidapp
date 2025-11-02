@@ -123,6 +123,7 @@ Future<void> addManualStockItem({
   required String productName,
   String? brand, // <-- NUEVO: Parámetro opcional para la marca
   String? barcode, // <-- NUEVO: Parámetro opcional para el EAN
+  String? imageUrl, // <-- NUEVO: Parámetro para la URL de la imagen
   required int ubicacionId,
   required int cantidad,
   required DateTime fechaCaducidad,
@@ -135,6 +136,7 @@ Future<void> addManualStockItem({
       'product_name': productName,
       'brand': brand, // <-- NUEVO: Se añade al cuerpo de la petición
       'barcode': barcode, // <-- NUEVO: Se añade al cuerpo de la petición
+      'image_url': imageUrl, // <-- NUEVO: Se añade al cuerpo de la petición
       'ubicacion_id': ubicacionId,
       'cantidad': cantidad,
       // Formateamos la fecha a 'YYYY-MM-DD'

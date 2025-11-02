@@ -7,6 +7,7 @@ class ItemCreate(BaseModel):
     product_name: str
     barcode: str | None = None # <-- NUEVO: Campo opcional para el EAN
     brand: str | None = None # <-- NUEVO: Campo opcional para la marca
+    image_url: str | None = None
     ubicacion_id: int
     cantidad: int
     fecha_caducidad: date
@@ -16,6 +17,7 @@ class ItemCreateFromScan(BaseModel):
     barcode: str
     product_name: str
     brand: str | None = None
+    image_url: str | None = None
     ubicacion_id: int
     cantidad: int
     fecha_caducidad: date
@@ -48,6 +50,7 @@ class ProductoMaestroSchema(BaseModel):
     id_producto: int
     nombre: str
     marca: str | None = None
+    image_url: str | None = None
     model_config = ConfigDict(from_attributes=True)
 
 class UbicacionSchema(BaseModel):

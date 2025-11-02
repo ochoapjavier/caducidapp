@@ -31,7 +31,7 @@ class ProductoMaestroRepository:
                  ProductoMaestro.user_id == user_id)
         ).first()
 
-    def get_or_create_by_barcode(self, barcode: str, name: str, brand: str | None, user_id: str) -> ProductoMaestro:
+    def get_or_create_by_barcode(self, barcode: str, name: str, brand: str | None, user_id: str, image_url: str | None = None) -> ProductoMaestro:
         producto = self.get_by_barcode_and_user(barcode, user_id) # Busca el producto para este usuario
 
         if not producto:
@@ -40,7 +40,8 @@ class ProductoMaestroRepository:
                 barcode=barcode,
                 nombre=name,
                 marca=brand,
-                user_id=user_id
+                user_id=user_id,
+                image_url=image_url # Guardamos la URL de la imagen
             )
             self.db.add(producto)
             self.db.commit()

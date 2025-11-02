@@ -59,6 +59,7 @@ class AddItemView extends StatelessWidget {
                                 : (nameGeneric != null && nameGeneric.isNotEmpty) ? nameGeneric
                                 : 'Nombre no encontrado',
                         'marca': offData['brands'],
+                        'image_url': offData['image_front_thumb_url'], // <-- AÑADIMOS LA URL DE LA IMAGEN
                       };
                     }
                   }
@@ -73,6 +74,7 @@ class AddItemView extends StatelessWidget {
                         barcode: barcode,
                         initialProductName: productData!['nombre'] as String,
                         initialBrand: productData['marca'] as String?,
+                        initialImageUrl: productData['image_url'] as String?, // <-- LA PASAMOS A LA PANTALLA
                         isFromLocalDB: foundInLocalDB, // Le decimos a la pantalla de dónde vienen los datos
                       ),
                     ));

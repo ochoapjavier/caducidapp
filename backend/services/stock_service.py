@@ -28,7 +28,8 @@ class StockService:
                 barcode=item_data.barcode,
                 name=item_data.product_name,
                 brand=item_data.brand,
-                user_id=user_id # Pasamos el user_id
+                user_id=user_id, # Pasamos el user_id
+                image_url=item_data.image_url # Pasamos la URL de la imagen
             )
         else:
             producto_maestro = self.producto_repo.get_or_create_by_name(item_data.product_name, user_id)
@@ -73,7 +74,8 @@ class StockService:
             barcode=item_data.barcode,
             name=item_data.product_name,
             brand=item_data.brand,
-            user_id=user_id # Pasamos el user_id
+            user_id=user_id, # Pasamos el user_id
+            image_url=item_data.image_url # Pasamos la URL de la imagen
         )
 
         # 3. Lógica de agrupación: Buscar si ya existe este producto en esta ubicación para este usuario.
