@@ -90,6 +90,36 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
     });
   }
 
+  void _incrementQuantity() {
+    if (_selectedStockItem == null) return;
+    final currentQuantity = int.tryParse(_quantityController.text) ?? 0;
+    final maxQuantity = _selectedStockItem!['cantidad_actual'] as int;
+
+    if (currentQuantity < maxQuantity) {
+      setState(() {
+        _quantityController.text = (currentQuantity + 1).toString();
+      });
+    }
+  }
+
+  void _decrementQuantity() {
+    if (_selectedStockItem == null) return;
+    final currentQuantity = int.tryParse(_quantityController.text) ?? 0;
+
+    if (currentQuantity > 1) {
+      setState(() {
+        _quantityController.text = (currentQuantity - 1).toString();
+      });
+    }
+  }
+
+  // Listener para re-evaluar el estado de los botones cuando el texto cambia manualmente
+  void _onQuantityChanged() {
+    // Usamos setState para forzar una reconstrucción del widget y
+    // que los botones de + y - actualicen su estado (activado/desactivado).
+    setState(() {});
+  }
+
   void _showConfirmationDialog() {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -166,6 +196,11 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
             return Center(child: Text('Error al cargar: ${snapshot.error}'));
           }
 
+          // Variables para controlar el estado de los botones de cantidad
+          final bool isItemSelected = _selectedStockItem != null;
+          final int currentQuantity = int.tryParse(_quantityController.text) ?? 0;
+          final int maxQuantity = isItemSelected ? _selectedStockItem!['cantidad_actual'] : 0;
+
           // Una vez cargado, mostramos el formulario
           return Padding(
             padding: const EdgeInsets.all(16.0),
@@ -212,11 +247,23 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
                   // 3. Campo de Cantidad
                   TextFormField(
                     controller: _quantityController,
+                    textAlign: TextAlign.center, // Centramos el texto para mejor UX
                     decoration: InputDecoration(
                       labelText: 'Cantidad a Eliminar',
                       border: const OutlineInputBorder(),
-                      enabled: _selectedStockItem != null,
+                      enabled: isItemSelected,
+                      // Botón para decrementar
+                      prefixIcon: IconButton(
+                        icon: const Icon(Icons.remove_circle_outline),
+                        onPressed: isItemSelected && currentQuantity > 1 ? _decrementQuantity : null,
+                      ),
+                      // Botón para incrementar
+                      suffixIcon: IconButton(
+                        icon: const Icon(Icons.add_circle_outline),
+                        onPressed: isItemSelected && currentQuantity < maxQuantity ? _incrementQuantity : null,
+                      ),
                     ),
+                    onChanged: (value) => _onQuantityChanged(), // Escuchamos cambios manuales
                     keyboardType: TextInputType.number,
                     validator: (value) {
                       if (value == null || value.isEmpty) {

@@ -1,6 +1,8 @@
 // frontend/lib/widgets/remove_item_view.dart
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/remove_manual_item_screen.dart';
+import 'package:frontend/screens/scanner_screen.dart';
+import 'package:frontend/screens/remove_scanned_item_screen.dart';
 // import 'package:frontend/screens/remove_scanned_item_screen.dart';
 
 class RemoveItemView extends StatelessWidget {
@@ -25,11 +27,20 @@ class RemoveItemView extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   textStyle: Theme.of(context).textTheme.titleLarge,
                 ),
-                onPressed: () {
-                  // TODO: Navegar a la pantalla de eliminación por escáner
-                    ScaffoldMessenger.of(context).showSnackBar(
-                     const SnackBar(content: Text('Flujo de escáner para salida no implementado.')),
-                   );
+                onPressed: () async {
+                  // 1. Navega a la pantalla del escáner y espera un código de barras.
+                  final barcode = await Navigator.of(context).push<String>(
+                    MaterialPageRoute(builder: (ctx) => const ScannerScreen()),
+                  );
+
+                  // 2. Si se escaneó un código y el widget sigue montado...
+                  if (barcode != null && context.mounted) {
+                    // 3. Navega a la nueva pantalla de selección, pasándole el código.
+                    Navigator.of(context).push(MaterialPageRoute(
+                      builder: (ctx) =>
+                          RemoveScannedItemScreen(barcode: barcode),
+                    ));
+                  }
                 },
               ),
               const SizedBox(height: 24),
