@@ -11,13 +11,16 @@ CREATE TABLE ubicacion (
 -- Tabla 2: Productos Maestros (Para evitar redundancia de nombres)
 CREATE TABLE producto_maestro (
     id_producto SERIAL PRIMARY KEY,
-    barcode VARCHAR(20) UNIQUE, -- El código de barras (EAN/UPC). Único pero puede ser NULL.
+    user_id VARCHAR(255) NOT NULL, -- ID de usuario de Firebase
+    barcode VARCHAR(20), -- El código de barras (EAN/UPC). Puede ser NULL.
     nombre VARCHAR(255) NOT NULL,
-    marca VARCHAR(100) -- La marca del producto, puede ser NULL.
+    marca VARCHAR(100), -- La marca del producto, puede ser NULL.
+    -- El código de barras debe ser único POR USUARIO.
+    UNIQUE(barcode, user_id)
 );
 
 -- Índice para búsquedas eficientes de nombres en productos sin código de barras
-CREATE INDEX idx_producto_maestro_nombre_sin_barcode ON producto_maestro (LOWER(nombre)) WHERE barcode IS NULL;
+CREATE INDEX idx_producto_maestro_nombre_sin_barcode_user ON producto_maestro (LOWER(nombre), user_id) WHERE barcode IS NULL;
 
 -- Tabla 3: Inventario Activo (El centro de la aplicación)
 CREATE TABLE inventario_stock (

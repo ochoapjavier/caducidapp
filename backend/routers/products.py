@@ -23,8 +23,11 @@ def get_product_by_barcode(
 ):
     """Busca un producto maestro por su código de barras."""
     repo = ProductoMaestroRepository(db)
-    product = repo.get_by_barcode(barcode)
+    # CORRECCIÓN: Usar el método que filtra por usuario y pasar el user_id.
+    product = repo.get_by_barcode_and_user(barcode, user_id)
     if not product:
+        # Es importante que si el producto no pertenece al usuario, se devuelva un 404.
+        # El frontend está preparado para manejar este caso.
         raise HTTPException(status_code=404, detail="Producto no encontrado en el catálogo maestro.")
     return product
 
@@ -37,10 +40,12 @@ def update_product_by_barcode(
 ):
     """Actualiza el nombre y/o marca de un producto maestro existente."""
     repo = ProductoMaestroRepository(db)
+    # CORRECCIÓN: Pasar el user_id al método de actualización.
     updated_product = repo.update_product_by_barcode(
         barcode=barcode,
         new_name=product_update.nombre,
-        new_brand=product_update.marca
+        new_brand=product_update.marca,
+        user_id=user_id
     )
     if not updated_product:
         raise HTTPException(status_code=404, detail="No se pudo actualizar. Producto no encontrado.")

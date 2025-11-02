@@ -13,10 +13,15 @@ class Ubicacion(Base):
 class ProductoMaestro(Base):
     __tablename__ = 'producto_maestro'
     id_producto = Column(Integer, primary_key=True, index=True)
-    barcode = Column(String(20), unique=True, index=True, nullable=True)
+    # El barcode ya no es único globalmente, sino por usuario.
+    barcode = Column(String(20), index=True, nullable=True)
     nombre = Column(String(255), nullable=False)
     marca = Column(String(100), nullable=True)
+    # AÑADIDO: La columna user_id que faltaba en el modelo.
+    user_id = Column(String(255), nullable=False, index=True)
 
+    # AÑADIDO: Restricción para que el barcode sea único por usuario.
+    __table_args__ = (UniqueConstraint('barcode', 'user_id', name='_barcode_user_uc'),)
 class InventarioStock(Base):
     __tablename__ = 'inventario_stock'
     id_stock = Column(Integer, primary_key=True, index=True)
