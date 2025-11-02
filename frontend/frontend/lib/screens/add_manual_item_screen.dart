@@ -133,11 +133,13 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
     setState(() { _isLoading = true; });
 
     // --- NUEVA LÓGICA DE CONFIRMACIÓN DE ACTUALIZACIÓN ---
-    final bool hasBarcode = _barcodeController.text.isNotEmpty;
-    final bool nameHasChanged = _originalProductName != null && _productNameController.text != _originalProductName;
-    final bool brandHasChanged = _originalBrand != _brandController.text; // Compara incluso si son null
+    // CORRECCIÓN: El diálogo solo debe aparecer si encontramos un producto original en la BBDD
+    // y si los datos actuales son diferentes a los originales.
+    final bool productWasFound = _originalProductName != null;
+    final bool nameHasChanged = productWasFound && _productNameController.text != _originalProductName;
+    final bool brandHasChanged = productWasFound && _brandController.text != (_originalBrand ?? '');
 
-    if (hasBarcode && (nameHasChanged || brandHasChanged)) {
+    if (productWasFound && (nameHasChanged || brandHasChanged)) {
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -204,6 +206,8 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
     if (scannedDate != null) {
       setState(() {
         _selectedDate = scannedDate;
+        // CORRECCIÓN: Actualizamos el texto del controlador para que la fecha escaneada se muestre.
+        _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate!);
       });
     }
   }
@@ -309,9 +313,11 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
               Row(
                 children: [
                   Expanded(child: TextFormField(
+                    // CORRECCIÓN: Usamos hintText en lugar de labelText.
+                    // hintText se muestra solo cuando el campo está vacío, por lo que no tapará la fecha seleccionada.
                     controller: _dateController,
                     decoration: const InputDecoration(
-                      labelText: 'Fecha de Caducidad *',
+                      hintText: 'Fecha de Caducidad *',
                       prefixIcon: Icon(Icons.calendar_today),
                       border: OutlineInputBorder(),
                     ),

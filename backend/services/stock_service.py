@@ -36,14 +36,27 @@ class StockService:
         if not producto_maestro:
              raise HTTPException(status_code=500, detail="No se pudo crear o encontrar el producto maestro.")
 
-        # 3. Crear la entrada en el inventario del usuario, ahora con todos los datos validados.
-        new_stock_item = self.stock_repo.create_stock_item(
+        # 3. Lógica de agrupación: Buscar si ya existe este producto en esta ubicación para este usuario.
+        existing_stock_item = self.stock_repo.find_stock_item(
             user_id=user_id,
-            fk_producto_maestro=producto_maestro.id_producto,
-            fk_ubicacion=ubicacion.id_ubicacion,
-            cantidad_actual=item_data.cantidad,
+            producto_maestro_id=producto_maestro.id_producto,
+            ubicacion_id=ubicacion.id_ubicacion,
             fecha_caducidad=item_data.fecha_caducidad
         )
+
+        if existing_stock_item:
+            # Si existe, sumamos la cantidad y actualizamos.
+            existing_stock_item.cantidad_actual += item_data.cantidad
+            new_stock_item = self.stock_repo.update_stock_item(existing_stock_item)
+        else:
+            # Si no existe, creamos una nueva entrada.
+            new_stock_item = self.stock_repo.create_stock_item(
+                user_id=user_id,
+                fk_producto_maestro=producto_maestro.id_producto,
+                fk_ubicacion=ubicacion.id_ubicacion,
+                cantidad_actual=item_data.cantidad,
+                fecha_caducidad=item_data.fecha_caducidad
+            )
         
         # Devolvemos un objeto de respuesta completo, no solo el objeto de la BD.
         # SQLAlchemy nos permite acceder a las relaciones para obtener los nombres.
@@ -63,14 +76,27 @@ class StockService:
             user_id=user_id # Pasamos el user_id
         )
 
-        # 3. Crear la entrada en el inventario del usuario.
-        new_stock_item = self.stock_repo.create_stock_item(
+        # 3. Lógica de agrupación: Buscar si ya existe este producto en esta ubicación para este usuario.
+        existing_stock_item = self.stock_repo.find_stock_item(
             user_id=user_id,
-            fk_producto_maestro=producto_maestro.id_producto,
-            fk_ubicacion=ubicacion.id_ubicacion,
-            cantidad_actual=item_data.cantidad,
+            producto_maestro_id=producto_maestro.id_producto,
+            ubicacion_id=ubicacion.id_ubicacion,
             fecha_caducidad=item_data.fecha_caducidad
         )
+
+        if existing_stock_item:
+            # Si existe, sumamos la cantidad y actualizamos.
+            existing_stock_item.cantidad_actual += item_data.cantidad
+            new_stock_item = self.stock_repo.update_stock_item(existing_stock_item)
+        else:
+            # Si no existe, creamos una nueva entrada.
+            new_stock_item = self.stock_repo.create_stock_item(
+                user_id=user_id,
+                fk_producto_maestro=producto_maestro.id_producto,
+                fk_ubicacion=ubicacion.id_ubicacion,
+                cantidad_actual=item_data.cantidad,
+                fecha_caducidad=item_data.fecha_caducidad
+            )
         
         # Devolvemos el objeto de respuesta completo.
         return Item.from_orm(new_stock_item)

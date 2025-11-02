@@ -1,5 +1,6 @@
 # backend/repositories/stock_repository.py
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_
 from datetime import date, timedelta
 from .models import InventarioStock, ProductoMaestro, Ubicacion
 
@@ -19,6 +20,20 @@ class StockRepository:
         self.db.commit()
         self.db.refresh(new_item)
         return new_item
+
+    def find_stock_item(self, user_id: str, producto_maestro_id: int, ubicacion_id: int, fecha_caducidad: date) -> InventarioStock | None:
+        """
+        Busca un item de stock específico por producto, ubicación, usuario y fecha de caducidad.
+        Esto es clave para la lógica de agrupación.
+        """
+        return self.db.query(InventarioStock).filter(
+            and_(
+                InventarioStock.user_id == user_id,
+                InventarioStock.fk_producto_maestro == producto_maestro_id,
+                InventarioStock.fk_ubicacion == ubicacion_id,
+                InventarioStock.fecha_caducidad == fecha_caducidad
+            )
+        ).first()
 
     def get_alertas_caducidad_for_user(self, days: int, user_id: str) -> list[InventarioStock]:
         today = date.today()
