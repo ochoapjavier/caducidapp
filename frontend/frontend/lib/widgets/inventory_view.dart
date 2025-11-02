@@ -1,5 +1,4 @@
 // frontend/lib/widgets/inventory_view.dart
-
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:frontend/services/api_service.dart';
@@ -9,10 +8,10 @@ class InventoryView extends StatefulWidget {
   const InventoryView({super.key});
 
   @override
-  State<InventoryView> createState() => _InventoryViewState();
+  State<InventoryView> createState() => InventoryViewState(); // Clave pública
 }
 
-class _InventoryViewState extends State<InventoryView> {
+class InventoryViewState extends State<InventoryView> {
   late Future<List<dynamic>> _stockItemsFuture;
   final _searchController = TextEditingController();
   Timer? _debounce;
@@ -35,11 +34,12 @@ class _InventoryViewState extends State<InventoryView> {
   void _onSearchChanged() {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 500), () {
-      _refreshInventory();
+      refreshInventory();
     });
   }
 
-  void _refreshInventory() {
+  // Hacemos el método público para poder llamarlo desde el widget padre
+  void refreshInventory() {
     setState(() {
       _stockItemsFuture = fetchStockItems(searchTerm: _searchController.text);
     });
@@ -51,7 +51,7 @@ class _InventoryViewState extends State<InventoryView> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Producto consumido.'), backgroundColor: Colors.green),
       );
-      _refreshInventory(); // Recargamos la lista para ver el cambio
+      refreshInventory(); // Recargamos la lista para ver el cambio
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Theme.of(context).colorScheme.error),
@@ -79,26 +79,10 @@ class _InventoryViewState extends State<InventoryView> {
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                            },
+                            onPressed: () => _searchController.clear(),
                           )
                         : null,
                   ),
-                ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    final result = await Navigator.of(context).push<bool>(
-                      MaterialPageRoute(builder: (ctx) => const RemoveItemView()),
-                    );
-                    if (result == true) {
-                      _refreshInventory();
-                    }
-                  },
-                  icon: const Icon(Icons.remove_shopping_cart_outlined),
-                  label: const Text('Registrar Salida de Stock'),
-                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 40)),
                 ),
               ],
             ),
@@ -131,7 +115,7 @@ class _InventoryViewState extends State<InventoryView> {
 
                 return RefreshIndicator(
                   onRefresh: () async {
-                    _refreshInventory();
+                    refreshInventory();
                   },
                   child: ListView.builder(
                     itemCount: locationKeys.length, // Ahora iteramos sobre las ubicaciones

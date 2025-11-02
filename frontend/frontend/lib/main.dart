@@ -12,6 +12,7 @@ import 'theme/app_theme.dart';
 import 'widgets/inventory_view.dart'; // Importamos la nueva vista de inventario
 import 'widgets/add_item_view.dart'; // Importamos el nuevo widget
 import 'screens/auth_screen.dart'; // Importamos la pantalla de autenticación
+import 'screens/inventory_management_screen.dart'; // Importamos la nueva pantalla contenedora
 
 void main() async {
   // Es necesario para que la inicialización de Firebase funcione antes de runApp
@@ -107,7 +108,7 @@ class MainAppScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4, // Cambiamos a 4 pestañas
+      length: 3, // Cambiamos a 3 pestañas
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Gestión de Caducidades'),
@@ -141,18 +142,16 @@ class MainAppScreen extends StatelessWidget {
           bottom: const TabBar(
             tabs: [
               Tab(text: 'Alertas', icon: Icon(Icons.notifications_active_outlined)),
-              Tab(text: 'Inventario', icon: Icon(Icons.inventory_2_outlined)), // Nueva pestaña
+              Tab(text: 'Inventario', icon: Icon(Icons.inventory_2_outlined)),
               Tab(text: 'Ubicaciones', icon: Icon(Icons.location_on_outlined)),
-              Tab(text: 'Añadir', icon: Icon(Icons.add_circle_outline)),
             ],
           ),
         ),
         body: const TabBarView(
           children: [
             AlertasDashboard(),
-            InventoryView(), // Usamos nuestro nuevo widget de inventario
+            InventoryManagementScreen(), // Usamos la nueva pantalla contenedora
             UbicacionManager(),
-            AddItemView(), // Usamos nuestro nuevo widget
           ],
         ),
       ),

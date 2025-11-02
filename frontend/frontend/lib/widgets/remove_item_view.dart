@@ -11,9 +11,6 @@ class RemoveItemView extends StatelessWidget {
     // Esta pantalla es un punto de partida para los dos flujos de eliminación.
     // Por ahora, solo la estructura.
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Registrar Salida de Stock'),
-      ),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(32.0),
@@ -55,14 +52,10 @@ class RemoveItemView extends StatelessWidget {
                   textStyle: Theme.of(context).textTheme.titleLarge,
                 ),
                 onPressed: () {
-                  // Navegamos a la nueva pantalla y pasamos el resultado hacia atrás.
-                  Navigator.of(context).push<bool>(
+                  // Simplemente navegamos a la pantalla. El refresco se gestiona en la pantalla contenedora.
+                  Navigator.of(context).push(
                     MaterialPageRoute(builder: (ctx) => const RemoveManualItemScreen()),
-                  ).then((result) {
-                    // Si la pantalla de eliminación devuelve true, cerramos esta también
-                    // para que la vista de inventario se refresque.
-                    if (result == true) Navigator.of(context).pop(true);
-                  }); // <-- Se corrigieron los paréntesis y el punto y coma aquí.
+                  );
                 },
               ),
             ],
