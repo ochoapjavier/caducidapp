@@ -233,3 +233,26 @@ Future<Map<String, dynamic>> consumeStockItem(int stockId) async {
     }
   }
 }
+
+/// Llama al endpoint para eliminar una cantidad específica de un item de stock.
+Future<Map<String, dynamic>> removeStockItems({
+  required int stockId,
+  required int cantidad,
+}) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.post(
+    Uri.parse('$apiUrl/stock/remove'),
+    headers: headers,
+    body: jsonEncode({
+      'id_stock': stockId,
+      'cantidad': cantidad,
+    }),
+  );
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error desconocido al eliminar el producto.');
+  }
+}

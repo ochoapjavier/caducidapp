@@ -92,3 +92,27 @@ class StockService:
                 "message": "Cantidad reducida en 1.",
                 "new_quantity": item_to_consume.cantidad_actual
             }
+
+    def remove_stock_quantity(self, id_stock: int, cantidad: int, user_id: str) -> dict:
+        # 1. Validar que la cantidad sea positiva.
+        if cantidad <= 0:
+            raise HTTPException(status_code=400, detail="La cantidad a eliminar debe ser mayor que cero.")
+
+        # 2. Buscar el item y validar que pertenece al usuario.
+        item_to_remove_from = self.stock_repo.get_stock_item_by_id_and_user(id_stock, user_id)
+
+        if not item_to_remove_from:
+            raise HTTPException(status_code=404, detail="Producto no encontrado en tu inventario.")
+
+        # 3. Validar que hay suficiente stock.
+        if item_to_remove_from.cantidad_actual < cantidad:
+            raise HTTPException(status_code=409, detail=f"No hay suficiente stock. Cantidad actual: {item_to_remove_from.cantidad_actual}, intentas eliminar: {cantidad}.")
+
+        # 4. Reducir la cantidad o eliminar el item.
+        item_to_remove_from.cantidad_actual -= cantidad
+        if item_to_remove_from.cantidad_actual <= 0:
+            self.stock_repo.delete_stock_item(item_to_remove_from)
+            return {"status": "deleted", "message": f"Se eliminaron {cantidad} unidades. El producto ha sido retirado del inventario."}
+        else:
+            self.stock_repo.update_stock_item(item_to_remove_from)
+            return {"status": "updated", "message": f"Se eliminaron {cantidad} unidades.", "new_quantity": item_to_remove_from.cantidad_actual}

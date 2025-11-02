@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/widgets/remove_item_view.dart'; // Importamos la nueva vista
 
 class InventoryView extends StatefulWidget {
   const InventoryView({super.key});
@@ -60,109 +61,129 @@ class _InventoryViewState extends State<InventoryView> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              labelText: 'Buscar por nombre o EAN',
-              prefixIcon: const Icon(Icons.search),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              suffixIcon: _searchController.text.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear),
-                      onPressed: () {
-                        _searchController.clear();
-                      },
-                    )
-                  : null,
+    return Scaffold( // Envolvemos en un Scaffold para poder usar el FAB
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 0),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    labelText: 'Buscar por nombre o EAN',
+                    prefixIcon: const Icon(Icons.search),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    suffixIcon: _searchController.text.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                            },
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final result = await Navigator.of(context).push<bool>(
+                      MaterialPageRoute(builder: (ctx) => const RemoveItemView()),
+                    );
+                    if (result == true) {
+                      _refreshInventory();
+                    }
+                  },
+                  icon: const Icon(Icons.remove_shopping_cart_outlined),
+                  label: const Text('Registrar Salida de Stock'),
+                  style: ElevatedButton.styleFrom(minimumSize: const Size(double.infinity, 40)),
+                ),
+              ],
             ),
           ),
-        ),
-        Expanded(
-          child: FutureBuilder<List<dynamic>>(
-            future: _stockItemsFuture,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snapshot.hasError) {
-                return Center(child: Text('Error: ${snapshot.error}'));
-              }
-              if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                return const Center(child: Text('No hay productos en tu inventario.'));
-              }
-
-              // --- INICIO DE LA LÓGICA DE AGRUPACIÓN ---
-              final Map<String, List<dynamic>> groupedItems = {};
-              for (var item in snapshot.data!) {
-                final locationName = item['ubicacion']['nombre'] as String;
-                if (!groupedItems.containsKey(locationName)) {
-                  groupedItems[locationName] = [];
+          Expanded(
+            child: FutureBuilder<List<dynamic>>(
+              future: _stockItemsFuture,
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
                 }
-                groupedItems[locationName]!.add(item);
-              }
-              final locationKeys = groupedItems.keys.toList();
-              // --- FIN DE LA LÓGICA DE AGRUPACIÓN ---
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                  return const Center(child: Text('No hay productos en tu inventario.'));
+                }
 
-              return RefreshIndicator(
-                onRefresh: () async {
-                  _refreshInventory();
-                },
-                child: ListView.builder(
-                  itemCount: locationKeys.length, // Ahora iteramos sobre las ubicaciones
-                  itemBuilder: (context, index) {
-                    final locationName = locationKeys[index];
-                    final itemsInLocation = groupedItems[locationName]!;
+                // --- INICIO DE LA LÓGICA DE AGRUPACIÓN ---
+                final Map<String, List<dynamic>> groupedItems = {};
+                for (var item in snapshot.data!) {
+                  final locationName = item['ubicacion']['nombre'] as String;
+                  if (!groupedItems.containsKey(locationName)) {
+                    groupedItems[locationName] = [];
+                  }
+                  groupedItems[locationName]!.add(item);
+                }
+                final locationKeys = groupedItems.keys.toList()..sort(); // Ordenamos las ubicaciones alfabéticamente
+                // --- FIN DE LA LÓGICA DE AGRUPACIÓN ---
 
-                    // Usamos ExpansionTile para cada ubicación
-                    return ExpansionTile(
-                      key: PageStorageKey(locationName), // Ayuda a mantener el estado (abierto/cerrado)
-                      leading: const Icon(Icons.location_on_outlined),
-                      title: Text(
-                        locationName,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                      ),
-                      subtitle: Text('${itemsInLocation.length} producto(s)'),
-                      initiallyExpanded: true,
-                      children: itemsInLocation.map((item) {
-                        // Este es el ListTile para cada producto, similar al que ya tenías
-                        final productName = item['producto_maestro']['nombre'];
-                        final brand = item['producto_maestro']['marca'];
-                        final quantity = item['cantidad_actual'];
-                        final expiryDate = DateTime.parse(item['fecha_caducidad']);
-                        final stockId = item['id_stock'];
-
-                        return ListTile(
-                          contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                          title: Text(brand != null ? '$productName - $brand' : productName),
-                          subtitle: Text('Caduca: ${expiryDate.day}/${expiryDate.month}/${expiryDate.year}'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text('$quantity', style: Theme.of(context).textTheme.titleMedium),
-                              const SizedBox(width: 8),
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
-                                onPressed: () => _consumeItem(stockId),
-                                tooltip: 'Consumir 1 unidad',
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(), // Las ubicaciones aparecen expandidas por defecto
-                    );
+                return RefreshIndicator(
+                  onRefresh: () async {
+                    _refreshInventory();
                   },
-                ),
-              );
-            },
+                  child: ListView.builder(
+                    itemCount: locationKeys.length, // Ahora iteramos sobre las ubicaciones
+                    itemBuilder: (context, index) {
+                      final locationName = locationKeys[index];
+                      final itemsInLocation = groupedItems[locationName]!;
+
+                      // Usamos ExpansionTile para cada ubicación
+                      return ExpansionTile(
+                        key: PageStorageKey(locationName), // Ayuda a mantener el estado (abierto/cerrado)
+                        leading: const Icon(Icons.location_on_outlined),
+                        title: Text(
+                          locationName,
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                        ),
+                        subtitle: Text('${itemsInLocation.length} producto(s)'),
+                        initiallyExpanded: true,
+                        children: itemsInLocation.map((item) {
+                          // Este es el ListTile para cada producto, similar al que ya tenías
+                          final productName = item['producto_maestro']['nombre'];
+                          final brand = item['producto_maestro']['marca'];
+                          final quantity = item['cantidad_actual'];
+                          final expiryDate = DateTime.parse(item['fecha_caducidad']);
+                          final stockId = item['id_stock'];
+
+                          return ListTile(
+                            contentPadding: const EdgeInsets.only(left: 32, right: 16),
+                            title: Text(brand != null ? '$productName - $brand' : productName),
+                            subtitle: Text('Caduca: ${expiryDate.day}/${expiryDate.month}/${expiryDate.year}'),
+                            trailing: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text('$quantity', style: Theme.of(context).textTheme.titleMedium),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
+                                  onPressed: () => _consumeItem(stockId),
+                                  tooltip: 'Consumir 1 unidad',
+                                ),
+                              ],
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

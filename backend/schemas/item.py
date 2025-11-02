@@ -43,6 +43,7 @@ class ItemStock(BaseModel):
 
 # Schemas auxiliares para las relaciones anidadas
 class ProductoMaestroSchema(BaseModel):
+    id_producto: int
     nombre: str
     marca: str | None = None
     model_config = ConfigDict(from_attributes=True)
@@ -50,6 +51,7 @@ class ProductoMaestroSchema(BaseModel):
 class UbicacionSchema(BaseModel):
     nombre: str
     model_config = ConfigDict(from_attributes=True)
+    id_ubicacion: int
 
 Item.model_rebuild()
 ItemStock.model_rebuild()

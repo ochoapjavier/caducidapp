@@ -1,8 +1,9 @@
 # backend/routers/stock.py
 from fastapi import APIRouter, Depends, status, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from typing import List
-from database import get_db
+from database import get_db, Base
 from schemas.item import Item, ItemCreate, ItemCreateFromScan
 from services.stock_service import StockService
 from auth.firebase_auth import get_current_user_id
@@ -48,3 +49,16 @@ def consume_one_item(
 ):
     """Consume una unidad de un item de stock. Si la cantidad llega a 0, el item es eliminado."""
     return service.consume_stock_item(id_stock, user_id)
+
+class RemoveStockPayload(BaseModel):
+    id_stock: int
+    cantidad: int
+
+@router.post("/remove", status_code=200)
+def remove_stock_items(
+    payload: RemoveStockPayload,
+    service: StockService = Depends(get_stock_service),
+    user_id: str = Depends(get_current_user_id)
+):
+    """Elimina una cantidad específica de un item de stock."""
+    return service.remove_stock_quantity(payload.id_stock, payload.cantidad, user_id)
