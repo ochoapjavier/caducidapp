@@ -21,6 +21,10 @@ class ProductoMaestroRepository:
             self.db.refresh(producto)
         return producto
 
+    def get_by_barcode(self, barcode: str) -> ProductoMaestro | None:
+        """Busca un producto únicamente por su código de barras."""
+        return self.db.query(ProductoMaestro).filter(ProductoMaestro.barcode == barcode).first()
+
     def get_or_create_by_barcode(self, barcode: str, name: str, brand: str | None) -> ProductoMaestro:
         # Busca primero por el código de barras, que es un identificador único.
         producto = self.db.query(ProductoMaestro).filter(ProductoMaestro.barcode == barcode).first()
@@ -29,6 +33,18 @@ class ProductoMaestroRepository:
             # Si no existe, lo crea con toda la información.
             producto = ProductoMaestro(barcode=barcode, nombre=name, marca=brand)
             self.db.add(producto)
+            self.db.commit()
+            self.db.refresh(producto)
+        
+        return producto
+
+    def update_product_by_barcode(self, barcode: str, new_name: str, new_brand: str | None) -> ProductoMaestro | None:
+        """Busca un producto por barcode y actualiza su nombre y marca."""
+        producto = self.get_by_barcode(barcode)
+
+        if producto:
+            producto.nombre = new_name
+            producto.marca = new_brand
             self.db.commit()
             self.db.refresh(producto)
         

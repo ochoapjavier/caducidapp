@@ -22,8 +22,15 @@ class StockService:
             raise HTTPException(status_code=404, detail=f"Ubicación no encontrada o no tienes permiso sobre ella.")
 
         # 2. Buscar o crear el producto en el catálogo maestro global.
-        # Esta lógica es para productos sin código de barras.
-        producto_maestro = self.producto_repo.get_or_create_by_name(item_data.product_name)
+        # Si se proporciona un barcode, se usa para buscar/crear. Si no, se usa el nombre.
+        if item_data.barcode:
+            producto_maestro = self.producto_repo.get_or_create_by_barcode(
+                barcode=item_data.barcode,
+                name=item_data.product_name,
+                brand=item_data.brand # <-- CORRECCIÓN: Pasamos la marca
+            )
+        else:
+            producto_maestro = self.producto_repo.get_or_create_by_name(item_data.product_name)
         
         if not producto_maestro:
              raise HTTPException(status_code=500, detail="No se pudo crear o encontrar el producto maestro.")

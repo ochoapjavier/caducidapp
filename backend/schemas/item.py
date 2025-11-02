@@ -5,6 +5,8 @@ from datetime import date
 class ItemCreate(BaseModel):
     """Schema para crear un nuevo item en el inventario."""
     product_name: str
+    barcode: str | None = None # <-- NUEVO: Campo opcional para el EAN
+    brand: str | None = None # <-- NUEVO: Campo opcional para la marca
     ubicacion_id: int
     cantidad: int
     fecha_caducidad: date

@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from . import ubicaciones, stock, alertas
+from . import ubicaciones, stock, alertas, products
 
 # Este es el router principal que será incluido en main.py.
 # Manejará el prefijo "/inventory" para todas las rutas relacionadas.
@@ -10,3 +10,4 @@ router = APIRouter(prefix="/inventory")
 router.include_router(ubicaciones.router, prefix="/ubicaciones", tags=["Ubicaciones"])
 router.include_router(stock.router, prefix="/stock", tags=["Stock"])
 router.include_router(alertas.router, prefix="/alertas", tags=["Alertas"])
+router.include_router(products.router, prefix="/products", tags=["Products"])

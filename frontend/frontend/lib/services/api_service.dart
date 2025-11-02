@@ -121,6 +121,8 @@ Future<void> updateUbicacion(int id, String newName) async {
 /// Añade un nuevo item de stock al inventario del usuario.
 Future<void> addManualStockItem({
   required String productName,
+  String? brand, // <-- NUEVO: Parámetro opcional para la marca
+  String? barcode, // <-- NUEVO: Parámetro opcional para el EAN
   required int ubicacionId,
   required int cantidad,
   required DateTime fechaCaducidad,
@@ -131,6 +133,8 @@ Future<void> addManualStockItem({
     headers: headers,
     body: jsonEncode({
       'product_name': productName,
+      'brand': brand, // <-- NUEVO: Se añade al cuerpo de la petición
+      'barcode': barcode, // <-- NUEVO: Se añade al cuerpo de la petición
       'ubicacion_id': ubicacionId,
       'cantidad': cantidad,
       // Formateamos la fecha a 'YYYY-MM-DD'
@@ -141,6 +145,43 @@ Future<void> addManualStockItem({
   if (response.statusCode < 200 || response.statusCode >= 300) {
     final errorBody = json.decode(response.body);
     throw Exception(errorBody['detail'] ?? 'Error desconocido al añadir el producto.');
+  }
+}
+
+/// Busca un producto en nuestro catálogo por su código de barras.
+Future<Map<String, dynamic>?> fetchProductFromCatalog(String barcode) async {
+  final headers = await _getAuthHeaders();
+  // Usamos el nuevo endpoint de productos
+  final response = await http.get(Uri.parse('$apiUrl/products/by-barcode/$barcode'), headers: headers);
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  }
+  if (response.statusCode == 404) {
+    return null; // No encontrado, es un caso esperado.
+  }
+  // Otros errores
+  throw Exception('Error al buscar producto en el catálogo: ${response.statusCode}');
+}
+
+/// Actualiza el nombre/marca de un producto en el catálogo maestro.
+Future<void> updateProductInCatalog({
+  required String barcode,
+  required String name,
+  String? brand,
+}) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.put(
+    Uri.parse('$apiUrl/products/by-barcode/$barcode'),
+    headers: headers,
+    body: jsonEncode({
+      'nombre': name,
+      'marca': brand,
+    }),
+  );
+
+  if (response.statusCode != 200) {
+    throw Exception('Error al actualizar el producto en el catálogo: ${response.statusCode}');
   }
 }
 
