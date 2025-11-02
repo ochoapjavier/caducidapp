@@ -35,27 +35,46 @@ class AddItemView extends StatelessWidget {
                   // Mostramos un spinner mientras buscamos el producto
                   showDialog(context: context, builder: (ctx) => const Center(child: CircularProgressIndicator()), barrierDismissible: false);
 
-                  final productData = await fetchProductFromOpenFoodFacts(barcode);
+                  // --- INICIO DE LA NUEVA LÓGICA DE BÚSQUEDA ---
+                  Map<String, dynamic>? productData;
+                  bool foundInLocalDB = false;
+
+                  // 1. Buscar primero en nuestro catálogo
+                  productData = await fetchProductFromCatalog(barcode);
+
+                  if (productData != null) {
+                    foundInLocalDB = true;
+                  } else {
+                    // 2. Si no, buscar en OpenFoodFacts
+                    final offData = await fetchProductFromOpenFoodFacts(barcode);
+                    if (offData != null) {
+                      // Adaptamos la respuesta de OFF a un mapa más simple
+                      final nameEs = offData['product_name_es'] as String?;
+                      final nameEn = offData['product_name_en'] as String?;
+                      final nameGeneric = offData['product_name'] as String?;
+
+                      productData = {
+                        'nombre': (nameEs != null && nameEs.isNotEmpty) ? nameEs
+                                : (nameEn != null && nameEn.isNotEmpty) ? nameEn
+                                : (nameGeneric != null && nameGeneric.isNotEmpty) ? nameGeneric
+                                : 'Nombre no encontrado',
+                        'marca': offData['brands'],
+                      };
+                    }
+                  }
+                  // --- FIN DE LA NUEVA LÓGICA DE BÚSQUEDA ---
 
                   Navigator.of(context).pop(); // Cierra el spinner
 
                   if (productData != null && context.mounted) {
                     // Producto encontrado, navegamos a la pantalla de confirmación
                     Navigator.of(context).push(MaterialPageRoute(
-                      builder: (ctx) {
-                        // --- INICIO DE LA NUEVA LÓGICA DE SELECCIÓN DE NOMBRE ---
-                        final nameEs = productData['product_name_es'] as String?;
-                        final nameEn = productData['product_name_en'] as String?;
-                        final nameGeneric = productData['product_name'] as String?;
-
-                        final productName = (nameEs != null && nameEs.isNotEmpty) ? nameEs
-                                          : (nameEn != null && nameEn.isNotEmpty) ? nameEn
-                                          : (nameGeneric != null && nameGeneric.isNotEmpty) ? nameGeneric
-                                          : 'Nombre no encontrado';
-                        // --- FIN DE LA NUEVA LÓGICA ---
-
-                        return AddScannedItemScreen(barcode: barcode, productName: productName, brand: productData['brands']);
-                      },
+                      builder: (ctx) => AddScannedItemScreen(
+                        barcode: barcode,
+                        initialProductName: productData!['nombre'] as String,
+                        initialBrand: productData['marca'] as String?,
+                        isFromLocalDB: foundInLocalDB, // Le decimos a la pantalla de dónde vienen los datos
+                      ),
                     ));
                   } else if (context.mounted) {
                     // Producto no encontrado

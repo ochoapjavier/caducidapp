@@ -4,18 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:frontend/models/ubicacion.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/date_scanner_screen.dart';
-import 'package:intl/intl.dart'; // Importamos el paquete intl
+import 'package:intl/intl.dart';
 
 class AddScannedItemScreen extends StatefulWidget {
   final String barcode;
-  final String productName;
-  final String? brand;
+  final String initialProductName;
+  final String? initialBrand;
+  final bool isFromLocalDB; // Para saber si debemos ofrecer la actualización
 
   const AddScannedItemScreen({
     super.key,
     required this.barcode,
-    required this.productName,
-    this.brand,
+    required this.initialProductName,
+    this.initialBrand,
+    required this.isFromLocalDB,
   });
 
   @override
@@ -24,42 +26,60 @@ class AddScannedItemScreen extends StatefulWidget {
 
 class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
   final _formKey = GlobalKey<FormState>();
+
+  // Controladores para los campos editables
+  late final TextEditingController _productNameController;
+  late final TextEditingController _brandController;
   final _quantityController = TextEditingController(text: '1');
-  final _dateController = TextEditingController(); // Controlador para la fecha
+  final _dateController = TextEditingController();
 
   int? _selectedUbicacionId;
   DateTime? _selectedDate;
   var _isLoading = false;
   late Future<List<Ubicacion>> _ubicacionesFuture;
 
+  // Guardamos los datos originales para compararlos al enviar
+  late String _originalProductName;
+  late String? _originalBrand;
+
   @override
   void initState() {
     super.initState();
+    // Inicializamos los controladores con los datos recibidos
+    _productNameController = TextEditingController(text: widget.initialProductName);
+    _brandController = TextEditingController(text: widget.initialBrand ?? '');
+
+    // Guardamos los datos originales si vienen de nuestra BBDD
+    if (widget.isFromLocalDB) {
+      _originalProductName = widget.initialProductName;
+      _originalBrand = widget.initialBrand;
+    }
+
     _ubicacionesFuture = fetchUbicaciones();
   }
 
   @override
   void dispose() {
+    _productNameController.dispose();
+    _brandController.dispose();
     _quantityController.dispose();
     _dateController.dispose();
     super.dispose();
   }
 
-  void _presentDatePicker() {
-    showDatePicker(
+  void _presentDatePicker() async {
+    final pickedDate = await showDatePicker(
       context: context,
       initialDate: _selectedDate ?? DateTime.now(),
       firstDate: DateTime.now(),
       lastDate: DateTime(2101),
-    ).then((pickedDate) {
-      if (pickedDate == null) {
-        return;
-      }
+    );
+    if (pickedDate != null) {
       setState(() {
         _selectedDate = pickedDate;
         _dateController.text = DateFormat('dd/MM/yyyy').format(_selectedDate!);
       });
-    });
+    }
   }
 
   void _scanDate() async {
@@ -79,7 +99,8 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
     if (!isValid || _selectedDate == null) {
       if (_selectedDate == null && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor, selecciona una fecha de caducidad.')),
+          const SnackBar(
+              content: Text('Por favor, selecciona una fecha de caducidad.')),
         );
       }
       return;
@@ -87,11 +108,53 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
     _formKey.currentState!.save();
     setState(() => _isLoading = true);
 
+    // --- LÓGICA DE CONFIRMACIÓN DE ACTUALIZACIÓN ---
+    final bool nameHasChanged = widget.isFromLocalDB && _productNameController.text != _originalProductName;
+    final bool brandHasChanged = widget.isFromLocalDB && _brandController.text != (_originalBrand ?? '');
+
+    if (nameHasChanged || brandHasChanged) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Actualizar Producto Maestro'),
+          content: const Text(
+              'Has modificado los datos de un producto existente. ¿Quieres guardar estos cambios para futuras referencias de este código de barras?'),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('No')),
+            ElevatedButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Sí, Actualizar')),
+          ],
+        ),
+      );
+
+      if (confirmed == true) {
+        try {
+          await updateProductInCatalog(
+            barcode: widget.barcode,
+            name: _productNameController.text,
+            brand: _brandController.text.isNotEmpty ? _brandController.text : null,
+          );
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text('Error al actualizar el producto: ${e.toString()}'),
+                backgroundColor: Colors.red));
+            setState(() => _isLoading = false);
+          }
+          return;
+        }
+      }
+    }
+
     try {
-      await addScannedStockItem(
+      // Usamos la misma función que el alta manual, ya que ahora los datos son equivalentes
+      await addManualStockItem(
         barcode: widget.barcode,
-        productName: widget.productName,
-        brand: widget.brand,
+        productName: _productNameController.text,
+        brand: _brandController.text.isNotEmpty ? _brandController.text : null,
         ubicacionId: _selectedUbicacionId!,
         cantidad: int.parse(_quantityController.text),
         fechaCaducidad: _selectedDate!,
@@ -99,7 +162,9 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Producto añadido con éxito.'), backgroundColor: Colors.green),
+          const SnackBar(
+              content: Text('Producto añadido con éxito.'),
+              backgroundColor: Colors.green),
         );
         // Cierra la pantalla de confirmación y la del escáner, volviendo a la principal.
         Navigator.of(context).popUntil((route) => route.isFirst);
@@ -107,7 +172,9 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(
+              content: Text('Error: ${e.toString()}'),
+              backgroundColor: Theme.of(context).colorScheme.error),
         );
       }
     } finally {
@@ -120,36 +187,55 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Confirmar Producto'),
-      ),
+      appBar: AppBar(title: const Text('Añadir Producto Escaneado')),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
           child: ListView(
             children: [
-              // Mostramos la información del producto (no editable)
-              ListTile(
-                leading: const Icon(Icons.label_important_outline),
-                title: Text(widget.productName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                subtitle: Text(widget.brand ?? 'Marca no disponible'),
+              // --- CAMPO EAN (NO EDITABLE) ---
+              TextFormField(
+                initialValue: widget.barcode,
+                decoration: const InputDecoration(
+                  labelText: 'Código de Barras (EAN)',
+                  filled: true, // Fondo gris para indicar que no es editable
+                ),
+                readOnly: true,
               ),
-              const Divider(height: 32),
+              const SizedBox(height: 16),
+              // --- CAMPOS EDITABLES PARA NOMBRE Y MARCA ---
+              TextFormField(
+                controller: _productNameController,
+                decoration: const InputDecoration(labelText: 'Nombre del Producto *'),
+                textCapitalization: TextCapitalization.sentences,
+                validator: (value) => (value == null || value.trim().isEmpty)
+                    ? 'Introduce un nombre.'
+                    : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _brandController,
+                decoration: const InputDecoration(labelText: 'Marca (Opcional)'),
+                textCapitalization: TextCapitalization.words,
+              ),
+              const SizedBox(height: 16),
 
-              // El resto del formulario es igual al manual
+              // --- DROPDOWN DE UBICACIONES ---
               FutureBuilder<List<Ubicacion>>(
                 future: _ubicacionesFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
-                  if (snapshot.hasError || !snapshot.hasData || snapshot.data!.isEmpty) {
+                  if (snapshot.hasError ||
+                      !snapshot.hasData ||
+                      snapshot.data!.isEmpty) {
                     return const Text('No se pudieron cargar las ubicaciones.');
                   }
                   return DropdownButtonFormField<int>(
                     value: _selectedUbicacionId,
-                    decoration: const InputDecoration(labelText: 'Ubicación'),
+                    decoration: const InputDecoration(labelText: 'Ubicación *'),
                     items: snapshot.data!.map((ubicacion) => DropdownMenuItem(value: ubicacion.id, child: Text(ubicacion.nombre))).toList(),
                     onChanged: (value) => setState(() => _selectedUbicacionId = value),
                     validator: (value) => (value == null) ? 'Selecciona una ubicación.' : null,
@@ -157,13 +243,16 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
                 },
               ),
               const SizedBox(height: 16),
+
+              // --- CAMPO CANTIDAD ---
               TextFormField(
                 controller: _quantityController,
-                decoration: const InputDecoration(labelText: 'Cantidad'),
+                decoration: const InputDecoration(labelText: 'Cantidad *'),
                 keyboardType: TextInputType.number,
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Introduce una cantidad.';
-                  if (int.tryParse(value) == null || int.parse(value) <= 0) return 'La cantidad debe ser un número positivo.';
+                  if (int.tryParse(value) == null || int.parse(value) <= 0)
+                    return 'La cantidad debe ser un número positivo.';
                   return null;
                 },
               ),
@@ -173,7 +262,7 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
                   Expanded(child: TextFormField(
                     controller: _dateController,
                     decoration: const InputDecoration(
-                      labelText: 'Fecha de Caducidad',
+                      hintText: 'Fecha de Caducidad *',
                       prefixIcon: Icon(Icons.calendar_today),
                       border: OutlineInputBorder(),
                     ),
@@ -193,6 +282,8 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
                 ],
               ),
               const SizedBox(height: 32),
+
+              // --- BOTÓN DE GUARDAR ---
               if (_isLoading)
                 const Center(child: CircularProgressIndicator())
               else
@@ -200,7 +291,8 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
                   onPressed: _submitForm,
                   icon: const Icon(Icons.save),
                   label: const Text('Guardar Producto'),
-                  style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+                  style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16)),
                 ),
             ],
           ),
