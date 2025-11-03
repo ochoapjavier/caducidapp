@@ -1,6 +1,7 @@
 // frontend/lib/screens/add_manual_item_screen.dart
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:frontend/models/ubicacion.dart';
 import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/services/api_service.dart';
@@ -52,6 +53,26 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
     _quantityController.dispose();
     _dateController.dispose();
     super.dispose();
+  }
+
+  void _incrementQuantity() {
+    final currentQuantity = int.tryParse(_quantityController.text) ?? 0;
+    setState(() {
+      _quantityController.text = (currentQuantity + 1).toString();
+    });
+  }
+
+  void _decrementQuantity() {
+    final currentQuantity = int.tryParse(_quantityController.text) ?? 0;
+    if (currentQuantity > 1) {
+      setState(() {
+        _quantityController.text = (currentQuantity - 1).toString();
+      });
+    }
+  }
+
+  void _onQuantityChanged() {
+    setState(() {});
   }
 
   /// Muestra el selector de fecha y actualiza el estado.
@@ -299,8 +320,22 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
               // --- CAMPO CANTIDAD ---
               TextFormField(
                 controller: _quantityController,
-                decoration: const InputDecoration(labelText: 'Cantidad *'),
+                textAlign: TextAlign.center,
+                decoration: InputDecoration(
+                  labelText: 'Cantidad *',
+                  border: const OutlineInputBorder(),
+                  prefixIcon: IconButton(
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: (int.tryParse(_quantityController.text) ?? 1) > 1 ? _decrementQuantity : null,
+                  ),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.add_circle_outline),
+                    onPressed: _incrementQuantity,
+                  ),
+                ),
                 keyboardType: TextInputType.number,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                onChanged: (value) => _onQuantityChanged(),
                 validator: (value) {
                   if (value == null || value.isEmpty) return 'Introduce una cantidad.';
                   if (int.tryParse(value) == null || int.parse(value) <= 0) return 'La cantidad debe ser un número positivo.';

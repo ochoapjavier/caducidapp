@@ -20,7 +20,7 @@ class AddItemView extends StatelessWidget {
           children: [
             ElevatedButton.icon(
               icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Escanear Producto'),
+              label: const Text('Añadir Producto Escaneado'),
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 textStyle: Theme.of(context).textTheme.titleLarge,

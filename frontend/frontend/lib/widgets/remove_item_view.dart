@@ -22,7 +22,7 @@ class RemoveItemView extends StatelessWidget {
             children: [
               ElevatedButton.icon(
                 icon: const Icon(Icons.qr_code_scanner),
-                label: const Text('Escanear para Salida'),
+                label: const Text('Eliminar Producto Escaneado'),
                 style: ElevatedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   textStyle: Theme.of(context).textTheme.titleLarge,
@@ -57,7 +57,7 @@ class RemoveItemView extends StatelessWidget {
               const SizedBox(height: 24),
               OutlinedButton.icon(
                 icon: const Icon(Icons.edit_note),
-                label: const Text('Salida Manual'),
+                label: const Text('Eliminar Manualmente'),
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   textStyle: Theme.of(context).textTheme.titleLarge,

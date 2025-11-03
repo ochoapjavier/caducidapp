@@ -1,9 +1,11 @@
 // frontend/lib/widgets/inventory_view.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/scanner_screen.dart';
-import 'package:frontend/widgets/remove_item_view.dart'; // Importamos la nueva vista
+
+var _isLoading = false; // Para mostrar un spinner durante las llamadas a la API
 
 class InventoryView extends StatefulWidget {
   const InventoryView({super.key});
@@ -82,6 +84,97 @@ class InventoryViewState extends State<InventoryView> {
         SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Theme.of(context).colorScheme.error),
       );
     }
+  }
+
+  /// Muestra un diálogo para confirmar y especificar la cantidad a eliminar.
+  void _showRemoveQuantityDialog(int stockId, int currentQuantity, String productName) {
+    final quantityController = TextEditingController(text: '1');
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        // Usamos StatefulBuilder para que el contenido del diálogo pueda tener su propio estado.
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final int currentVal = int.tryParse(quantityController.text) ?? 0;
+
+            return AlertDialog(
+              title: Text('Eliminar "$productName"'),
+              content: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Disponibles: $currentQuantity. ¿Cuántas unidades quieres eliminar?'),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: quantityController,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                      textAlign: TextAlign.center,
+                      decoration: InputDecoration(
+                        labelText: 'Cantidad',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: IconButton(
+                          icon: const Icon(Icons.remove_circle_outline),
+                          onPressed: currentVal > 1
+                              ? () => setStateDialog(() => quantityController.text = (currentVal - 1).toString())
+                              : null,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.add_circle_outline),
+                          onPressed: currentVal < currentQuantity
+                              ? () => setStateDialog(() => quantityController.text = (currentVal + 1).toString())
+                              : null,
+                        ),
+                      ),
+                      onChanged: (value) => setStateDialog(() {}), // Para actualizar el estado de los botones
+                      validator: (value) {
+                        if (value == null || value.isEmpty) return 'Introduce un nº.';
+                        final n = int.tryParse(value);
+                        if (n == null) return 'Nº inválido.';
+                        if (n <= 0) return 'Debe ser > 0.';
+                        if (n > currentQuantity) return 'No hay tantas.';
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: () async {
+                    if (formKey.currentState?.validate() ?? false) {
+                      final quantityToRemove = int.parse(quantityController.text);
+                      Navigator.of(ctx).pop(); // Cerrar diálogo
+                      
+                      try {
+                        final result = await removeStockItems(stockId: stockId, cantidad: quantityToRemove);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(result['message'] ?? 'Stock actualizado.'), backgroundColor: Colors.green),
+                        );
+                        refreshInventory(); // Refrescar la lista
+                      } catch (e) {
+                         ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                  child: const Text('Eliminar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -201,32 +294,47 @@ class InventoryViewState extends State<InventoryView> {
                           final imageUrl = item['producto_maestro']['image_url']; // <-- OBTENEMOS LA URL
                           final expiryDate = DateTime.parse(item['fecha_caducidad']);
                           final stockId = item['id_stock'];
-
+                          
+                          // --- INICIO: LÓGICA PARA EL INDICADOR VISUAL DE CADUCIDAD ---
+                          final daysUntilExpiry = expiryDate.difference(DateTime.now()).inDays;
+                          Color expiryColor;
+                          if (daysUntilExpiry <= 3) {
+                            expiryColor = Colors.red;
+                          } else if (daysUntilExpiry <= 7) {
+                            expiryColor = Colors.orange;
+                          } else {
+                            expiryColor = Colors.transparent; // Sin borde si no está próximo a caducar
+                          }
+                          // --- FIN: LÓGICA PARA EL INDICADOR VISUAL DE CADUCIDAD ---
+                          
                           return ListTile(
                             contentPadding: const EdgeInsets.only(left: 32, right: 16),
-                            // --- INICIO: WIDGET DE IMAGEN ---
-                            // Aumentamos el radio del CircleAvatar para una imagen más grande y visible.
-                            leading: CircleAvatar(
-                              radius: 28, // <-- TAMAÑO AUMENTADO
-                              backgroundColor: Colors.grey[200],
-                              // Si hay URL, intentamos cargar la imagen de red.
-                              // Si no, mostramos un icono por defecto.
-                              child: imageUrl != null
-                                ? ClipOval(
-                                    child: Image.network(
-                                      imageUrl,
-                                      fit: BoxFit.cover,
-                                      width: 56, // <-- TAMAÑO AUMENTADO (2 * radio)
-                                      height: 56, // <-- TAMAÑO AUMENTADO (2 * radio)
-                                      // Widget que se muestra mientras carga la imagen
-                                      loadingBuilder: (context, child, progress) => progress == null ? child : const CircularProgressIndicator(strokeWidth: 2),
-                                      // Widget que se muestra si hay un error al cargar
-                                      errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, color: Colors.grey),
-                                    ),
-                                  )
-                                : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 28),
+                            // --- INICIO: WIDGET DE IMAGEN CON BORDE DE CADUCIDAD ---
+                            leading: Container(
+                              padding: const EdgeInsets.all(2.0), // Espacio entre el borde y la imagen
+                              decoration: BoxDecoration(
+                                color: expiryColor, // El color que calculamos antes
+                                shape: BoxShape.circle,
+                              ),
+                              child: CircleAvatar(
+                                radius: 26, // Un poco más pequeño para que el borde se vea
+                                backgroundColor: Colors.grey[200],
+                                // Si hay URL, intentamos cargar la imagen de red.
+                                child: imageUrl != null
+                                  ? ClipOval(
+                                      child: Image.network(
+                                        imageUrl, // Argumento posicional
+                                        fit: BoxFit.cover, // Argumento con nombre, necesita coma
+                                        width: 52,         // Argumento con nombre, necesita coma
+                                        height: 52,        // Argumento con nombre, necesita coma
+                                        loadingBuilder: (context, child, progress) => progress == null ? child : const CircularProgressIndicator(strokeWidth: 2),
+                                        errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported, color: Colors.grey),
+                                      ),
+                                    )
+                                  : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 28),
+                              ),
                             ),
-                            // --- FIN: WIDGET DE IMAGEN ---
+                            // --- FIN: WIDGET DE IMAGEN CON BORDE DE CADUCIDAD ---
                             // --- INICIO: TÍTULO MEJORADO (UX/UI) ---
                             // Usamos una Columna para separar el nombre y la marca,
                             // dando más jerarquía visual al nombre del producto.
@@ -254,8 +362,13 @@ class InventoryViewState extends State<InventoryView> {
                                 const SizedBox(width: 8),
                                 IconButton(
                                   icon: const Icon(Icons.remove_circle_outline, color: Colors.redAccent, size: 20),
-                                  onPressed: () => _consumeItem(stockId),
-                                  tooltip: 'Consumir 1 unidad',
+                                  // --- CAMBIO: En lugar de consumir 1, abrimos el diálogo ---
+                                  onPressed: () => _showRemoveQuantityDialog(
+                                    stockId,
+                                    quantity,
+                                    productName,
+                                  ),
+                                  tooltip: 'Eliminar unidades',
                                 ),
                               ],
                             ),
