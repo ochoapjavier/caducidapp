@@ -15,6 +15,11 @@ services:
       - db_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d receipt_inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   # 2. Servicio de la API Core (Python FastAPI)
   core-api:
@@ -25,12 +30,17 @@ services:
       dockerfile: Dockerfile
     container_name: core_api
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     ports:
       - "8000:8000"
     environment:
       # URL de conexión a la DB, usa el nombre del servicio (postgres)
       DATABASE_URL: postgresql://user:password@postgres:5432/receipt_inventory
+    volumes:
+      # Montamos la carpeta de secretos desde la máquina local al contenedor.
+      # La ruta de la izquierda es en tu PC, la de la derecha es DENTRO del contenedor.
+      - ./backend/secrets:/app/backend/secrets:ro
     # Recarga automática en desarrollo
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 

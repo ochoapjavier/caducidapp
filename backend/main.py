@@ -1,43 +1,38 @@
-# backend/main.py (FINAL)
-
-from fastapi import FastAPI, Depends, HTTPException
+# backend/main.py
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from database import get_db
+
+# Importaciones de SQLAlchemy
+from database import engine, Base
+from repositories import models # Asegura que los modelos se registren
+
+# Creación de las tablas en la base de datos (si no existen)
+# En un entorno de producción más complejo, se usarían migraciones (ej. con Alembic)
+models.Base.metadata.create_all(bind=engine)
+
 from routers import router as inventory_router
 
 app = FastAPI(title="Core Inventory API (Modular)")
 
-# Lista de orígenes permitidos para CORS.
-# Durante el desarrollo, usar "*" es lo más sencillo para permitir
-# que tu app Flutter (web o móvil) se conecte sin problemas.
-# En un entorno de producción, deberías restringir esto a los dominios específicos de tu frontend.
+# Configuración de CORS
+# En desarrollo, Flutter web puede usar cualquier puerto. Usamos una expresión regular
+# para permitir cualquier puerto en localhost.
+# En producción, deberías añadir aquí el dominio de tu aplicación web.
 origins = [
-    "*"
+    "http://localhost", # Para pruebas locales directas
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, # Lista de orígenes permitidos
-    allow_credentials=True, 
-    allow_methods=["*"],    
-    allow_headers=["*"],    
+    allow_origin_regex=r'http://localhost:\d+', # Permite http://localhost:CUALQUIER_PUERTO
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Montamos el router de inventario bajo un prefijo
-app.include_router(inventory_router, prefix="/api/v1/inventory")
+# Montamos el router principal de la API
+app.include_router(inventory_router, prefix="/api/v1")
 
 @app.get("/")
 def read_root():
-    return {"status": "Core API Running", "message": "API Modular lista para el Sprint 1"}
-
-# Mantenemos el check de DB fuera del router para simplificar la verificación de estado general
-@app.get("/db-status")
-def check_db_status(db: Session = Depends(get_db)):
-    """Verifica si la API puede conectarse a PostgreSQL"""
-    try:
-        db.execute(text("SELECT 1"))
-        return {"db_status": "Connected", "message": "Conexión a PostgreSQL exitosa."}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error de conexión a DB: {e}")
+    return {"status": "Core API Running", "message": "API lista y refactorizada con SQLAlchemy ORM."}

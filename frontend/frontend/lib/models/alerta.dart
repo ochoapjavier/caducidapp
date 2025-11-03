@@ -1,28 +1,31 @@
 // frontend/lib/models/alerta.dart
 
 class AlertaItem {
-  // Las propiedades son finales (inmutables) para buena práctica
+  final int id;
   final String producto;
-  final int cantidad;
-  final DateTime fechaCaducidad; // Dart usa DateTime para fechas
   final String ubicacion;
+  final int cantidad;
+  final DateTime fechaCaducidad;
 
   AlertaItem({
+    required this.id,
     required this.producto,
+    required this.ubicacion,
     required this.cantidad,
     required this.fechaCaducidad,
-    required this.ubicacion,
   });
 
-  // Constructor de Fábrica: Convierte el JSON que viene de tu API a un objeto Dart
-  // Busca: {"producto": "Leche", "cantidad": 1, "fecha_caducidad": "2025-10-14"}
+  // Constructor factory para crear una instancia desde un JSON
   factory AlertaItem.fromJson(Map<String, dynamic> json) {
     return AlertaItem(
-      producto: json['producto'] as String,
-      cantidad: json['cantidad'] as int,
-      // Parsear el string ISO 8601 que envía FastAPI (ej. "2025-10-14")
-      fechaCaducidad: DateTime.parse(json['fecha_caducidad'] as String), 
-      ubicacion: json['ubicacion'] as String,
+      id: json['id_stock'],
+      // Extraemos el nombre del objeto anidado 'producto_maestro'
+      producto: json['producto_maestro']['nombre'],
+      // Extraemos el nombre del objeto anidado 'ubicacion'
+      ubicacion: json['ubicacion']['nombre'],
+      // El nombre del campo ahora es 'cantidad_actual'
+      cantidad: json['cantidad_actual'],
+      fechaCaducidad: DateTime.parse(json['fecha_caducidad']),
     );
   }
 }

@@ -4,3 +4,5 @@ uvicorn[standard]
 psycopg2-binary
 # ORM o herramienta de conexión a DB
 sqlalchemy
+# Para la autenticación con Firebase
+firebase-admin

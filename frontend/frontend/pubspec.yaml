@@ -31,8 +31,24 @@ dependencies:
   flutter:
     sdk: flutter
 
+  flutter_localizations: # <-- AÑADE ESTA LÍNEA
+    sdk: flutter         # <-- AÑADE ESTA LÍNEA
+  intl: ^0.20.2          # <-- AÑADE ESTA LÍNEA (o la versión más reciente)
+
+  firebase_core: ^2.32.0
+  firebase_auth: ^4.20.0
+
   # MÓDULO PARA HACER LLAMADAS HTTP (similar a HttpClient en Angular)
-  http: ^1.1.0 
+  http: ^1.2.0
+
+  # Plugin para escanear códigos de barras usando la cámara
+  mobile_scanner: ^5.1.1
+
+  # Plugin para control avanzado de la cámara (necesario para OCR)
+  camera: ^0.11.1
+
+  # Plugin para Reconocimiento Óptico de Caracteres (OCR)
+  google_mlkit_text_recognition: ^0.13.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
