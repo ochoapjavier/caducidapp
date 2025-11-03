@@ -1,5 +1,5 @@
 # backend/main.py
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
 # Importaciones de SQLAlchemy
@@ -36,3 +36,19 @@ app.include_router(inventory_router, prefix="/api/v1")
 @app.get("/")
 def read_root():
     return {"status": "Core API Running", "message": "API lista y refactorizada con SQLAlchemy ORM."}
+
+@app.api_route(
+    "/health", 
+    methods=["GET", "HEAD"],
+    status_code=status.HTTP_200_OK,
+    summary="Health Check Endpoint",
+    description="Endpoint simple para verificar que la API está activa. Responde a GET y HEAD.",
+    tags=["Health"]
+)
+def health_check():
+    """
+    Este endpoint es utilizado por servicios de monitoreo
+    para mantener el servicio activo.
+    Devuelve una respuesta vacía con código 200 OK.
+    """
+    return Response(status_code=status.HTTP_200_OK)

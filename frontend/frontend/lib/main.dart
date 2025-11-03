@@ -92,7 +92,28 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
               },
             );
           } else {
-            return const Center(child: Text('¡Inventario limpio! No hay productos próximos a caducar.'));
+            // --- INICIO: MEJORA DE LA PANTALLA DE "ESTADO VACÍO" (EMPTY STATE) ---
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.check_circle_outline_rounded,
+                      size: 80,
+                      color: Colors.green.shade400,
+                    ),
+                    const SizedBox(height: 24),
+                    Text('¡Todo en orden!', style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 8),
+                    Text('No tienes productos próximos a caducar en la siguiente semana. ¡Buen trabajo!', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600)),
+                  ],
+                ),
+              ),
+            );
+            // --- FIN: MEJORA DE LA PANTALLA DE "ESTADO VACÍO" ---
           }
         },
       ),
