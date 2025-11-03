@@ -2,6 +2,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/widgets/remove_item_view.dart'; // Importamos la nueva vista
 
 class InventoryView extends StatefulWidget {
@@ -13,35 +14,59 @@ class InventoryView extends StatefulWidget {
 
 class InventoryViewState extends State<InventoryView> {
   late Future<List<dynamic>> _stockItemsFuture;
-  final _searchController = TextEditingController();
-  Timer? _debounce;
+  final _nameSearchController = TextEditingController();
+  final _eanSearchController = TextEditingController();
+  Timer? _nameDebounce;
+  bool _isSearchPanelVisible = false; // Nuevo estado para controlar la visibilidad
 
   @override
   void initState() {
     super.initState();
     _stockItemsFuture = fetchStockItems();
-    _searchController.addListener(_onSearchChanged);
+    _nameSearchController.addListener(_onNameSearchChanged);
+    _eanSearchController.addListener(_onEanSearchChanged);
   }
 
   @override
   void dispose() {
-    _searchController.removeListener(_onSearchChanged);
-    _searchController.dispose();
-    _debounce?.cancel();
+    _nameSearchController.removeListener(_onNameSearchChanged);
+    _eanSearchController.removeListener(_onEanSearchChanged);
+    _nameSearchController.dispose();
+    _eanSearchController.dispose();
+    _nameDebounce?.cancel();
     super.dispose();
   }
 
-  void _onSearchChanged() {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      refreshInventory();
+  void _onNameSearchChanged() {
+    if (_nameDebounce?.isActive ?? false) _nameDebounce!.cancel();
+    _nameDebounce = Timer(const Duration(milliseconds: 500), () {
+      // Si el campo de EAN está activo, no buscamos por nombre para evitar conflictos.
+      if (_eanSearchController.text.isEmpty) {
+        refreshInventory();
+      }
     });
+  }
+
+  void _onEanSearchChanged() {
+    // La búsqueda por EAN es más rápida y no necesita debounce.
+    // Si el campo EAN se vacía, la búsqueda por nombre tomará el control.
+    refreshInventory();
+  }
+
+  void _scanBarcode() async {
+    final barcode = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (ctx) => const ScannerScreen()),
+    );
+    if (barcode != null && barcode.isNotEmpty) {
+      _eanSearchController.text = barcode;
+      refreshInventory();
+    }
   }
 
   // Hacemos el método público para poder llamarlo desde el widget padre
   void refreshInventory() {
     setState(() {
-      _stockItemsFuture = fetchStockItems(searchTerm: _searchController.text);
+      _stockItemsFuture = fetchStockItems(searchTerm: _eanSearchController.text.isNotEmpty ? _eanSearchController.text : _nameSearchController.text);
     });
   }
 
@@ -61,32 +86,67 @@ class InventoryViewState extends State<InventoryView> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold( // Envolvemos en un Scaffold para poder usar el FAB
+    // Ya no necesitamos un Scaffold aquí si el widget padre lo proporciona.
+    // Si este widget se usa en un contexto sin Scaffold, habría que mantenerlo.
+    // Por ahora, lo quitamos para integrarlo mejor en la TabBarView.
+    return Scaffold(
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(8.0, 8.0, 8.0, 0),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    labelText: 'Buscar por nombre o EAN',
-                    prefixIcon: const Icon(Icons.search),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+          // Panel de filtros desplegable
+          ExpansionTile(
+            title: const Text('Filtros'),
+            leading: const Icon(Icons.filter_list),
+            initiallyExpanded: false, // Empieza contraído
+            onExpansionChanged: (isExpanded) {
+              // Si se contrae y hay texto en los buscadores, los limpiamos y refrescamos la lista.
+              if (!isExpanded && (_nameSearchController.text.isNotEmpty || _eanSearchController.text.isNotEmpty)) {
+                _nameSearchController.clear();
+                _eanSearchController.clear();
+                refreshInventory();
+              }
+            },
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  children: [
+                    // Buscador por Nombre
+                    TextField(
+                      controller: _nameSearchController,
+                      decoration: InputDecoration(
+                        labelText: 'Buscar por Nombre',
+                        prefixIcon: const Icon(Icons.text_fields),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      onChanged: (value) {
+                        if (_eanSearchController.text.isNotEmpty) _eanSearchController.clear();
+                      },
                     ),
-                    suffixIcon: _searchController.text.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () => _searchController.clear(),
-                          )
-                        : null,
-                  ),
+                    const SizedBox(height: 12),
+                    // Buscador por EAN
+                    TextField(
+                      controller: _eanSearchController,
+                      decoration: InputDecoration(
+                        labelText: 'Buscar por EAN',
+                        prefixIcon: const Icon(Icons.barcode_reader),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.qr_code_scanner),
+                          onPressed: _scanBarcode,
+                          tooltip: 'Escanear código',
+                        ),
+                      ),
+                      keyboardType: TextInputType.number,
+                      onChanged: (value) {
+                        if (_nameSearchController.text.isNotEmpty) _nameSearchController.clear();
+                      },
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              )
+            ],
           ),
+          // Lista de inventario
           Expanded(
             child: FutureBuilder<List<dynamic>>(
               future: _stockItemsFuture,
