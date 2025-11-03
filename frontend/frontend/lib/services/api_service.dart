@@ -1,15 +1,22 @@
 // frontend/lib/services/api_service.dart
 
 import 'dart:convert';
+import 'package:flutter/foundation.dart'; // <-- 1. IMPORTAR FOUNDATION
 import 'package:http/http.dart' as http; // Importamos el paquete http
 import 'package:firebase_auth/firebase_auth.dart'; // Importamos Firebase Auth
 import '../models/alerta.dart';
 import '../models/ubicacion.dart';
 
-// URL base de tu API Core.
-// Usa 'http://10.0.2.2:8000' para el emulador de Android.
-// Usa la IP local de tu PC (ej. http://192.168.1.145:8000) para un dispositivo físico.
-const String apiUrl = 'http://192.168.1.145:8000/api/v1/inventory'; // <-- ¡CAMBIA ESTA IP POR LA TUYA!
+// --- 2. GESTIÓN DE ENTORNO AUTOMÁTICA ---
+// Usa la IP de tu máquina en la red local para pruebas en dispositivo físico.
+// Si usas el emulador de Android, la IP para referirte al localhost de tu PC es 10.0.2.2.
+const String _localBaseUrl = 'http://192.168.1.145:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
+const String _productionBaseUrl = 'https://caducidapp-api.onrender.com';
+
+// kDebugMode es `true` en `flutter run` y `false` en `flutter build --release`.
+const String baseUrl = kDebugMode ? _localBaseUrl : _productionBaseUrl;
+const String apiPrefix = '/api/v1/inventory';
+const String apiUrl = '$baseUrl$apiPrefix';
 
 // Función auxiliar para obtener las cabeceras con el token de autenticación
 Future<Map<String, String>> _getAuthHeaders() async {

@@ -8,8 +8,13 @@ from sqlalchemy.orm import sessionmaker
 # Obtener la URL de conexión del entorno (definida en docker-compose.yml)
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/receipt_inventory")
 
-# Creamos el motor de la base de datos
-engine = create_engine(DATABASE_URL)
+# Creamos el motor de la base de datos con la opción pool_pre_ping.
+# Esto verifica que la conexión a la base de datos esté activa antes de usarla,
+# lo que evita errores de "conexión cerrada" cuando el servicio se despierta
+# después de un período de inactividad (típico en los free tiers de Render).
+engine = create_engine(
+    DATABASE_URL, pool_pre_ping=True
+)
 
 Base = declarative_base()
 
