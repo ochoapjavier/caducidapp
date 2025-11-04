@@ -66,26 +66,31 @@ class InventoryViewState extends State<InventoryView> {
   }
 
   // Hacemos el método público para poder llamarlo desde el widget padre
-  void refreshInventory() {
+  Future<void> refreshInventory() async {
     setState(() {
       _stockItemsFuture = fetchStockItems(searchTerm: _eanSearchController.text.isNotEmpty ? _eanSearchController.text : _nameSearchController.text);
     });
+    try {
+      await _stockItemsFuture;
+    } catch (_) {
+      // el FutureBuilder mostrará el error; aquí sólo evitamos que el await lance hacia arriba
+    }
   }
-
+  
   void _consumeItem(int stockId) async {
     try {
       await consumeStockItem(stockId);
+      await refreshInventory(); // esperar a que la lista se actualice en pantalla
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Producto consumido.'), backgroundColor: Colors.green),
       );
-      refreshInventory(); // Recargamos la lista para ver el cambio
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Theme.of(context).colorScheme.error),
       );
     }
   }
-
+  
   /// Muestra un diálogo para confirmar y especificar la cantidad a eliminar.
   void _showRemoveQuantityDialog(int stockId, int currentQuantity, String productName) {
     final quantityController = TextEditingController(text: '1');
@@ -172,15 +177,8 @@ class InventoryViewState extends State<InventoryView> {
                               // Llamada al API para eliminar
                               final result = await removeStockItems(stockId: stockId, cantidad: quantityToRemove);
 
-                              // Obtener lista actualizada desde el servidor para asegurar consistencia
-                              final updatedList = await fetchStockItems(
-                                searchTerm: _eanSearchController.text.isNotEmpty ? _eanSearchController.text : _nameSearchController.text,
-                              );
-
-                              // Actualizar el FutureBuilder con la lista fresca
-                              setState(() {
-                                _stockItemsFuture = Future.value(updatedList);
-                              });
+                              // Refrescar inventario y esperar a que termine
+                              await refreshInventory();
 
                               // Cerrar diálogo y mostrar confirmación
                               Navigator.of(ctx).pop();
@@ -301,7 +299,7 @@ class InventoryViewState extends State<InventoryView> {
 
                 return RefreshIndicator(
                   onRefresh: () async {
-                    refreshInventory();
+                    await refreshInventory();
                   },
                   child: ListView.builder(
                     itemCount: locationKeys.length, // Ahora iteramos sobre las ubicaciones
