@@ -20,6 +20,7 @@ class InventoryViewState extends State<InventoryView> {
   final _eanSearchController = TextEditingController();
   Timer? _nameDebounce;
   bool _isSearchPanelVisible = false; // Nuevo estado para controlar la visibilidad
+  final Map<int, bool> _processingByItem = {}; // id_stock -> processing
 
   @override
   void initState() {
@@ -78,9 +79,10 @@ class InventoryViewState extends State<InventoryView> {
   }
   
   void _consumeItem(int stockId) async {
+    setState(() => _processingByItem[stockId] = true);
     try {
       await consumeStockItem(stockId);
-      await refreshInventory(); // esperar a que la lista se actualice en pantalla
+      await refreshInventory();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Producto consumido.'), backgroundColor: Colors.green),
       );
@@ -88,6 +90,8 @@ class InventoryViewState extends State<InventoryView> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Theme.of(context).colorScheme.error),
       );
+    } finally {
+      setState(() => _processingByItem.remove(stockId));
     }
   }
   
