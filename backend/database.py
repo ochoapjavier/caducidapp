@@ -1,7 +1,7 @@
 # backend/database.py
 
 import os
-from sqlalchemy import create_engine
+from sqlalchemy import NullPool, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -13,7 +13,9 @@ DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5
 # lo que evita errores de "conexión cerrada" cuando el servicio se despierta
 # después de un período de inactividad (típico en los free tiers de Render).
 engine = create_engine(
-    DATABASE_URL, pool_pre_ping=True
+    DATABASE_URL,
+    poolclass=NullPool,
+    pool_pre_ping=True,
 )
 
 Base = declarative_base()
