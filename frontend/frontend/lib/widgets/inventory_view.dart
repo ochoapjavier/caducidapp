@@ -90,6 +90,7 @@ class InventoryViewState extends State<InventoryView> {
   void _showRemoveQuantityDialog(int stockId, int currentQuantity, String productName) {
     final quantityController = TextEditingController(text: '1');
     final formKey = GlobalKey<FormState>();
+    bool isProcessing = false; // Estado local para el diálogo
 
     showDialog(
       context: context,
@@ -118,15 +119,19 @@ class InventoryViewState extends State<InventoryView> {
                         border: const OutlineInputBorder(),
                         prefixIcon: IconButton(
                           icon: const Icon(Icons.remove_circle_outline),
-                          onPressed: currentVal > 1
-                              ? () => setStateDialog(() => quantityController.text = (currentVal - 1).toString())
-                              : null,
+                          onPressed: isProcessing
+                              ? null
+                              : currentVal > 1
+                                  ? () => setStateDialog(() => quantityController.text = (currentVal - 1).toString())
+                                  : null,
                         ),
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.add_circle_outline),
-                          onPressed: currentVal < currentQuantity
-                              ? () => setStateDialog(() => quantityController.text = (currentVal + 1).toString())
-                              : null,
+                          onPressed: isProcessing
+                              ? null
+                              : currentVal < currentQuantity
+                                  ? () => setStateDialog(() => quantityController.text = (currentVal + 1).toString())
+                                  : null,
                         ),
                       ),
                       onChanged: (value) => setStateDialog(() {}), // Para actualizar el estado de los botones
@@ -139,33 +144,61 @@ class InventoryViewState extends State<InventoryView> {
                         return null;
                       },
                     ),
+                    if (isProcessing) ...[
+                      const SizedBox(height: 16),
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: 8),
+                      const Text('Eliminando...'),
+                    ],
                   ],
                 ),
               ),
               actions: [
                 TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(),
+                  onPressed: isProcessing ? null : () => Navigator.of(ctx).pop(),
                   child: const Text('Cancelar'),
                 ),
                 ElevatedButton(
-                  onPressed: () async {
-                    if (formKey.currentState?.validate() ?? false) {
-                      final quantityToRemove = int.parse(quantityController.text);
-                      Navigator.of(ctx).pop(); // Cerrar diálogo
-                      
-                      try {
-                        final result = await removeStockItems(stockId: stockId, cantidad: quantityToRemove);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(result['message'] ?? 'Stock actualizado.'), backgroundColor: Colors.green),
-                        );
-                        refreshInventory(); // Refrescar la lista
-                      } catch (e) {
-                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
+                  onPressed: isProcessing
+                      ? null
+                      : () async {
+                          if (formKey.currentState?.validate() ?? false) {
+                            final quantityToRemove = int.parse(quantityController.text);
+
+                            // Mostrar indicador de proceso en el diálogo
+                            setStateDialog(() => isProcessing = true);
+
+                            try {
+                              // Llamada al API para eliminar
+                              final result = await removeStockItems(stockId: stockId, cantidad: quantityToRemove);
+
+                              // Obtener lista actualizada desde el servidor para asegurar consistencia
+                              final updatedList = await fetchStockItems(
+                                searchTerm: _eanSearchController.text.isNotEmpty ? _eanSearchController.text : _nameSearchController.text,
+                              );
+
+                              // Actualizar el FutureBuilder con la lista fresca
+                              setState(() {
+                                _stockItemsFuture = Future.value(updatedList);
+                              });
+
+                              // Cerrar diálogo y mostrar confirmación
+                              Navigator.of(ctx).pop();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(result is Map ? (result['message'] ?? 'Stock actualizado.') : (result?.toString() ?? 'Stock actualizado.')),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            } catch (e) {
+                              // En caso de error, permitir reintento y notificar
+                              setStateDialog(() => isProcessing = false);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+                              );
+                            }
+                          }
+                        },
                   style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
                   child: const Text('Eliminar'),
                 ),
