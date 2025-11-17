@@ -1,26 +1,35 @@
-
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:flutter_localizations/flutter_localizations.dart'; // Importar
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart'; // Archivo generado por FlutterFire CLI
+import 'firebase_options.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'models/alerta.dart';
 import 'services/api_service.dart';
 import 'widgets/ubicacion_manager.dart';
 import 'theme/app_theme.dart';
-import 'widgets/inventory_view.dart'; // Importamos la nueva vista de inventario
-import 'widgets/add_item_view.dart'; // Importamos el nuevo widget
 import 'screens/auth_screen.dart'; // Importamos la pantalla de autenticación
 import 'screens/inventory_management_screen.dart'; // Importamos la nueva pantalla contenedora
 
+late final ValueNotifier<BrandPalette> _brandPaletteNotifier; // se inicializa tras leer prefs
+
+Future<void> _initPalette() async {
+  final prefs = await SharedPreferences.getInstance();
+  final stored = prefs.getString('brand_palette');
+  final initial = stored != null
+      ? BrandPalette.values.firstWhere(
+          (p) => p.name == stored,
+          orElse: () => BrandPalette.morado,
+        )
+      : BrandPalette.morado;
+  _brandPaletteNotifier = ValueNotifier(initial);
+}
+
 void main() async {
-  // Es necesario para que la inicialización de Firebase funcione antes de runApp
   WidgetsFlutterBinding.ensureInitialized();
-  // Inicializamos Firebase usando el archivo de configuración autogenerado
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await _initPalette();
   runApp(const MyApp());
 }
 
@@ -45,6 +54,9 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
     return RefreshIndicator(
       onRefresh: () async {
         setState(() {
@@ -68,31 +80,111 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
               ),
             );
           } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-            return ListView.builder(
-              padding: const EdgeInsets.all(8),
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
               itemCount: snapshot.data!.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final item = snapshot.data![index];
-                final isCritical = item.fechaCaducidad.difference(DateTime.now()).inDays <= 3;
+                final daysDiff = item.fechaCaducidad.difference(DateTime.now()).inDays;
+                final isCritical = daysDiff <= 3;
+        // Mapeo de severidad visual mejorado: Caducado/Urgente -> error, Próximo -> warning (amber tone)
+        final bool isExpired = daysDiff < 0;
+                final Color warningColor = Colors.amber.shade700; // Color de alerta suave para "Próximo"
+        final statusColor = (isExpired || isCritical) ? colorScheme.error : warningColor;
+        final statusLabel = isExpired
+          ? 'Caducado'
+          : (isCritical ? 'Urgente' : 'Próximo');
+
                 return Card(
-                  margin: const EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
-                  child: ListTile(
-                    leading: const Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
-                    title: Text(item.producto, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    subtitle: Text('Ubicación: ${item.ubicacion} | Cantidad: ${item.cantidad}'),
-                    trailing: Text(
-                      'Caduca: ${item.fechaCaducidad.day}/${item.fechaCaducidad.month}',
-                      style: TextStyle(
-                        color: isCritical ? Colors.redAccent : Colors.orange,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            // Usamos withValues para reducir opacidad sin deprecación
+                            // Fallback: until withOpacity migration complete, use alpha via .withAlpha
+                            color: statusColor.withAlpha((255 * 0.12).round()),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.warning_amber_rounded,
+                            color: statusColor,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.producto,
+                                style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Ubicación: ${item.ubicacion} · Cantidad: ${item.cantidad}',
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: colorScheme.onSurface.withAlpha((255 * 0.65).round()),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              'Caduca',
+                              style: textTheme.labelSmall?.copyWith(
+                                color: colorScheme.onSurface.withAlpha((255 * 0.60).round()),
+                              ),
+                            ),
+                            Text(
+                              '${item.fechaCaducidad.day}/${item.fechaCaducidad.month}',
+                              style: textTheme.bodyMedium?.copyWith(
+                                color: statusColor,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: statusColor.withAlpha((255 * 0.12).round()),
+                                borderRadius: BorderRadius.circular(999),
+                              ),
+                              child: Text(
+                                statusLabel,
+                                style: textTheme.labelSmall?.copyWith(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
                 );
               },
             );
           } else {
-            // --- INICIO: MEJORA DE LA PANTALLA DE "ESTADO VACÍO" (EMPTY STATE) ---
+            // estado vacío
             return Center(
               child: Padding(
                 padding: const EdgeInsets.all(24.0),
@@ -103,17 +195,27 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                     Icon(
                       Icons.check_circle_outline_rounded,
                       size: 80,
-                      color: Colors.green.shade400,
+                      color: colorScheme.primary,
                     ),
                     const SizedBox(height: 24),
-                    Text('¡Todo en orden!', style: Theme.of(context).textTheme.headlineSmall),
+                    Text(
+                      '¡Todo en orden!',
+                      style: textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                     const SizedBox(height: 8),
-                    Text('No tienes productos próximos a caducar en la siguiente semana. ¡Buen trabajo!', textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey.shade600)),
+                    Text(
+                      'No tienes productos próximos a caducar en la siguiente semana. ¡Buen trabajo!',
+                      textAlign: TextAlign.center,
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface.withOpacity(0.65),
+                      ),
+                    ),
                   ],
                 ),
               ),
             );
-            // --- FIN: MEJORA DE LA PANTALLA DE "ESTADO VACÍO" ---
           }
         },
       ),
@@ -123,45 +225,113 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
 
 /// Widget que contiene la estructura principal de la app (la que tiene las pestañas).
 /// Se mostrará cuando el usuario esté autenticado.
+// Notifier global simple para cambiar la paleta en runtime.
+// Nombres mostrados en español para cada paleta.
+extension BrandPaletteDisplay on BrandPalette {
+  String get displayName {
+    switch (this) {
+      case BrandPalette.enterprise:
+        return 'Empresarial';
+      case BrandPalette.freshness:
+        return 'Fresco';
+      case BrandPalette.tech:
+        return 'Tecnología';
+      case BrandPalette.morado:
+        return 'Morado';
+      case BrandPalette.rojo:
+        return 'Rojo';
+    }
+  }
+}
+
 class MainAppScreen extends StatelessWidget {
   const MainAppScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return DefaultTabController(
-      length: 3, // Cambiamos a 3 pestañas
+      length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Gestión de Caducidades'),
-          actions: [ // Usaremos un PopupMenuButton para un menú de usuario más elegante
+          elevation: 0,
+          backgroundColor: colorScheme.surface,
+          title: Text(
+            'Gestión de Caducidades',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          actions: [
             PopupMenuButton<String>(
-              icon: const Icon(Icons.account_circle), // Icono de perfil
+              icon: const Icon(Icons.account_circle),
               onSelected: (value) {
-                if (value == 'logout') {
+                if (value.startsWith('palette:')) {
+                  final key = value.split(':')[1];
+                  final selected = BrandPalette.values.firstWhere((p) => p.name == key);
+                  _brandPaletteNotifier.value = selected;
+                  SharedPreferences.getInstance()
+                      .then((prefs) => prefs.setString('brand_palette', selected.name));
+                } else if (value == 'logout') {
                   FirebaseAuth.instance.signOut();
                 }
               },
               itemBuilder: (BuildContext context) {
-                // Obtenemos el usuario actual de forma síncrona
                 final user = FirebaseAuth.instance.currentUser;
                 return [
-                  // Opción 1: Muestra el email (no es clickeable)
                   PopupMenuItem<String>(
-                    enabled: false, // Para que no parezca un botón
-                    child: Text(
-                      user?.email ?? 'Usuario', // Muestra el email o 'Usuario' si es nulo
-                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    enabled: false,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          user?.email ?? 'Usuario',
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Text('Paleta de marca', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+                      ],
                     ),
                   ),
+                  ...BrandPalette.values.map((p) => PopupMenuItem<String>(
+                        value: 'palette:${p.name}',
+                        child: Row(
+                          children: [
+                            Container(
+                              width: 18,
+                              height: 18,
+                              margin: const EdgeInsets.only(right: 10),
+                              decoration: BoxDecoration(
+                                color: AppTheme.lightThemeFor(p).colorScheme.primary,
+                                borderRadius: BorderRadius.circular(4),
+                                border: Border.all(color: Colors.black.withAlpha(30)),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                p.displayName,
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                            if (_brandPaletteNotifier.value == p)
+                              Icon(Icons.check, size: 16, color: Theme.of(context).colorScheme.primary),
+                          ],
+                        ),
+                      )),
                   const PopupMenuDivider(),
-                  // Opción 2: El botón para cerrar sesión
-                  const PopupMenuItem<String>(value: 'logout', child: Text('Cerrar Sesión')),
+                  const PopupMenuItem<String>(
+                    value: 'logout',
+                    child: Text('Cerrar sesión'),
+                  ),
                 ];
               },
-            )
+            ),
           ],
-          bottom: const TabBar(
-            tabs: [
+          bottom: TabBar(
+            labelColor: colorScheme.primary,
+            unselectedLabelColor:
+                colorScheme.onSurface.withOpacity(0.6),
+            indicatorColor: colorScheme.primary,
+            tabs: const [
               Tab(text: 'Alertas', icon: Icon(Icons.notifications_active_outlined)),
               Tab(text: 'Inventario', icon: Icon(Icons.inventory_2_outlined)),
               Tab(text: 'Ubicaciones', icon: Icon(Icons.location_on_outlined)),
@@ -171,7 +341,7 @@ class MainAppScreen extends StatelessWidget {
         body: const TabBarView(
           children: [
             AlertasDashboard(),
-            InventoryManagementScreen(), // Usamos la nueva pantalla contenedora
+            InventoryManagementScreen(),
             UbicacionManager(),
           ],
         ),
@@ -185,34 +355,44 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // MaterialApp permanece estable; solo el Theme interno se reemplaza, evitando rebuild completo
+    // que causaba el error de "deactivated widget ancestor" cuando el popup seguía cerrándose.
     return MaterialApp(
-        title: 'Gestión de Caducidades',
-        theme: AppTheme.lightTheme,
-        // --- INICIO DE CAMBIOS PARA LOCALIZACIÓN ---
-        localizationsDelegates: const [
-          GlobalMaterialLocalizations.delegate,
-          GlobalWidgetsLocalizations.delegate,
-          GlobalCupertinoLocalizations.delegate,
-        ],
-        supportedLocales: const [
-          Locale('es', 'ES'), // Español, España
-        ],
-        locale: const Locale('es', 'ES'), // Forzar el locale a español
-        // --- FIN DE CAMBIOS PARA LOCALIZACIÓN ---
-        debugShowCheckedModeBanner: false,
-        home: StreamBuilder(
-            stream: FirebaseAuth.instance.authStateChanges(),
-            builder: (ctx, userSnapshot) {
-              if (userSnapshot.connectionState == ConnectionState.waiting) {
-                // Mientras se verifica el estado, muestra un spinner
-                return const Scaffold(body: Center(child: CircularProgressIndicator()));
-              }
-              if (userSnapshot.hasData) {
-                // Si el snapshot tiene datos, significa que hay un usuario logueado
-                return const MainAppScreen();
-              }
-              // Si no hay datos, el usuario no está logueado
-              return const AuthScreen();
-            }));
+      title: 'Gestión de Caducidades',
+      theme: AppTheme.lightTheme, // tema base (violeta original como fallback)
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [
+        Locale('es', 'ES'),
+      ],
+      locale: const Locale('es', 'ES'),
+      debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        return ValueListenableBuilder<BrandPalette>(
+          valueListenable: _brandPaletteNotifier,
+          builder: (context, palette, _) {
+            return Theme(
+              data: AppTheme.lightThemeFor(palette),
+              child: child!,
+            );
+          },
+        );
+      },
+      home: StreamBuilder(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (ctx, userSnapshot) {
+          if (userSnapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
+          if (userSnapshot.hasData) {
+            return const MainAppScreen();
+          }
+          return const AuthScreen();
+        },
+      ),
+    );
   }
 }

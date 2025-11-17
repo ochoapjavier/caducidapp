@@ -43,27 +43,33 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
-      body: Center(
-        child: _widgetOptions.elementAt(_selectedIndex),
-      ),
-      bottomNavigationBar: BottomNavigationBar(
-        items: const <BottomNavigationBarItem>[
-          BottomNavigationBarItem(
-            icon: Icon(Icons.list_alt),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      body: _widgetOptions.elementAt(_selectedIndex),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _selectedIndex,
+        onDestinationSelected: _onItemTapped,
+        indicatorColor: colorScheme.primary.withOpacity(0.12),
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.list_alt_outlined),
+            selectedIcon: Icon(Icons.list_alt),
             label: 'Inventario',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.add_box_outlined),
+            selectedIcon: Icon(Icons.add_box),
             label: 'Añadir',
           ),
-          BottomNavigationBarItem(
+          NavigationDestination(
             icon: Icon(Icons.remove_circle_outline),
+            selectedIcon: Icon(Icons.remove_circle),
             label: 'Eliminar',
           ),
         ],
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
       ),
     );
   }

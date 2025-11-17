@@ -11,19 +11,25 @@ class AddItemView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             ElevatedButton.icon(
               icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Añadir Producto Escaneado'),
+              label: const Text('Añadir producto escaneado'),
               style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                textStyle: Theme.of(context).textTheme.titleLarge,
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                textStyle: textTheme.titleMedium,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onPressed: () async {
                 // Navega a la pantalla del escáner y espera un resultado (el código de barras)
@@ -88,23 +94,31 @@ class AddItemView extends StatelessWidget {
               },
             ),
             const SizedBox(height: 24),
-            const Row(
+            Row(
               children: [
-                Expanded(child: Divider()),
+                const Expanded(child: Divider()),
                 Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text('O'),
+                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                  child: Text(
+                    'O',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurface.withOpacity(0.6),
+                    ),
+                  ),
                 ),
-                Expanded(child: Divider()),
+                const Expanded(child: Divider()),
               ],
             ),
             const SizedBox(height: 24),
             OutlinedButton.icon(
               icon: const Icon(Icons.edit),
-              label: const Text('Añadir Manualmente'),
-               style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 20),
-                textStyle: Theme.of(context).textTheme.titleLarge,
+              label: const Text('Añadir manualmente'),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 18),
+                textStyle: textTheme.titleMedium,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               onPressed: () {
                  Navigator.of(context).push(MaterialPageRoute(

@@ -23,7 +23,7 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
 
   // Valores seleccionados
   Ubicacion? _selectedUbicacion;
-  dynamic? _selectedStockItem; // Item de stock seleccionado
+  dynamic _selectedStockItem; // Item de stock seleccionado
   List<dynamic> _itemsInLocation = []; // Items filtrados por ubicación
 
   // Lista de ubicaciones cargadas
@@ -44,7 +44,7 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
         fetchStockItems(),
       ]);
       _ubicaciones = results[0] as List<Ubicacion>;
-      _fullStock = results[1] as List<dynamic>;
+  _fullStock = results[1];
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -186,120 +186,158 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
       appBar: AppBar(
         title: const Text('Salida Manual de Stock'),
       ),
-      body: FutureBuilder(
-        future: _initialLoadFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error al cargar: ${snapshot.error}'));
-          }
-
-          // Variables para controlar el estado de los botones de cantidad
-          final bool isItemSelected = _selectedStockItem != null;
-          final int currentQuantity = int.tryParse(_quantityController.text) ?? 0;
-          final int maxQuantity = isItemSelected ? _selectedStockItem!['cantidad_actual'] : 0;
-
-          // Una vez cargado, mostramos el formulario
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                children: [
-                  // 1. Dropdown de Ubicaciones
-                  DropdownButtonFormField<Ubicacion>(
-                    value: _selectedUbicacion,
-                    decoration: const InputDecoration(labelText: 'Selecciona una Ubicación', border: OutlineInputBorder()),
-                    items: _ubicaciones.map((ubicacion) {
-                      return DropdownMenuItem(value: ubicacion, child: Text(ubicacion.nombre));
-                    }).toList(),
-                    onChanged: _onUbicacionChanged,
-                    validator: (value) => value == null ? 'Selecciona una ubicación.' : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 2. Dropdown de Productos (dependiente de la ubicación)
-                  DropdownButtonFormField<dynamic>(
-                    value: _selectedStockItem,
-                    decoration: InputDecoration(
-                      labelText: 'Selecciona un Producto',
-                      border: const OutlineInputBorder(),
-                      enabled: _selectedUbicacion != null, // Se activa solo si hay ubicación
-                    ),
-                    items: _itemsInLocation.map((item) {
-                      final productName = item['producto_maestro']['nombre'];
-                      final expiryDate = DateTime.parse(item['fecha_caducidad']);
-                      final formattedDate = DateFormat('dd/MM/yy').format(expiryDate);
-                      final quantity = item['cantidad_actual'];
-                      return DropdownMenuItem(
-                        value: item,
-                        child: Text('$productName (Cad: $formattedDate, Disp: $quantity)', overflow: TextOverflow.ellipsis),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 640),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: FutureBuilder(
+                  future: _initialLoadFuture,
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (snapshot.hasError) {
+                      return Center(
+                        child: Text('Error al cargar: ${snapshot.error}'),
                       );
-                    }).toList(),
-                    onChanged: _onStockItemChanged,
-                    validator: (value) => value == null ? 'Selecciona un producto.' : null,
-                    isExpanded: true,
-                  ),
-                  const SizedBox(height: 16),
+                    }
 
-                  // 3. Campo de Cantidad
-                  TextFormField(
-                    controller: _quantityController,
-                    textAlign: TextAlign.center, // Centramos el texto para mejor UX
-                    decoration: InputDecoration(
-                      labelText: 'Cantidad a Eliminar',
-                      border: const OutlineInputBorder(),
-                      enabled: isItemSelected,
-                      // Botón para decrementar
-                      prefixIcon: IconButton(
-                        icon: const Icon(Icons.remove_circle_outline),
-                        onPressed: isItemSelected && currentQuantity > 1 ? _decrementQuantity : null,
-                      ),
-                      // Botón para incrementar
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
-                        onPressed: isItemSelected && currentQuantity < maxQuantity ? _incrementQuantity : null,
-                      ),
-                    ),
-                    onChanged: (value) => _onQuantityChanged(), // Escuchamos cambios manuales
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Introduce una cantidad.';
-                      }
-                      final quantity = int.tryParse(value);
-                      if (quantity == null || quantity <= 0) {
-                        return 'La cantidad debe ser un número positivo.';
-                      }
-                      if (_selectedStockItem != null && quantity > _selectedStockItem['cantidad_actual']) {
-                        return 'No puedes eliminar más de lo disponible (${_selectedStockItem['cantidad_actual']}).';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 32),
+                    // Estado actual
+                    final bool isItemSelected = _selectedStockItem != null;
+                    final int currentQuantity =
+                        int.tryParse(_quantityController.text) ?? 0;
+                    final int maxQuantity = isItemSelected
+                        ? _selectedStockItem!['cantidad_actual']
+                        : 0;
 
-                  // 4. Botón de Eliminar
-                  if (_isLoading)
-                    const Center(child: CircularProgressIndicator())
-                  else
-                    ElevatedButton.icon(
-                      onPressed: _selectedStockItem != null ? _showConfirmationDialog : null,
-                      icon: const Icon(Icons.delete_forever_outlined),
-                      label: const Text('Eliminar del Inventario'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
+                    return Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          DropdownButtonFormField<Ubicacion>(
+                            value: _selectedUbicacion,
+                            decoration: const InputDecoration(
+                              labelText: 'Selecciona una Ubicación',
+                            ),
+                            items: _ubicaciones
+                                .map((ubicacion) => DropdownMenuItem(
+                                      value: ubicacion,
+                                      child: Text(ubicacion.nombre),
+                                    ))
+                                .toList(),
+                            onChanged: _onUbicacionChanged,
+                            validator: (value) => value == null
+                                ? 'Selecciona una ubicación.'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+
+                          DropdownButtonFormField<dynamic>(
+                            value: _selectedStockItem,
+                            decoration: InputDecoration(
+                              labelText: 'Selecciona un Producto',
+                              enabled: _selectedUbicacion != null,
+                            ),
+                            items: _itemsInLocation.map((item) {
+                              final productName =
+                                  item['producto_maestro']['nombre'];
+                              final expiryDate =
+                                  DateTime.parse(item['fecha_caducidad']);
+                              final formattedDate =
+                                  DateFormat('dd/MM/yy').format(expiryDate);
+                              final quantity = item['cantidad_actual'];
+                              return DropdownMenuItem(
+                                value: item,
+                                child: Text(
+                                  '$productName (Cad: $formattedDate, Disp: $quantity)',
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: _onStockItemChanged,
+                            validator: (value) => value == null
+                                ? 'Selecciona un producto.'
+                                : null,
+                            isExpanded: true,
+                          ),
+                          const SizedBox(height: 16),
+
+                          TextFormField(
+                            controller: _quantityController,
+                            textAlign: TextAlign.center,
+                            decoration: InputDecoration(
+                              labelText: 'Cantidad a Eliminar',
+                              enabled: isItemSelected,
+                              prefixIcon: IconButton(
+                                icon:
+                                    const Icon(Icons.remove_circle_outline),
+                                onPressed: isItemSelected && currentQuantity > 1
+                                    ? _decrementQuantity
+                                    : null,
+                              ),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                onPressed: isItemSelected &&
+                                        currentQuantity < maxQuantity
+                                    ? _incrementQuantity
+                                    : null,
+                              ),
+                            ),
+                            onChanged: (value) => _onQuantityChanged(),
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Introduce una cantidad.';
+                              }
+                              final quantity = int.tryParse(value);
+                              if (quantity == null || quantity <= 0) {
+                                return 'La cantidad debe ser un número positivo.';
+                              }
+                              if (_selectedStockItem != null &&
+                                  quantity >
+                                      _selectedStockItem['cantidad_actual']) {
+                                return 'No puedes eliminar más de lo disponible (${_selectedStockItem['cantidad_actual']}).';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 32),
+
+                          _isLoading
+                              ? const Center(
+                                  child: CircularProgressIndicator(),
+                                )
+                              : ElevatedButton.icon(
+                                  onPressed: _selectedStockItem != null
+                                      ? _showConfirmationDialog
+                                      : null,
+                                  icon: const Icon(
+                                      Icons.delete_forever_outlined),
+                                  label: const Text('Eliminar del Inventario'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 16),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                        ],
                       ),
-                    ),
-                ],
+                    );
+                  },
+                ),
               ),
             ),
-          );
-        },
+          ),
+        ),
       ),
     );
   }
