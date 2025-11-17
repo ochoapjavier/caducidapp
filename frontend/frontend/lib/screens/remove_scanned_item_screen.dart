@@ -103,6 +103,14 @@ class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    // Estilo unificado para Acción Destructiva (igual en manual y escaneado)
+    final ButtonStyle destructiveActionStyle = FilledButton.styleFrom(
+      backgroundColor: colorScheme.error,
+      foregroundColor: colorScheme.onError,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Salida por Escáner'),
@@ -153,13 +161,38 @@ class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
               key: _formKey,
               child: ListView(
                 children: [
-                  // Información del producto
-                  ListTile(
-                    leading: const Icon(Icons.label_important_outline, size: 32),
-                    title: Text(productName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-                    subtitle: Text(brand ?? 'Marca no disponible'),
+                  // Información del producto (estilizada con Card Material 3)
+                  Card(
+                    elevation: 0,
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.label_important_outline, size: 32, color: colorScheme.primary),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  productName,
+                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  brand ?? 'Marca no disponible',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  const Divider(height: 32),
+                  const SizedBox(height: 16),
 
                   // 1. Dropdown para elegir la ubicación/item específico
                   DropdownButtonFormField<dynamic>(
@@ -167,7 +200,6 @@ class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
                     isExpanded: true,
                     decoration: const InputDecoration(
                       labelText: 'Selecciona la ubicación del producto',
-                      border: OutlineInputBorder(),
                     ),
                     items: _foundItems.map((item) {
                       final locationName = item['ubicacion']['nombre'];
@@ -188,7 +220,6 @@ class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
                     textAlign: TextAlign.center,
                     decoration: InputDecoration(
                       labelText: 'Cantidad a Eliminar',
-                      border: const OutlineInputBorder(),
                       enabled: isItemSelected,
                       prefixIcon: IconButton(
                         icon: const Icon(Icons.remove_circle_outline),
@@ -217,15 +248,11 @@ class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
                   if (_isLoading)
                     const Center(child: CircularProgressIndicator())
                   else
-                    ElevatedButton.icon(
+                    FilledButton.icon(
                       onPressed: isItemSelected ? _submitRemoval : null,
                       icon: const Icon(Icons.delete_forever_outlined),
                       label: const Text('Eliminar del Inventario'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
+                      style: destructiveActionStyle,
                     ),
                 ],
               ),

@@ -210,6 +210,14 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    // Estilo unificado para Acción Primaria (igual en manual y escaneado)
+    final ButtonStyle primaryActionStyle = FilledButton.styleFrom(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      backgroundColor: colorScheme.primary,
+      foregroundColor: colorScheme.onPrimary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
     return Scaffold(
       appBar: AppBar(title: const Text('Añadir Producto Escaneado')),
       body: Padding(
@@ -274,7 +282,6 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
                 textAlign: TextAlign.center,
                 decoration: InputDecoration(
                   labelText: 'Cantidad *',
-                  border: const OutlineInputBorder(),
                   prefixIcon: IconButton(
                     icon: const Icon(Icons.remove_circle_outline),
                     onPressed: (int.tryParse(_quantityController.text) ?? 1) > 1 ? _decrementQuantity : null,
@@ -302,7 +309,6 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
                     decoration: const InputDecoration(
                       hintText: 'Fecha de Caducidad *',
                       prefixIcon: Icon(Icons.calendar_today),
-                      border: OutlineInputBorder(),
                     ),
                     readOnly: true,
                     onTap: _presentDatePicker,
@@ -325,12 +331,11 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
               if (_isLoading)
                 const Center(child: CircularProgressIndicator())
               else
-                ElevatedButton.icon(
+                FilledButton.icon(
                   onPressed: _submitForm,
                   icon: const Icon(Icons.save),
                   label: const Text('Guardar Producto'),
-                  style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16)),
+                  style: primaryActionStyle,
                 ),
             ],
           ),

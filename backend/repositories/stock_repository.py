@@ -2,14 +2,14 @@
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 from datetime import date, timedelta
-from .models import InventarioStock, ProductoMaestro, Ubicacion
+from models import InventoryStock, Product, Location
 
 class StockRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_stock_item(self, user_id: str, fk_producto_maestro: int, fk_ubicacion: int, cantidad_actual: int, fecha_caducidad: date) -> InventarioStock:
-        new_item = InventarioStock(
+    def create_stock_item(self, user_id: str, fk_producto_maestro: int, fk_ubicacion: int, cantidad_actual: int, fecha_caducidad: date) -> InventoryStock:
+        new_item = InventoryStock(
             user_id=user_id,
             fk_producto_maestro=fk_producto_maestro,
             fk_ubicacion=fk_ubicacion,
@@ -21,70 +21,70 @@ class StockRepository:
         self.db.refresh(new_item)
         return new_item
 
-    def find_stock_item(self, user_id: str, producto_maestro_id: int, ubicacion_id: int, fecha_caducidad: date) -> InventarioStock | None:
+    def find_stock_item(self, user_id: str, producto_maestro_id: int, ubicacion_id: int, fecha_caducidad: date) -> InventoryStock | None:
         """
         Busca un item de stock específico por producto, ubicación, usuario y fecha de caducidad.
         Esto es clave para la lógica de agrupación.
         """
-        return self.db.query(InventarioStock).filter(
+        return self.db.query(InventoryStock).filter(
             and_(
-                InventarioStock.user_id == user_id,
-                InventarioStock.fk_producto_maestro == producto_maestro_id,
-                InventarioStock.fk_ubicacion == ubicacion_id,
-                InventarioStock.fecha_caducidad == fecha_caducidad
+                InventoryStock.user_id == user_id,
+                InventoryStock.fk_producto_maestro == producto_maestro_id,
+                InventoryStock.fk_ubicacion == ubicacion_id,
+                InventoryStock.fecha_caducidad == fecha_caducidad
             )
         ).first()
 
-    def get_alertas_caducidad_for_user(self, days: int, user_id: str) -> list[InventarioStock]:
+    def get_alertas_caducidad_for_user(self, days: int, user_id: str) -> list[InventoryStock]:
         today = date.today()
         limit_date = today + timedelta(days=days)
 
         return (
-            self.db.query(InventarioStock)
+            self.db.query(InventoryStock)
             .options(
-                joinedload(InventarioStock.producto_maestro),
-                joinedload(InventarioStock.ubicacion)
+                joinedload(InventoryStock.producto_maestro),
+                joinedload(InventoryStock.ubicacion)
             )
             .filter(
-                InventarioStock.user_id == user_id,
-                InventarioStock.fecha_caducidad >= today,
-                InventarioStock.fecha_caducidad <= limit_date
+                InventoryStock.user_id == user_id,
+                InventoryStock.fecha_caducidad >= today,
+                InventoryStock.fecha_caducidad <= limit_date
             )
-            .order_by(InventarioStock.fecha_caducidad)
+            .order_by(InventoryStock.fecha_caducidad)
             .all()
         )
 
-    def get_stock_item_by_id_and_user(self, id_stock: int, user_id: str) -> InventarioStock | None:
-        return self.db.query(InventarioStock).filter(
-            InventarioStock.id_stock == id_stock,
-            InventarioStock.user_id == user_id
+    def get_stock_item_by_id_and_user(self, id_stock: int, user_id: str) -> InventoryStock | None:
+        return self.db.query(InventoryStock).filter(
+            InventoryStock.id_stock == id_stock,
+            InventoryStock.user_id == user_id
         ).first()
 
-    def get_all_stock_for_user(self, user_id: str, search_term: str | None = None) -> list[InventarioStock]:
+    def get_all_stock_for_user(self, user_id: str, search_term: str | None = None) -> list[InventoryStock]:
         query = (
-            self.db.query(InventarioStock)
+            self.db.query(InventoryStock)
             .options(
-                joinedload(InventarioStock.ubicacion) # Mantenemos el joinedload para ubicacion
+                joinedload(InventoryStock.ubicacion) # Mantenemos el joinedload para ubicacion
             )
-            .join(ProductoMaestro) # Hacemos un JOIN explícito con ProductoMaestro
-            .filter(InventarioStock.user_id == user_id)
+            .join(Product) # Hacemos un JOIN explícito con Product
+            .filter(InventoryStock.user_id == user_id)
         )
 
         if search_term:
             # Buscamos en el nombre del producto o en el código de barras
             search = f"%{search_term.lower()}%"
             query = query.filter(
-                (ProductoMaestro.nombre.ilike(search)) |
-                (ProductoMaestro.barcode.ilike(search))
+                (Product.nombre.ilike(search)) |
+                (Product.barcode.ilike(search))
             )
 
-        return query.order_by(ProductoMaestro.nombre, InventarioStock.fecha_caducidad).all()
+        return query.order_by(Product.nombre, InventoryStock.fecha_caducidad).all()
 
-    def delete_stock_item(self, item: InventarioStock):
+    def delete_stock_item(self, item: InventoryStock):
         self.db.delete(item)
         self.db.commit()
     
-    def update_stock_item(self, item: InventarioStock):
+    def update_stock_item(self, item: InventoryStock):
         self.db.commit()
         self.db.refresh(item)
         return item

@@ -132,94 +132,103 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: <Widget>[
-                // Título de la pantalla
-                Text(
-                  _isLoginMode ? 'Bienvenido de nuevo' : 'Crea tu cuenta',
-                  style: Theme.of(context).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _isLoginMode ? 'Inicia sesión para continuar' : 'Regístrate para empezar a gestionar tu inventario',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey.shade600),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 48),
-
-                // Campo de Email
-                TextFormField(
-                  key: const ValueKey('email'),
-                  validator: (value) => (value == null || !value.contains('@')) ? 'Por favor, introduce un email válido.' : null,
-                  onSaved: (value) => _userEmail = value!,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: const Icon(Icons.email_outlined),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                // AÑADIR ESTE WIDGET
-                if (_isLoginMode) // Solo mostrar en modo Login
-                    Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                        onPressed: _resetPassword,
-                        child: const Text('¿Olvidaste tu contraseña?'),
-                    ),
-                    ),
-                const SizedBox(height: 16),
-
-                // Campo de Contraseña
-                TextFormField(
-                  key: const ValueKey('password'),
-                  validator: (value) => (value == null || value.length < 7) ? 'La contraseña debe tener al menos 7 caracteres.' : null,
-                  onSaved: (value) => _userPassword = value!,
-                  obscureText: true,
-                  decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                // Botón principal y Spinner
-                if (_isLoading)
-                  const Center(child: CircularProgressIndicator())
-                else
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
-                    onPressed: _submitAuthForm,
-                    child: Text(_isLoginMode ? 'Iniciar Sesión' : 'Registrarse'),
-                  ),
-                const SizedBox(height: 16),
-
-                // Botón para cambiar de modo
-                if (!_isLoading)
-                  Row(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(_isLoginMode ? '¿No tienes una cuenta?' : '¿Ya tienes una cuenta?'),
-                      TextButton(
-                        onPressed: () => setState(() => _isLoginMode = !_isLoginMode),
-                        child: Text(_isLoginMode ? 'Regístrate' : 'Inicia Sesión'),
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      // Título de la pantalla
+                      Text(
+                        _isLoginMode ? 'Bienvenido de nuevo' : 'Crea tu cuenta',
+                        style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
+                        textAlign: TextAlign.center,
                       ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _isLoginMode ? 'Inicia sesión para continuar' : 'Regístrate para empezar a gestionar tu inventario',
+                        style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.65)),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Campo de Email
+                      TextFormField(
+                        key: const ValueKey('email'),
+                        validator: (value) => (value == null || !value.contains('@')) ? 'Por favor, introduce un email válido.' : null,
+                        onSaved: (value) => _userEmail = value!,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.email_outlined),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      // Campo de Contraseña
+                      TextFormField(
+                        key: const ValueKey('password'),
+                        validator: (value) => (value == null || value.length < 7) ? 'La contraseña debe tener al menos 7 caracteres.' : null,
+                        onSaved: (value) => _userPassword = value!,
+                        obscureText: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Contraseña',
+                          prefixIcon: Icon(Icons.lock_outline),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      if (_isLoginMode)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _resetPassword,
+                            child: const Text('¿Olvidaste tu contraseña?'),
+                          ),
+                        ),
+                      const SizedBox(height: 16),
+
+                      // Botón principal y Spinner
+                      if (_isLoading)
+                        const Center(child: CircularProgressIndicator())
+                      else
+                        ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: _submitAuthForm,
+                          child: Text(_isLoginMode ? 'Iniciar Sesión' : 'Registrarse'),
+                        ),
+                      const SizedBox(height: 8),
+
+                      // Botón para cambiar de modo
+                      if (!_isLoading)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(_isLoginMode ? '¿No tienes una cuenta?' : '¿Ya tienes una cuenta?'),
+                            TextButton(
+                              onPressed: () => setState(() => _isLoginMode = !_isLoginMode),
+                              child: Text(_isLoginMode ? 'Regístrate' : 'Inicia Sesión'),
+                            ),
+                          ],
+                        ),
                     ],
                   ),
-              ],
+                ),
+              ),
             ),
           ),
         ),

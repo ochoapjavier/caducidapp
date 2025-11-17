@@ -42,6 +42,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Escanear Código de Barras'),
@@ -50,7 +51,7 @@ class _ScannerScreenState extends State<ScannerScreen> {
             // El icono ahora depende de nuestra variable de estado local _isTorchOn.
             icon: Icon(
               _isTorchOn ? Icons.flash_on : Icons.flash_off,
-              color: _isTorchOn ? Colors.yellow : Colors.grey,
+              color: _isTorchOn ? colorScheme.primary : colorScheme.onSurfaceVariant,
             ),
             onPressed: () {
               // Al presionar, llamamos al controlador y actualizamos nuestro estado local.
@@ -74,8 +75,30 @@ class _ScannerScreenState extends State<ScannerScreen> {
               width: 250,
               height: 250,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.green, width: 4),
+                border: Border.all(color: colorScheme.primary, width: 4),
                 borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+          // Indicaciones al usuario
+          Positioned(
+            bottom: 32,
+            left: 16,
+            right: 16,
+            child: Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface.withAlpha((255 * 0.85).round()),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                ),
+                child: Text(
+                  'Alinea el código dentro del marco para escanear',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurface.withAlpha((255 * 0.8).round()),
+                      ),
+                ),
               ),
             ),
           ),
