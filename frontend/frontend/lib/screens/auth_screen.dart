@@ -175,16 +175,7 @@ class _AuthScreenState extends State<AuthScreen> {
                           prefixIcon: Icon(Icons.email_outlined),
                         ),
                       ),
-                      if (_isLoginMode)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: _resetPassword,
-                            child: const Text('¿Olvidaste tu contraseña?'),
-                          ),
-                        ),
-                      const SizedBox(height: 12),
-
+                      const SizedBox(height: 16),
                       // Campo de Contraseña
                       TextFormField(
                         key: const ValueKey('password'),
@@ -196,6 +187,16 @@ class _AuthScreenState extends State<AuthScreen> {
                           prefixIcon: Icon(Icons.lock_outline),
                         ),
                       ),
+                      const SizedBox(height: 16),
+
+                      if (_isLoginMode)
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: _resetPassword,
+                            child: const Text('¿Olvidaste tu contraseña?'),
+                          ),
+                        ),
                       const SizedBox(height: 16),
 
                       // Botón principal y Spinner

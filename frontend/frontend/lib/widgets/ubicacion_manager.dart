@@ -27,10 +27,11 @@ class _UbicacionManagerState extends State<UbicacionManager> {
   }
 
   void _showSnackbar(String message, {bool isError = false}) {
+    final scheme = Theme.of(context).colorScheme;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        backgroundColor: isError ? scheme.error : scheme.primary,
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -80,7 +81,6 @@ class _UbicacionManagerState extends State<UbicacionManager> {
             autofocus: true,
             decoration: const InputDecoration(
               labelText: 'Nuevo nombre',
-              border: OutlineInputBorder(),
             ),
           ),
           actions: <Widget>[
@@ -88,7 +88,7 @@ class _UbicacionManagerState extends State<UbicacionManager> {
               child: const Text('Cancelar'),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            ElevatedButton(
+            FilledButton(
               child: const Text('Guardar'),
               onPressed: () {
                 if (editController.text.isNotEmpty) {
@@ -107,6 +107,7 @@ class _UbicacionManagerState extends State<UbicacionManager> {
     return showDialog<void>(
       context: context,
       builder: (BuildContext context) {
+        final scheme = Theme.of(context).colorScheme;
         return AlertDialog(
           title: const Text('Confirmar Eliminación'),
           content: Text('¿Seguro que quieres eliminar "${ubicacion.nombre}"?'),
@@ -115,8 +116,11 @@ class _UbicacionManagerState extends State<UbicacionManager> {
               child: const Text('Cancelar'),
               onPressed: () => Navigator.of(context).pop(),
             ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: scheme.error,
+                foregroundColor: scheme.onError,
+              ),
               child: const Text('Eliminar'),
               onPressed: () {
                 Navigator.of(context).pop();
@@ -152,7 +156,7 @@ class _UbicacionManagerState extends State<UbicacionManager> {
 
   Widget _buildAddUbicacionCard() {
     return Card(
-      elevation: 2.0,
+      elevation: 0,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
@@ -167,19 +171,16 @@ class _UbicacionManagerState extends State<UbicacionManager> {
                     controller: _addController,
                     decoration: const InputDecoration(
                       labelText: 'Nombre de la ubicación',
-                      border: OutlineInputBorder(),
                     ),
                   ),
                 ),
                 const SizedBox(width: 10),
-                ElevatedButton.icon(
+                FilledButton.icon(
                   onPressed: _addAndReloadUbicacion,
                   icon: const Icon(Icons.add),
                   label: const Text('Añadir'),
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                   ),
                 ),
               ],
@@ -199,25 +200,70 @@ class _UbicacionManagerState extends State<UbicacionManager> {
         } else if (snapshot.hasError) {
           return Center(child: Text('Error al cargar: ${snapshot.error}'));
         } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
-          return ListView.builder(
-            itemCount: snapshot.data!.length,
+          final items = snapshot.data!;
+          final scheme = Theme.of(context).colorScheme;
+          return ListView.separated(
+            itemCount: items.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
-              final ubicacion = snapshot.data![index];
+              final ubicacion = items[index];
               return Card(
-                margin: const EdgeInsets.symmetric(vertical: 4.0),
-                child: ListTile(
-                  leading: const Icon(Icons.location_on_outlined),
-                  title: Text(ubicacion.nombre),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
+                elevation: 0,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+                  child: Row(
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined, color: Colors.blue),
-                        onPressed: () => _showEditDialog(ubicacion),
+                      Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: scheme.primary.withAlpha((255 * 0.12).round()),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.location_on_outlined, color: scheme.primary),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent),
-                        onPressed: () => _showDeleteConfirmationDialog(ubicacion),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          ubicacion.nombre,
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      PopupMenuButton<String>(
+                        tooltip: 'Acciones',
+                        onSelected: (value) {
+                          switch (value) {
+                            case 'edit':
+                              _showEditDialog(ubicacion);
+                              break;
+                            case 'delete':
+                              _showDeleteConfirmationDialog(ubicacion);
+                              break;
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.edit_outlined, size: 18),
+                                SizedBox(width: 8),
+                                Text('Renombrar'),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'delete',
+                            child: Row(
+                              children: const [
+                                Icon(Icons.delete_outline, size: 18),
+                                SizedBox(width: 8),
+                                Text('Eliminar'),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

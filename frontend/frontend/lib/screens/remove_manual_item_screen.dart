@@ -138,12 +138,15 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
             onPressed: () => Navigator.of(ctx).pop(),
             child: const Text('Cancelar'),
           ),
-          ElevatedButton(
+          FilledButton(
             onPressed: () {
               Navigator.of(ctx).pop(); // Cierra el diálogo
               _submitRemoval(); // Procede con la eliminación
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+              foregroundColor: Theme.of(context).colorScheme.onError,
+            ),
             child: const Text('Confirmar'),
           ),
         ],
@@ -162,7 +165,10 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Stock actualizado con éxito.'), backgroundColor: Colors.green),
+          SnackBar(
+            content: const Text('Stock actualizado con éxito.'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
         );
         // Volvemos a la pantalla de inventario y le decimos que refresque (devolviendo true)
         Navigator.of(context).pop(true);
@@ -182,6 +188,14 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // Estilo unificado para Acción Destructiva (igual que versión de escaneado)
+    final ButtonStyle destructiveActionStyle = FilledButton.styleFrom(
+      backgroundColor: scheme.error,
+      foregroundColor: scheme.onError,
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Salida Manual de Stock'),
@@ -312,22 +326,14 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
                               ? const Center(
                                   child: CircularProgressIndicator(),
                                 )
-                              : ElevatedButton.icon(
+                              : FilledButton.icon(
                                   onPressed: _selectedStockItem != null
                                       ? _showConfirmationDialog
                                       : null,
                                   icon: const Icon(
                                       Icons.delete_forever_outlined),
                                   label: const Text('Eliminar del Inventario'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 16),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                  ),
+                                      style: destructiveActionStyle,
                                 ),
                         ],
                       ),

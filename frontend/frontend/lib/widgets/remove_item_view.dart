@@ -12,6 +12,13 @@ class RemoveItemView extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
 
+    // Estilo común: mantener el formato de "escaneado" para ambos botones
+    final ButtonStyle primaryActionStyle = ElevatedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      textStyle: textTheme.titleMedium,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+
     return Center(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
@@ -60,16 +67,10 @@ class RemoveItemView extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-            OutlinedButton.icon(
+            ElevatedButton.icon(
               icon: const Icon(Icons.edit_note),
-              label: const Text('Eliminar manualmente'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                textStyle: textTheme.titleMedium,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+              label: const Text('Eliminar producto manualmente'),
+              style: primaryActionStyle,
               onPressed: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(

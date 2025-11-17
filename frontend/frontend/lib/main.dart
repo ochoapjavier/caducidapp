@@ -13,8 +13,9 @@ import 'screens/auth_screen.dart'; // Importamos la pantalla de autenticación
 import 'screens/inventory_management_screen.dart'; // Importamos la nueva pantalla contenedora
 
 late final ValueNotifier<BrandPalette> _brandPaletteNotifier; // se inicializa tras leer prefs
+late final ValueNotifier<ThemeMode> _themeModeNotifier;      // system/light/dark
 
-Future<void> _initPalette() async {
+Future<void> _initAppearance() async {
   final prefs = await SharedPreferences.getInstance();
   final stored = prefs.getString('brand_palette');
   final initial = stored != null
@@ -24,12 +25,20 @@ Future<void> _initPalette() async {
         )
       : BrandPalette.morado;
   _brandPaletteNotifier = ValueNotifier(initial);
+
+  final modeStr = prefs.getString('theme_mode');
+  final ThemeMode mode = switch (modeStr) {
+    'light' => ThemeMode.light,
+    'dark' => ThemeMode.dark,
+    _ => ThemeMode.system,
+  };
+  _themeModeNotifier = ValueNotifier(mode);
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  await _initPalette();
+  await _initAppearance();
   runApp(const MyApp());
 }
 
@@ -271,6 +280,16 @@ class MainAppScreen extends StatelessWidget {
                   _brandPaletteNotifier.value = selected;
                   SharedPreferences.getInstance()
                       .then((prefs) => prefs.setString('brand_palette', selected.name));
+                } else if (value.startsWith('theme:')) {
+                  final key = value.split(':')[1];
+                  final ThemeMode mode = switch (key) {
+                    'light' => ThemeMode.light,
+                    'dark' => ThemeMode.dark,
+                    _ => ThemeMode.system,
+                  };
+                  _themeModeNotifier.value = mode;
+                  SharedPreferences.getInstance()
+                      .then((prefs) => prefs.setString('theme_mode', key));
                 } else if (value == 'logout') {
                   FirebaseAuth.instance.signOut();
                 }
@@ -317,6 +336,47 @@ class MainAppScreen extends StatelessWidget {
                           ],
                         ),
                       )),
+                  const PopupMenuDivider(),
+                  PopupMenuItem<String>(
+                    enabled: false,
+                    child: Text('Apariencia', style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w600)),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'theme:system',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.brightness_auto, size: 18),
+                        const SizedBox(width: 10),
+                        const Expanded(child: Text('Sistema', style: TextStyle(fontSize: 13))),
+                        if (_themeModeNotifier.value == ThemeMode.system)
+                          Icon(Icons.check, size: 16, color: Theme.of(context).colorScheme.primary),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'theme:light',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.light_mode, size: 18),
+                        const SizedBox(width: 10),
+                        const Expanded(child: Text('Claro', style: TextStyle(fontSize: 13))),
+                        if (_themeModeNotifier.value == ThemeMode.light)
+                          Icon(Icons.check, size: 16, color: Theme.of(context).colorScheme.primary),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem<String>(
+                    value: 'theme:dark',
+                    child: Row(
+                      children: [
+                        const Icon(Icons.dark_mode, size: 18),
+                        const SizedBox(width: 10),
+                        const Expanded(child: Text('Oscuro', style: TextStyle(fontSize: 13))),
+                        if (_themeModeNotifier.value == ThemeMode.dark)
+                          Icon(Icons.check, size: 16, color: Theme.of(context).colorScheme.primary),
+                      ],
+                    ),
+                  ),
                   const PopupMenuDivider(),
                   const PopupMenuItem<String>(
                     value: 'logout',
@@ -374,9 +434,21 @@ class MyApp extends StatelessWidget {
         return ValueListenableBuilder<BrandPalette>(
           valueListenable: _brandPaletteNotifier,
           builder: (context, palette, _) {
-            return Theme(
-              data: AppTheme.lightThemeFor(palette),
-              child: child!,
+            return ValueListenableBuilder<ThemeMode>(
+              valueListenable: _themeModeNotifier,
+              builder: (context, mode, __) {
+                final Brightness effectiveBrightness = switch (mode) {
+                  ThemeMode.light => Brightness.light,
+                  ThemeMode.dark => Brightness.dark,
+                  ThemeMode.system => MediaQuery.of(context).platformBrightness,
+                };
+                return AnimatedTheme(
+                  data: AppTheme.themeFor(palette, effectiveBrightness),
+                  duration: const Duration(milliseconds: 220),
+                  curve: Curves.easeInOut,
+                  child: child ?? const SizedBox.shrink(),
+                );
+              },
             );
           },
         );

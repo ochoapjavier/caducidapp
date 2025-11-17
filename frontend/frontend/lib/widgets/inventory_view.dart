@@ -128,7 +128,7 @@ class InventoryViewState extends State<InventoryView> {
                                   : null,
                         ),
                       ),
-                      onChanged: (value) => setStateDialog(() {}), // Para actualizar el estado de los botones
+                      onChanged: (value) => setStateDialog(() {}),
                       validator: (value) {
                         if (value == null || value.isEmpty) return 'Introduce un nº.';
                         final n = int.tryParse(value);
@@ -355,12 +355,9 @@ class InventoryViewState extends State<InventoryView> {
                                     bottom: i == itemsInLocation.length - 1 ? 8 : 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    // Fondo ligeramente tintado para contrastar con el blanco del Card padre.
-                                    // Si el producto no está próximo a caducar, usamos un tono neutro suave.
-                                    // Si hay franja de caducidad mantenemos fondo limpio para que la franja destaque.
-                                    color: expiryColor == Colors.transparent
-                                        ? colorScheme.surfaceVariant.withAlpha((255 * 0.65).round())
-                                        : colorScheme.surface,
+                                    // Fondo ligeramente tintado para todos los items, independientemente de la franja,
+                                    // de forma que la única diferencia visual sea la franja de la izquierda.
+                                    color: colorScheme.surfaceVariant.withAlpha((255 * 0.65).round()),
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
                                       color: colorScheme.outline.withAlpha((255 * 0.35).round()),
@@ -374,114 +371,122 @@ class InventoryViewState extends State<InventoryView> {
                                       ),
                                     ],
                                   ),
-                                  child: Stack(
-                                    children: [
-                                          if (expiryColor != Colors.transparent)
-                                            Positioned(
-                                              left: 0,
-                                              top: 0,
-                                              bottom: 0,
-                                              child: Container(
-                                                width: 6,
-                                                decoration: BoxDecoration(
-                                                  color: expiryColor,
-                                                  borderRadius: const BorderRadius.only(
-                                                    topLeft: Radius.circular(16),
-                                                    bottomLeft: Radius.circular(16),
-                                                  ),
-                                                ),
-                                              ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(16),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: Stack(
+                                      children: [
+                                        if (expiryColor != Colors.transparent)
+                                          Positioned(
+                                            left: 0,
+                                            top: 0,
+                                            bottom: 0,
+                                            child: Container(
+                                              width: 10,
+                                              color: expiryColor,
                                             ),
-                                          Padding(
-                                            padding: EdgeInsets.fromLTRB(expiryColor != Colors.transparent ? 14 : 16, 14, 16, 14),
-                                            child: Row(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              children: [
-                                                CircleAvatar(
-                                                  radius: 24,
-                                                  backgroundColor: Colors.grey[200],
-                                                  child: imageUrl != null
-                                                      ? ClipOval(
-                                                          child: Image.network(
-                                                            imageUrl,
-                                                            fit: BoxFit.cover,
-                                                            width: 48,
-                                                            height: 48,
-                                                            loadingBuilder: (context, child, progress) => progress == null
-                                                                ? child
-                                                                : const SizedBox(
-                                                                    width: 24,
-                                                                    height: 24,
-                                                                    child: CircularProgressIndicator(strokeWidth: 2),
-                                                                  ),
-                                                            errorBuilder: (context, error, stackTrace) => const Icon(
-                                                              Icons.image_not_supported,
-                                                              color: Colors.grey,
-                                                            ),
-                                                          ),
-                                                        )
-                                                      : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 24),
-                                                ),
-                                                const SizedBox(width: 16),
-                                                Expanded(
-                                                  child: Column(
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      Text(
-                                                        productName,
-                                                        style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                                                        maxLines: 1,
-                                                        overflow: TextOverflow.ellipsis,
-                                                      ),
-                                                      if (brand != null && brand.isNotEmpty)
-                                                        Padding(
-                                                          padding: const EdgeInsets.only(top: 2.0),
-                                                          child: Text(
-                                                            brand,
-                                                            style: textTheme.bodySmall?.copyWith(
-                                                              color: colorScheme.onSurface.withAlpha((255 * 0.65).round()),
-                                                            ),
+                                          ),
+                                        Padding(
+                                          padding: EdgeInsets.fromLTRB(expiryColor != Colors.transparent ? 14 : 16, 14, 16, 14),
+                                          child: Row(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              CircleAvatar(
+                                                radius: 24,
+                                                backgroundColor: Colors.grey[200],
+                                                child: imageUrl != null
+                                                    ? ClipOval(
+                                                        child: Image.network(
+                                                          imageUrl,
+                                                          fit: BoxFit.cover,
+                                                          width: 48,
+                                                          height: 48,
+                                                          loadingBuilder: (context, child, progress) => progress == null
+                                                              ? child
+                                                              : const SizedBox(
+                                                                  width: 24,
+                                                                  height: 24,
+                                                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                                                ),
+                                                          errorBuilder: (context, error, stackTrace) => const Icon(
+                                                            Icons.image_not_supported,
+                                                            color: Colors.grey,
                                                           ),
                                                         ),
-                                                      const SizedBox(height: 4),
-                                                      Text(
-                                                        'Caduca: ${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
-                                                        style: textTheme.bodySmall,
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ),
-                                                const SizedBox(width: 12),
-                                                Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.end,
+                                                      )
+                                                    : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 24),
+                                              ),
+                                              const SizedBox(width: 16),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
                                                     Text(
-                                                      'x$quantity',
+                                                      productName,
                                                       style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
                                                     ),
-                                                    const SizedBox(height: 8),
-                                                    ElevatedButton.icon(
-                                                      onPressed: () => _showRemoveQuantityDialog(stockId, quantity, productName),
-                                                      icon: const Icon(Icons.remove_circle_outline, size: 18),
-                                                      label: const Text('Usar'),
-                                                      style: ElevatedButton.styleFrom(
-                                                        elevation: 0,
-                                                        backgroundColor: colorScheme.primaryContainer,
-                                                        foregroundColor: colorScheme.onPrimaryContainer,
-                                                        minimumSize: const Size(0, 34),
-                                                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                                        shape: RoundedRectangleBorder(
-                                                          borderRadius: BorderRadius.circular(10),
+                                                    if (brand != null && brand.isNotEmpty)
+                                                      Padding(
+                                                        padding: const EdgeInsets.only(top: 2.0),
+                                                        child: Text(
+                                                          brand,
+                                                          style: textTheme.bodySmall?.copyWith(
+                                                            color: colorScheme.onSurface.withAlpha((255 * 0.65).round()),
+                                                          ),
                                                         ),
                                                       ),
+                                                    const SizedBox(height: 4),
+                                                    Text(
+                                                      'Caduca: ${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
+                                                      style: textTheme.bodySmall,
                                                     ),
                                                   ],
                                                 ),
-                                              ],
-                                            ),
+                                              ),
+                                              const SizedBox(width: 12),
+                                              Column(
+                                                crossAxisAlignment: CrossAxisAlignment.end,
+                                                children: [
+                                                  Text(
+                                                    'x$quantity',
+                                                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  Row(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      FilledButton.tonal(
+                                                        onPressed: () => _showRemoveQuantityDialog(stockId, quantity, productName),
+                                                        style: FilledButton.styleFrom(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                                          minimumSize: const Size(0, 34),
+                                                        ),
+                                                        child: Row(
+                                                          children: const [
+                                                            Icon(Icons.remove_circle_outline, size: 18),
+                                                            SizedBox(width: 6),
+                                                            Text('Usar'),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 8),
+                                                      IconButton(
+                                                        tooltip: 'Editar',
+                                                        icon: const Icon(Icons.edit_outlined),
+                                                        onPressed: () => _showEditStockItemDialog(item),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                     );
                                 }).toList(),
                               ),
@@ -496,5 +501,153 @@ class InventoryViewState extends State<InventoryView> {
           ), // Expanded
         ],
       ); // Column
+  }
+  void _showEditStockItemDialog(dynamic item) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final producto = item['producto_maestro'];
+    final stockId = item['id_stock'] as int;
+    final initialName = producto['nombre'] as String? ?? '';
+    final initialBrand = (producto['marca'] as String?) ?? '';
+    final initialQty = item['cantidad_actual'] as int;
+    final initialExpiry = DateTime.parse(item['fecha_caducidad']);
+
+    final nameController = TextEditingController(text: initialName);
+    final brandController = TextEditingController(text: initialBrand);
+    final qtyController = TextEditingController(text: initialQty.toString());
+    final dateController = TextEditingController(text: '${initialExpiry.day.toString().padLeft(2,'0')}/${initialExpiry.month.toString().padLeft(2,'0')}/${initialExpiry.year}');
+    DateTime selectedDate = initialExpiry;
+    final formKey = GlobalKey<FormState>();
+    bool saving = false;
+
+    Future<void> pickDate() async {
+      final picked = await showDatePicker(
+        context: context,
+        initialDate: selectedDate,
+        firstDate: DateTime(2000),
+        lastDate: DateTime(2101),
+      );
+      if (picked != null) {
+        selectedDate = picked;
+        dateController.text = '${picked.day.toString().padLeft(2,'0')}/${picked.month.toString().padLeft(2,'0')}/${picked.year}';
+      }
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Editar ítem'),
+              content: Form(
+                key: formKey,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      TextFormField(
+                        controller: nameController,
+                        decoration: const InputDecoration(labelText: 'Nombre del producto'),
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Introduce un nombre' : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: brandController,
+                        decoration: const InputDecoration(labelText: 'Marca (opcional)'),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: qtyController,
+                        keyboardType: TextInputType.number,
+                        decoration: InputDecoration(
+                          labelText: 'Cantidad',
+                          prefixIcon: IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: saving ? null : () {
+                              final current = int.tryParse(qtyController.text) ?? 1;
+                              if (current > 1) {
+                                setStateDialog(() => qtyController.text = (current - 1).toString());
+                              }
+                            },
+                          ),
+                          suffixIcon: IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            onPressed: saving ? null : () {
+                              final current = int.tryParse(qtyController.text) ?? 0;
+                              setStateDialog(() => qtyController.text = (current + 1).toString());
+                            },
+                          ),
+                        ),
+                        validator: (v) {
+                          if (v == null || v.isEmpty) return 'Cantidad requerida';
+                          final n = int.tryParse(v);
+                          if (n == null || n <= 0) return 'Debe ser > 0';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: dateController,
+                        readOnly: true,
+                        decoration: const InputDecoration(
+                          labelText: 'Fecha de caducidad',
+                          prefixIcon: Icon(Icons.calendar_today),
+                        ),
+                        onTap: saving ? null : pickDate,
+                      ),
+                      if (saving) ...[
+                        const SizedBox(height: 16),
+                        const LinearProgressIndicator(),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: saving ? null : () async {
+                    if (!(formKey.currentState?.validate() ?? false)) return;
+                    setStateDialog(() => saving = true);
+                    try {
+                      await updateStockItem(
+                        stockId: stockId,
+                        productName: nameController.text.trim() != initialName ? nameController.text.trim() : null,
+                        brand: brandController.text.trim() != initialBrand ? brandController.text.trim() : null,
+                        cantidadActual: int.parse(qtyController.text),
+                        fechaCaducidad: selectedDate != initialExpiry ? selectedDate : null,
+                      );
+                      await refreshInventory();
+                      if (mounted) {
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Ítem actualizado.'),
+                            backgroundColor: colorScheme.primary,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      setStateDialog(() => saving = false);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Error al actualizar: $e'),
+                          backgroundColor: colorScheme.error,
+                        ),
+                      );
+                    }
+                  },
+                  child: const Text('Guardar cambios'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 }

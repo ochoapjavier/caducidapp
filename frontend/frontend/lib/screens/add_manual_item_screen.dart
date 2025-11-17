@@ -253,6 +253,14 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // Estilo unificado para Acción Primaria (igual que versión escaneada)
+    final ButtonStyle primaryActionStyle = FilledButton.styleFrom(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      backgroundColor: scheme.primary,
+      foregroundColor: scheme.onPrimary,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Añadir Producto Manualmente'),
@@ -411,17 +419,11 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
                           ? const Center(
                               child: CircularProgressIndicator(),
                             )
-                          : ElevatedButton.icon(
+                          : FilledButton.icon(
                               onPressed: _submitForm,
                               icon: const Icon(Icons.save),
                               label: const Text('Guardar Producto'),
-                              style: ElevatedButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                    vertical: 16),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
+                              style: primaryActionStyle,
                             ),
                     ],
                   ),

@@ -1,15 +1,25 @@
 # backend/schemas/__init__.py
 
-from .ubicacion import Ubicacion, UbicacionCreate
-from .item import ItemCreate, ItemCreateFromScan, Item, ItemStock
-from .alerta import AlertaResponse
+from .location import Location, LocationCreate
+from .item import (
+    StockItemCreate, StockItemCreateFromScan, StockItem, StockAlertItem,
+    ProductSchema, LocationSchema,
+)
+from .alert import AlertResponse
+from .stock_update import StockUpdate, StockRemove
+from .product_update import ProductUpdate
 
 __all__ = [
-    "Ubicacion",
-    "UbicacionCreate",
-    "ItemCreate",
-    "ItemCreateFromScan",
-    "Item",
-    "ItemStock",
-    "AlertaResponse",
+    "Location",
+    "LocationCreate",
+    "StockItemCreate",
+    "StockItemCreateFromScan",
+    "StockItem",
+    "StockAlertItem",
+    "AlertResponse",
+    "StockUpdate",
+    "StockRemove",
+    "ProductSchema",
+    "LocationSchema",
+    "ProductUpdate",
 ]

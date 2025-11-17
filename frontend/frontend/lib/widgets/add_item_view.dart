@@ -4,7 +4,6 @@ import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/screens/add_manual_item_screen.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/add_scanned_item_screen.dart';
-import 'package:intl/intl.dart';
 
 class AddItemView extends StatelessWidget {
   const AddItemView({super.key});
@@ -13,6 +12,13 @@ class AddItemView extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final colorScheme = Theme.of(context).colorScheme;
+
+    // Estilo común para ambos botones principales (usar el de escaneado)
+    final ButtonStyle primaryActionStyle = ElevatedButton.styleFrom(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      textStyle: textTheme.titleMedium,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
 
     return Center(
       child: SingleChildScrollView(
@@ -24,13 +30,7 @@ class AddItemView extends StatelessWidget {
             ElevatedButton.icon(
               icon: const Icon(Icons.qr_code_scanner),
               label: const Text('Añadir producto escaneado'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                textStyle: textTheme.titleMedium,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+              style: primaryActionStyle,
               onPressed: () async {
                 // Navega a la pantalla del escáner y espera un resultado (el código de barras)
                 final barcode = await Navigator.of(context).push<String>(
@@ -110,16 +110,10 @@ class AddItemView extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 24),
-            OutlinedButton.icon(
+            ElevatedButton.icon(
               icon: const Icon(Icons.edit),
-              label: const Text('Añadir manualmente'),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 18),
-                textStyle: textTheme.titleMedium,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+              label: const Text('Añadir producto manualmente'),
+              style: primaryActionStyle,
               onPressed: () {
                  Navigator.of(context).push(MaterialPageRoute(
                    builder: (ctx) => const AddManualItemScreen(),

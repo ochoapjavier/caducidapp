@@ -1,11 +1,11 @@
 # backend/services/__init__.py
 
-from .ubicacion_service import UbicacionService
+from .location_service import LocationService
 from .stock_service import StockService
-from .alerta_service import AlertaService
+from .alert_service import AlertService
 
 __all__ = [
-    "UbicacionService",
+    "LocationService",
     "StockService",
-    "AlertaService",
+    "AlertService",
 ]

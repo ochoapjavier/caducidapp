@@ -306,3 +306,47 @@ Future<Map<String, dynamic>> removeStockItems({
     throw Exception(errorBody['detail'] ?? 'Error desconocido al eliminar el producto.');
   }
 }
+
+/// Actualiza un item de stock (nombre/marca del producto maestro, fecha, cantidad, ubicación).
+Future<Map<String, dynamic>> updateStockItem({
+  required int stockId,
+  String? productName,
+  String? brand,
+  DateTime? fechaCaducidad,
+  int? cantidadActual,
+  int? ubicacionId,
+}) async {
+  final headers = await _getAuthHeaders();
+  final body = <String, dynamic>{};
+  if (productName != null) body['product_name'] = productName;
+  if (brand != null) body['brand'] = brand;
+  if (fechaCaducidad != null) body['fecha_caducidad'] = fechaCaducidad.toIso8601String().split('T').first;
+  if (cantidadActual != null) body['cantidad_actual'] = cantidadActual;
+  if (ubicacionId != null) body['ubicacion_id'] = ubicacionId;
+
+  final response = await http.patch(
+    Uri.parse('$apiUrl/stock/$stockId'),
+    headers: headers,
+    body: jsonEncode(body),
+  );
+
+  if (response.statusCode == 200) {
+    try {
+      return json.decode(utf8.decode(response.bodyBytes));
+    } catch (_) {
+      return {};
+    }
+  } else if (response.statusCode == 200) {
+    // Already handled above; keeping for clarity.
+    return {};
+  } else if (response.statusCode == 404) {
+    throw Exception('Item no encontrado.');
+  } else {
+    try {
+      final errorBody = json.decode(utf8.decode(response.bodyBytes));
+      throw Exception(errorBody['detail'] ?? 'Error al actualizar el item.');
+    } catch (e) {
+      throw Exception('Error al actualizar el item. Código: ${response.statusCode}');
+    }
+  }
+}

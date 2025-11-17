@@ -96,6 +96,7 @@ class _DateScannerScreenState extends State<DateScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Escanear Fecha'),
@@ -123,7 +124,7 @@ class _DateScannerScreenState extends State<DateScannerScreen> {
               width: MediaQuery.of(context).size.width * 0.8,
               height: 80,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.green, width: 3),
+                border: Border.all(color: colorScheme.primary, width: 3),
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
@@ -132,13 +133,23 @@ class _DateScannerScreenState extends State<DateScannerScreen> {
             bottom: 40,
             left: 0,
             right: 0,
-            child: Container(
-              color: Colors.black54,
-              padding: const EdgeInsets.all(12.0),
-              child: const Text(
-                'Enfoca la fecha de caducidad en el recuadro verde',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white, fontSize: 16),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Container
+              (
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: BoxDecoration(
+                  color: colorScheme.surface.withAlpha((255 * 0.85).round()),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: colorScheme.outlineVariant),
+                ),
+                child: Text(
+                  'Enfoca la fecha de caducidad dentro del marco',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurface,
+                      ),
+                ),
               ),
             ),
           ),

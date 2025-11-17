@@ -4,11 +4,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 # Importaciones de SQLAlchemy
 from database import engine, Base
-from repositories import models # Asegura que los modelos se registren
+import models  # Asegura que los modelos se registren
 
 # Creación de las tablas en la base de datos (si no existen)
 # En un entorno de producción más complejo, se usarían migraciones (ej. con Alembic)
-models.Base.metadata.create_all(bind=engine)
+Base.metadata.create_all(bind=engine)
 
 from routers import router as inventory_router
 
