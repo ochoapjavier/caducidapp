@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/scanner_screen.dart';
+import 'package:frontend/utils/expiry_utils.dart'; // Utilidades centralizadas para lógica de caducidad
 
 // Eliminado _isLoading (no se usaba)
 
@@ -338,15 +339,11 @@ class InventoryViewState extends State<InventoryView> {
                                 final imageUrl = item['producto_maestro']['image_url'];
                                 final expiryDate = DateTime.parse(item['fecha_caducidad']);
                                 final stockId = item['id_stock'];
-                                final daysUntilExpiry = expiryDate.difference(DateTime.now()).inDays;
-                                Color expiryColor;
-                                if (daysUntilExpiry <= 3) {
-                                  expiryColor = Colors.red;
-                                } else if (daysUntilExpiry <= 7) {
-                                  expiryColor = Colors.orange;
-                                } else {
-                                  expiryColor = Colors.transparent;
-                                }
+                                
+                                // Usando utilidades centralizadas para mantener consistencia
+                                final expiryColor = ExpiryUtils.getExpiryColor(expiryDate, colorScheme);
+                                final statusLabel = ExpiryUtils.getStatusLabel(expiryDate);
+                                final daysUntilExpiry = ExpiryUtils.daysUntilExpiry(expiryDate);
                                 return Container(
                                   margin: EdgeInsets.only(
                                     left: 12,
@@ -387,99 +384,194 @@ class InventoryViewState extends State<InventoryView> {
                                             ),
                                           ),
                                         Padding(
-                                          padding: EdgeInsets.fromLTRB(expiryColor != Colors.transparent ? 14 : 16, 14, 16, 14),
+                                          padding: EdgeInsets.fromLTRB(expiryColor != Colors.transparent ? 12 : 14, 12, 14, 12),
                                           child: Row(
                                             crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               CircleAvatar(
-                                                radius: 24,
+                                                radius: 20,
                                                 backgroundColor: Colors.grey[200],
                                                 child: imageUrl != null
                                                     ? ClipOval(
                                                         child: Image.network(
                                                           imageUrl,
                                                           fit: BoxFit.cover,
-                                                          width: 48,
-                                                          height: 48,
+                                                          width: 40,
+                                                          height: 40,
                                                           loadingBuilder: (context, child, progress) => progress == null
                                                               ? child
                                                               : const SizedBox(
-                                                                  width: 24,
-                                                                  height: 24,
+                                                                  width: 20,
+                                                                  height: 20,
                                                                   child: CircularProgressIndicator(strokeWidth: 2),
                                                                 ),
                                                           errorBuilder: (context, error, stackTrace) => const Icon(
                                                             Icons.image_not_supported,
                                                             color: Colors.grey,
+                                                            size: 20,
                                                           ),
                                                         ),
                                                       )
-                                                    : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 24),
+                                                    : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 20),
                                               ),
-                                              const SizedBox(width: 16),
+                                              const SizedBox(width: 12),
                                               Expanded(
-                                                child: Column(
-                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                child: Stack(
                                                   children: [
-                                                    Text(
-                                                      productName,
-                                                      style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                                                      maxLines: 1,
-                                                      overflow: TextOverflow.ellipsis,
+                                                    Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        // Nombre del producto (con espacio para badge de cantidad)
+                                                        Padding(
+                                                          padding: const EdgeInsets.only(right: 48),
+                                                          child: Text(
+                                                            productName,
+                                                            style: textTheme.titleMedium?.copyWith(
+                                                              fontWeight: FontWeight.w600,
+                                                              fontSize: 15,
+                                                            ),
+                                                            maxLines: 2,
+                                                            overflow: TextOverflow.ellipsis,
+                                                          ),
+                                                        ),
+                                                        const SizedBox(height: 4),
+                                                        // Metadata: marca y fecha en líneas separadas
+                                                        if (brand != null && brand.isNotEmpty)
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                            decoration: BoxDecoration(
+                                                              color: colorScheme.surfaceVariant,
+                                                              borderRadius: BorderRadius.circular(4),
+                                                            ),
+                                                            child: Text(
+                                                              brand,
+                                                              style: textTheme.labelSmall?.copyWith(
+                                                                color: colorScheme.onSurfaceVariant,
+                                                                fontSize: 11,
+                                                              ),
+                                                            ),
+                                                          ),
+                                                        const SizedBox(height: 4),
+                                                        // Fecha y badge de estado en la misma línea
+                                                        Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            // Badge de fecha
+                                                            Container(
+                                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                              decoration: BoxDecoration(
+                                                                color: expiryColor != Colors.transparent
+                                                                    ? expiryColor.withAlpha((255 * 0.15).round())
+                                                                    : colorScheme.surfaceVariant,
+                                                                borderRadius: BorderRadius.circular(4),
+                                                              ),
+                                                              child: Row(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  Icon(
+                                                                    daysUntilExpiry < 0 
+                                                                        ? Icons.block_rounded
+                                                                        : Icons.calendar_today,
+                                                                    size: 10,
+                                                                    color: expiryColor != Colors.transparent
+                                                                        ? expiryColor
+                                                                        : colorScheme.onSurfaceVariant,
+                                                                  ),
+                                                                  const SizedBox(width: 4),
+                                                                  Text(
+                                                                    '${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
+                                                                    style: textTheme.labelSmall?.copyWith(
+                                                                      color: expiryColor != Colors.transparent
+                                                                          ? expiryColor
+                                                                          : colorScheme.onSurfaceVariant,
+                                                                      fontSize: 11,
+                                                                      fontWeight: FontWeight.w600,
+                                                                      decoration: daysUntilExpiry < 0 
+                                                                          ? TextDecoration.lineThrough 
+                                                                          : null,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            // Badge de estado (Caducado/Urgente/Próximo) - a la derecha de la fecha
+                                                            if (expiryColor != Colors.transparent) ...[
+                                                              const SizedBox(width: 4),
+                                                              Container(
+                                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                                decoration: BoxDecoration(
+                                                                  color: expiryColor.withAlpha((255 * 0.2).round()),
+                                                                  borderRadius: BorderRadius.circular(4),
+                                                                ),
+                                                                child: Text(
+                                                                  statusLabel,
+                                                                  style: textTheme.labelSmall?.copyWith(
+                                                                    color: expiryColor,
+                                                                    fontSize: 10,
+                                                                    fontWeight: FontWeight.w700,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ],
+                                                        ),
+                                                        const SizedBox(height: 32),
+                                                      ],
                                                     ),
-                                                    if (brand != null && brand.isNotEmpty)
-                                                      Padding(
-                                                        padding: const EdgeInsets.only(top: 2.0),
+                                                    // Badge de cantidad (top-right)
+                                                    Positioned(
+                                                      top: 0,
+                                                      right: 0,
+                                                      child: Container(
+                                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                                        decoration: BoxDecoration(
+                                                          color: colorScheme.primaryContainer,
+                                                          borderRadius: BorderRadius.circular(12),
+                                                        ),
                                                         child: Text(
-                                                          brand,
-                                                          style: textTheme.bodySmall?.copyWith(
-                                                            color: colorScheme.onSurface.withAlpha((255 * 0.65).round()),
+                                                          'x$quantity',
+                                                          style: textTheme.labelLarge?.copyWith(
+                                                            fontWeight: FontWeight.w700,
+                                                            color: colorScheme.onPrimaryContainer,
                                                           ),
                                                         ),
                                                       ),
-                                                    const SizedBox(height: 4),
-                                                    Text(
-                                                      'Caduca: ${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
-                                                      style: textTheme.bodySmall,
+                                                    ),
+                                                    // Botones de acción (bottom-right)
+                                                    Positioned(
+                                                      bottom: 0,
+                                                      right: 0,
+                                                      child: Row(
+                                                        mainAxisSize: MainAxisSize.min,
+                                                        children: [
+                                                          IconButton(
+                                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                                            padding: const EdgeInsets.all(6),
+                                                            tooltip: 'Usar',
+                                                            icon: const Icon(Icons.remove_circle_outline, size: 20),
+                                                            onPressed: () => _showRemoveQuantityDialog(stockId, quantity, productName),
+                                                            style: IconButton.styleFrom(
+                                                              backgroundColor: colorScheme.secondaryContainer,
+                                                              foregroundColor: colorScheme.onSecondaryContainer,
+                                                            ),
+                                                          ),
+                                                          const SizedBox(width: 6),
+                                                          IconButton(
+                                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                                            padding: const EdgeInsets.all(6),
+                                                            tooltip: 'Editar',
+                                                            icon: const Icon(Icons.edit_outlined, size: 20),
+                                                            onPressed: () => _showEditStockItemDialog(item),
+                                                            style: IconButton.styleFrom(
+                                                              backgroundColor: colorScheme.primaryContainer,
+                                                              foregroundColor: colorScheme.onPrimaryContainer,
+                                                            ),
+                                                          ),
+                                                        ],
+                                                      ),
                                                     ),
                                                   ],
                                                 ),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Column(
-                                                crossAxisAlignment: CrossAxisAlignment.end,
-                                                children: [
-                                                  Text(
-                                                    'x$quantity',
-                                                    style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                                                  ),
-                                                  const SizedBox(height: 8),
-                                                  Row(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    children: [
-                                                      FilledButton.tonal(
-                                                        onPressed: () => _showRemoveQuantityDialog(stockId, quantity, productName),
-                                                        style: FilledButton.styleFrom(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                                                          minimumSize: const Size(0, 34),
-                                                        ),
-                                                        child: Row(
-                                                          children: const [
-                                                            Icon(Icons.remove_circle_outline, size: 18),
-                                                            SizedBox(width: 6),
-                                                            Text('Usar'),
-                                                          ],
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 8),
-                                                      IconButton(
-                                                        tooltip: 'Editar',
-                                                        icon: const Icon(Icons.edit_outlined),
-                                                        onPressed: () => _showEditStockItemDialog(item),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                ],
                                               ),
                                             ],
                                           ),

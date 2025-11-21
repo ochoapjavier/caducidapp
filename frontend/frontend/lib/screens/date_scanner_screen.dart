@@ -1,8 +1,6 @@
 // frontend/lib/screens/date_scanner_screen.dart
-import 'dart:io';
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show WriteBuffer;
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:frontend/utils/date_parser.dart';
@@ -21,6 +19,8 @@ class _DateScannerScreenState extends State<DateScannerScreen> {
   CameraController? _cameraController;
   bool _isCameraInitialized = false;
   bool _isProcessing = false; // Bloqueo para limitar la tasa de procesamiento
+  DateTime? _detectedDate; // Fecha detectada pendiente de confirmación
+  String _statusMessage = 'Toca "Capturar" cuando estés listo'; // Mensaje de estado
 
   @override
   void initState() {
@@ -32,124 +32,306 @@ class _DateScannerScreenState extends State<DateScannerScreen> {
     final cameras = await availableCameras();
     if (cameras.isEmpty) return;
 
-    // Aumentamos a ResolutionPreset.high para mejorar la precisión con texto pequeño
+    // Usamos resolución muy alta para mejor precisión en texto pequeño
     _cameraController = CameraController(
       cameras[0], 
-      ResolutionPreset.high, // ¡Resolución aumentada!
+      ResolutionPreset.veryHigh, // Máxima resolución para mejor OCR
       enableAudio: false,
+      imageFormatGroup: ImageFormatGroup.yuv420, // Formato óptimo para ML Kit
     );
     await _cameraController!.initialize();
 
     if (!mounted) return;
 
-    // Iniciamos el stream de imágenes una sola vez para análisis continuo
-    await _cameraController!.startImageStream(_processCameraImage);
+    // NO iniciamos el stream automáticamente - esperamos a que el usuario pulse capturar
     
     setState(() {
       _isCameraInitialized = true;
     });
   }
-
-  // Manejador del stream de imágenes
-  void _processCameraImage(CameraImage image) async {
-    // Control de flujo: si ya está procesando o la pantalla está desmontada, sale.
-    if (_isProcessing || !mounted) return; 
+  
+  // NUEVO: Captura manual con un solo frame
+  Future<void> _captureAndAnalyze() async {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    if (_isProcessing) return;
     
-    _isProcessing = true; // Bloquea el procesamiento
+    setState(() {
+      _isProcessing = true;
+      _statusMessage = 'Analizando imagen...';
+      _detectedDate = null;
+    });
 
     try {
-      final inputImage = _inputImageFromCameraImage(image);
-      if (inputImage == null) return;
-
+      // Capturamos UNA SOLA imagen de alta calidad
+      final XFile imageFile = await _cameraController!.takePicture();
+      final inputImage = InputImage.fromFilePath(imageFile.path);
+      
       final recognizedText = await _textRecognizer.processImage(inputImage);
 
-      // DEPURACIÓN: Si esta línea se imprime, el OCR está detectando texto.
-      if (recognizedText.blocks.isNotEmpty) {
-         print("--- Texto Detectado en Frame ---");
-      }
+      print("--- Texto Detectado ---");
+      print(recognizedText.text);
 
+      // Buscamos fechas en todo el texto reconocido
       for (final block in recognizedText.blocks) {
-        print("OCR Bloque: ${block.text}"); 
-
         final date = parseExpirationDate(block.text);
         if (date != null) {
-          if (mounted) {
-            // Detenemos el stream y devolvemos la fecha
-            await _cameraController?.stopImageStream(); 
-            Navigator.of(context).pop(date);
-          }
-          return; 
+          setState(() {
+            _detectedDate = date;
+            _statusMessage = '¿Es correcta esta fecha?';
+          });
+          return; // Salimos si encontramos una fecha
         }
       }
+      
+      // No se encontró ninguna fecha
+      setState(() {
+        _statusMessage = 'No se detectó ninguna fecha. Inténtalo de nuevo.';
+      });
     } catch (e) {
       print("Error en OCR: $e");
+      setState(() {
+        _statusMessage = 'Error al escanear. Inténtalo de nuevo.';
+      });
     } finally {
-      // Esperamos 500ms para limitar la tasa de procesamiento (2 FPS)
-      await Future.delayed(const Duration(milliseconds: 500)); 
-      
-      // Libera el bloqueo para el siguiente frame
-      if (mounted) {
-         _isProcessing = false; 
-      }
+      setState(() {
+        _isProcessing = false;
+      });
     }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Escanear Fecha'),
+        backgroundColor: colorScheme.surface,
       ),
       body: Stack(
         children: [
+          // Vista previa de la cámara
           if (_isCameraInitialized && _cameraController != null)
-            Center(
-              child: AspectRatio(
-                // Ajuste del AspectRatio para que la previsualización se vea vertical correctamente
-                aspectRatio: _cameraController!.description.sensorOrientation % 180 == 90
-                    ? _cameraController!.value.aspectRatio == 0 
-                        ? 1 
-                        : 1 / _cameraController!.value.aspectRatio 
-                    : _cameraController!.value.aspectRatio,
-                child: CameraPreview(_cameraController!),
+            SizedBox.expand(
+              child: FittedBox(
+                fit: BoxFit.cover,
+                child: SizedBox(
+                  width: _cameraController!.value.previewSize?.height ?? 1,
+                  height: _cameraController!.value.previewSize?.width ?? 1,
+                  child: CameraPreview(_cameraController!),
+                ),
               ),
             )
           else
             const Center(child: CircularProgressIndicator()),
           
-          // Overlay para guiar al usuario
+          // Overlay oscuro con recorte para el marco
+          if (_isCameraInitialized)
+            ColorFiltered(
+              colorFilter: ColorFilter.mode(
+                Colors.black.withOpacity(0.5),
+                BlendMode.srcOut,
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.black,
+                      backgroundBlendMode: BlendMode.dstOut,
+                    ),
+                  ),
+                  Center(
+                    child: Container(
+                      width: MediaQuery.of(context).size.width * 0.85,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          
+          // Marco de guía
           Center(
             child: Container(
-              width: MediaQuery.of(context).size.width * 0.8,
-              height: 80,
+              width: MediaQuery.of(context).size.width * 0.85,
+              height: 100,
               decoration: BoxDecoration(
                 border: Border.all(color: colorScheme.primary, width: 3),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.calendar_today,
+                  size: 40,
+                  color: colorScheme.primary.withOpacity(0.5),
+                ),
               ),
             ),
           ),
+          
+          // Panel de información superior
           Positioned(
-            bottom: 40,
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withAlpha((255 * 0.95).round()),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _statusMessage,
+                    textAlign: TextAlign.center,
+                    style: textTheme.titleMedium?.copyWith(
+                      color: colorScheme.onSurface,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (_detectedDate != null) ...[
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: colorScheme.primaryContainer,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '${_detectedDate!.day}/${_detectedDate!.month}/${_detectedDate!.year}',
+                        style: textTheme.headlineSmall?.copyWith(
+                          color: colorScheme.onPrimaryContainer,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          
+          // Panel de controles inferior
+          Positioned(
+            bottom: 0,
             left: 0,
             right: 0,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Container
-              (
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                decoration: BoxDecoration(
-                  color: colorScheme.surface.withAlpha((255 * 0.85).round()),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colorScheme.outlineVariant),
-                ),
-                child: Text(
-                  'Enfoca la fecha de caducidad dentro del marco',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colorScheme.onSurface,
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: colorScheme.surface.withAlpha((255 * 0.95).round()),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 8,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Instrucciones
+                  if (_detectedDate == null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline, 
+                            size: 20, 
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Coloca la fecha dentro del marco y pulsa Capturar',
+                              style: textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurface.withOpacity(0.7),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                ),
+                    ),
+                  
+                  // Botones
+                  if (_detectedDate == null)
+                    FilledButton.icon(
+                      onPressed: _isProcessing ? null : _captureAndAnalyze,
+                      icon: _isProcessing 
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.camera_alt),
+                      label: Text(_isProcessing ? 'Analizando...' : 'Capturar'),
+                      style: FilledButton.styleFrom(
+                        minimumSize: const Size.fromHeight(50),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    )
+                  else
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () {
+                              setState(() {
+                                _detectedDate = null;
+                                _statusMessage = 'Toca "Capturar" cuando estés listo';
+                              });
+                            },
+                            icon: const Icon(Icons.close),
+                            label: const Text('Reintentar'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(50),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () {
+                              Navigator.of(context).pop(_detectedDate);
+                            },
+                            icon: const Icon(Icons.check),
+                            label: const Text('Confirmar'),
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(50),
+                              backgroundColor: Colors.green,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
               ),
             ),
           ),
@@ -160,50 +342,8 @@ class _DateScannerScreenState extends State<DateScannerScreen> {
 
   @override
   void dispose() {
-    // Detener el stream y liberar recursos
-    _cameraController?.stopImageStream(); 
     _cameraController?.dispose();
     _textRecognizer.close();
     super.dispose();
-  }
-
-  // Función auxiliar para convertir CameraImage a InputImage con rotación correcta
-  InputImage? _inputImageFromCameraImage(CameraImage image) {
-    if (_cameraController == null) return null;
-
-    final sensorOrientation = _cameraController!.description.sensorOrientation;
-    
-    // Mapeo directo de la rotación del sensor para ML Kit
-    final rotation = switch (sensorOrientation) {
-      0 => InputImageRotation.rotation0deg,
-      90 => InputImageRotation.rotation90deg,
-      180 => InputImageRotation.rotation180deg,
-      270 => InputImageRotation.rotation270deg,
-      _ => InputImageRotation.rotation0deg,
-    };
-    
-    // DEPURACIÓN: Muestra la rotación que se utiliza.
-    print('Rotación enviada a ML Kit: ${rotation.name}');
-
-    if (Platform.isAndroid) {
-      final WriteBuffer allBytes = WriteBuffer();
-      for (final Plane plane in image.planes) {
-        allBytes.putUint8List(plane.bytes);
-      }
-      final bytes = allBytes.done().buffer.asUint8List();
-
-      // Formato y metadatos específicos para Android YUV (NV21)
-      return InputImage.fromBytes(
-        bytes: bytes,
-        metadata: InputImageMetadata(
-          size: Size(image.width.toDouble(), image.height.toDouble()),
-          rotation: rotation, 
-          format: InputImageFormat.nv21,
-          bytesPerRow: image.planes[0].bytesPerRow,
-        ),
-      );
-    }
-    
-    return null;
   }
 }
