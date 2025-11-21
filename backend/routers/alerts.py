@@ -16,4 +16,8 @@ def get_alerts_endpoint(
     service: AlertService = Depends(get_alert_service),
     user_id: str = Depends(get_current_user_id)
 ):
-    return service.get_expiring_alerts_for_user(days=7, user_id=user_id)
+    """
+    Obtiene alertas de productos que caducan en los próximos 10 días
+    o que ya están caducados.
+    """
+    return service.get_expiring_alerts_for_user(days=10, user_id=user_id)

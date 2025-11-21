@@ -36,6 +36,10 @@ class StockRepository:
         ).first()
 
     def get_alertas_caducidad_for_user(self, days: int, user_id: str) -> list[InventoryStock]:
+        """
+        Obtiene alertas de productos próximos a caducar O ya caducados.
+        Incluye productos caducados (fecha < hoy) y próximos a caducar (fecha <= hoy + days).
+        """
         today = date.today()
         limit_date = today + timedelta(days=days)
 
@@ -47,10 +51,9 @@ class StockRepository:
             )
             .filter(
                 InventoryStock.user_id == user_id,
-                InventoryStock.fecha_caducidad >= today,
-                InventoryStock.fecha_caducidad <= limit_date
+                InventoryStock.fecha_caducidad <= limit_date  # Incluye caducados (< today) y próximos (<= limit_date)
             )
-            .order_by(InventoryStock.fecha_caducidad)
+            .order_by(InventoryStock.fecha_caducidad)  # Los más antiguos (caducados) primero
             .all()
         )
 

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/scanner_screen.dart';
+import 'package:frontend/utils/expiry_utils.dart'; // Utilidades centralizadas para lógica de caducidad
 
 // Eliminado _isLoading (no se usaba)
 
@@ -338,15 +339,11 @@ class InventoryViewState extends State<InventoryView> {
                                 final imageUrl = item['producto_maestro']['image_url'];
                                 final expiryDate = DateTime.parse(item['fecha_caducidad']);
                                 final stockId = item['id_stock'];
-                                final daysUntilExpiry = expiryDate.difference(DateTime.now()).inDays;
-                                Color expiryColor;
-                                if (daysUntilExpiry <= 3) {
-                                  expiryColor = Colors.red;
-                                } else if (daysUntilExpiry <= 7) {
-                                  expiryColor = Colors.orange;
-                                } else {
-                                  expiryColor = Colors.transparent;
-                                }
+                                
+                                // Usando utilidades centralizadas para mantener consistencia
+                                final expiryColor = ExpiryUtils.getExpiryColor(expiryDate, colorScheme);
+                                final statusLabel = ExpiryUtils.getStatusLabel(expiryDate);
+                                final daysUntilExpiry = ExpiryUtils.daysUntilExpiry(expiryDate);
                                 return Container(
                                   margin: EdgeInsets.only(
                                     left: 12,
@@ -455,37 +452,68 @@ class InventoryViewState extends State<InventoryView> {
                                                             ),
                                                           ),
                                                         const SizedBox(height: 4),
-                                                        Container(
-                                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                          decoration: BoxDecoration(
-                                                            color: expiryColor != Colors.transparent
-                                                                ? expiryColor.withAlpha((255 * 0.15).round())
-                                                                : colorScheme.surfaceVariant,
-                                                            borderRadius: BorderRadius.circular(4),
-                                                          ),
-                                                          child: Row(
-                                                            mainAxisSize: MainAxisSize.min,
-                                                            children: [
-                                                              Icon(
-                                                                Icons.calendar_today,
-                                                                size: 10,
+                                                        // Fecha y badge de estado en la misma línea
+                                                        Row(
+                                                          mainAxisSize: MainAxisSize.min,
+                                                          children: [
+                                                            // Badge de fecha
+                                                            Container(
+                                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                              decoration: BoxDecoration(
                                                                 color: expiryColor != Colors.transparent
-                                                                    ? expiryColor
-                                                                    : colorScheme.onSurfaceVariant,
+                                                                    ? expiryColor.withAlpha((255 * 0.15).round())
+                                                                    : colorScheme.surfaceVariant,
+                                                                borderRadius: BorderRadius.circular(4),
                                                               ),
+                                                              child: Row(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  Icon(
+                                                                    daysUntilExpiry < 0 
+                                                                        ? Icons.block_rounded
+                                                                        : Icons.calendar_today,
+                                                                    size: 10,
+                                                                    color: expiryColor != Colors.transparent
+                                                                        ? expiryColor
+                                                                        : colorScheme.onSurfaceVariant,
+                                                                  ),
+                                                                  const SizedBox(width: 4),
+                                                                  Text(
+                                                                    '${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
+                                                                    style: textTheme.labelSmall?.copyWith(
+                                                                      color: expiryColor != Colors.transparent
+                                                                          ? expiryColor
+                                                                          : colorScheme.onSurfaceVariant,
+                                                                      fontSize: 11,
+                                                                      fontWeight: FontWeight.w600,
+                                                                      decoration: daysUntilExpiry < 0 
+                                                                          ? TextDecoration.lineThrough 
+                                                                          : null,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ),
+                                                            ),
+                                                            // Badge de estado (Caducado/Urgente/Próximo) - a la derecha de la fecha
+                                                            if (expiryColor != Colors.transparent) ...[
                                                               const SizedBox(width: 4),
-                                                              Text(
-                                                                '${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
-                                                                style: textTheme.labelSmall?.copyWith(
-                                                                  color: expiryColor != Colors.transparent
-                                                                      ? expiryColor
-                                                                      : colorScheme.onSurfaceVariant,
-                                                                  fontSize: 11,
-                                                                  fontWeight: FontWeight.w600,
+                                                              Container(
+                                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                                decoration: BoxDecoration(
+                                                                  color: expiryColor.withAlpha((255 * 0.2).round()),
+                                                                  borderRadius: BorderRadius.circular(4),
+                                                                ),
+                                                                child: Text(
+                                                                  statusLabel,
+                                                                  style: textTheme.labelSmall?.copyWith(
+                                                                    color: expiryColor,
+                                                                    fontSize: 10,
+                                                                    fontWeight: FontWeight.w700,
+                                                                  ),
                                                                 ),
                                                               ),
                                                             ],
-                                                          ),
+                                                          ],
                                                         ),
                                                         const SizedBox(height: 32),
                                                       ],

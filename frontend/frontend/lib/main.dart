@@ -11,6 +11,7 @@ import 'widgets/ubicacion_manager.dart';
 import 'theme/app_theme.dart';
 import 'screens/auth_screen.dart'; // Importamos la pantalla de autenticación
 import 'screens/inventory_management_screen.dart'; // Importamos la nueva pantalla contenedora
+import 'utils/expiry_utils.dart'; // Utilidades centralizadas para lógica de caducidad
 
 late final ValueNotifier<BrandPalette> _brandPaletteNotifier; // se inicializa tras leer prefs
 late final ValueNotifier<ThemeMode> _themeModeNotifier;      // system/light/dark
@@ -95,15 +96,12 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final item = snapshot.data![index];
-                final daysDiff = item.fechaCaducidad.difference(DateTime.now()).inDays;
-                final isCritical = daysDiff <= 3;
-        // Mapeo de severidad visual mejorado: Caducado/Urgente -> error, Próximo -> warning (amber tone)
-        final bool isExpired = daysDiff < 0;
-                final Color warningColor = Colors.amber.shade700; // Color de alerta suave para "Próximo"
-        final statusColor = (isExpired || isCritical) ? colorScheme.error : warningColor;
-        final statusLabel = isExpired
-          ? 'Caducado'
-          : (isCritical ? 'Urgente' : 'Próximo');
+                // Usando utilidades centralizadas para mantener consistencia
+                final statusColor = ExpiryUtils.getExpiryColor(item.fechaCaducidad, colorScheme);
+                final statusLabel = ExpiryUtils.getStatusLabel(item.fechaCaducidad);
+                final statusIcon = ExpiryUtils.getStatusIcon(item.fechaCaducidad);
+                final expiryMessage = ExpiryUtils.getExpiryMessage(item.fechaCaducidad);
+                final daysDiff = ExpiryUtils.daysUntilExpiry(item.fechaCaducidad);
 
                 return Card(
                   elevation: 0,
@@ -124,7 +122,7 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
-                            Icons.warning_amber_rounded,
+                            statusIcon,
                             color: statusColor,
                           ),
                         ),
@@ -146,6 +144,14 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                                   color: colorScheme.onSurface.withAlpha((255 * 0.65).round()),
                                 ),
                               ),
+                              const SizedBox(height: 4),
+                              Text(
+                                expiryMessage,
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: statusColor,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -154,16 +160,17 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                           crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              'Caduca',
+                              daysDiff < 0 ? 'Caducado' : 'Caduca',
                               style: textTheme.labelSmall?.copyWith(
                                 color: colorScheme.onSurface.withAlpha((255 * 0.60).round()),
                               ),
                             ),
                             Text(
-                              '${item.fechaCaducidad.day}/${item.fechaCaducidad.month}',
+                              '${item.fechaCaducidad.day}/${item.fechaCaducidad.month}/${item.fechaCaducidad.year}',
                               style: textTheme.bodyMedium?.copyWith(
                                 color: statusColor,
                                 fontWeight: FontWeight.w700,
+                                decoration: daysDiff < 0 ? TextDecoration.lineThrough : null,
                               ),
                             ),
                             const SizedBox(height: 4),
