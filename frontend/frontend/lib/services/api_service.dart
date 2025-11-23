@@ -73,14 +73,15 @@ Future<List<Ubicacion>> fetchUbicaciones() async {
 }
 
 // Nueva función: Crear una ubicación (POST /ubicaciones/)
-Future<void> createUbicacion(String nombre) async {
+Future<void> createUbicacion(String nombre, {bool esCongelador = false}) async {
   final headers = await _getAuthHeaders();
   final response = await http.post(
     Uri.parse('$apiUrl/ubicaciones/'),
     headers: headers,
-    // Crea el body JSON que espera FastAPI: {"nombre": "..."}
-    body: jsonEncode(<String, String>{
+    // Crea el body JSON que espera FastAPI: {"nombre": "...", "es_congelador": ...}
+    body: jsonEncode(<String, dynamic>{
       'nombre': nombre,
+      'es_congelador': esCongelador,
     }),
   );
 
@@ -108,14 +109,18 @@ Future<void> deleteUbicacion(int id) async {
 }
 
 // Función para actualizar una ubicación (PUT /ubicaciones/{id})
-Future<void> updateUbicacion(int id, String newName) async {
+Future<void> updateUbicacion(int id, String newName, {bool? esCongelador}) async {
   final headers = await _getAuthHeaders();
+  
+  final Map<String, dynamic> body = {'nombre': newName};
+  if (esCongelador != null) {
+    body['es_congelador'] = esCongelador;
+  }
+  
   final response = await http.put(
     Uri.parse('$apiUrl/ubicaciones/$id'),
     headers: headers,
-    body: jsonEncode(<String, String>{
-      'nombre': newName,
-    }),
+    body: jsonEncode(body),
   );
 
   if (response.statusCode != 200) {
@@ -348,5 +353,118 @@ Future<Map<String, dynamic>> updateStockItem({
     } catch (e) {
       throw Exception('Error al actualizar el item. Código: ${response.statusCode}');
     }
+  }
+}
+
+// ============================================================================
+// PRODUCT STATE MANAGEMENT ACTIONS
+// ============================================================================
+
+/// Abre unidades selladas de un producto, cambiando su estado a 'abierto'.
+/// Opcionalmente mantiene la fecha de caducidad original o la recalcula.
+Future<Map<String, dynamic>> openProduct({
+  required int stockId,
+  required int cantidad,
+  int? nuevaUbicacionId,
+  bool mantenerFechaCaducidad = true,
+  int diasVidaUtil = 4,
+}) async {
+  final headers = await _getAuthHeaders();
+  final body = {
+    'cantidad': cantidad,
+    'mantener_fecha_caducidad': mantenerFechaCaducidad,
+    'dias_vida_util': diasVidaUtil,
+    if (nuevaUbicacionId != null) 'nueva_ubicacion_id': nuevaUbicacionId,
+  };
+
+  final response = await http.post(
+    Uri.parse('$apiUrl/stock/$stockId/open'),
+    headers: headers,
+    body: jsonEncode(body),
+  );
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al abrir el producto.');
+  }
+}
+
+/// Congela unidades de un producto para pausar su caducidad.
+Future<Map<String, dynamic>> freezeProduct({
+  required int stockId,
+  required int cantidad,
+  required int ubicacionCongeladorId,
+}) async {
+  final headers = await _getAuthHeaders();
+  final body = {
+    'cantidad': cantidad,
+    'ubicacion_congelador_id': ubicacionCongeladorId,
+  };
+
+  final response = await http.post(
+    Uri.parse('$apiUrl/stock/$stockId/freeze'),
+    headers: headers,
+    body: jsonEncode(body),
+  );
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al congelar el producto.');
+  }
+}
+
+/// Descongela un producto congelado, estableciendo una nueva fecha de caducidad corta.
+Future<Map<String, dynamic>> unfreezeProduct({
+  required int stockId,
+  required int nuevaUbicacionId,
+  int diasVidaUtil = 2,
+}) async {
+  final headers = await _getAuthHeaders();
+  final body = {
+    'nueva_ubicacion_id': nuevaUbicacionId,
+    'dias_vida_util': diasVidaUtil,
+  };
+
+  final response = await http.post(
+    Uri.parse('$apiUrl/stock/$stockId/unfreeze'),
+    headers: headers,
+    body: jsonEncode(body),
+  );
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al descongelar el producto.');
+  }
+}
+
+/// Mueve unidades de un producto a una ubicación diferente sin cambiar su estado.
+Future<Map<String, dynamic>> relocateProduct({
+  required int stockId,
+  required int cantidad,
+  required int nuevaUbicacionId,
+}) async {
+  final headers = await _getAuthHeaders();
+  final body = {
+    'cantidad': cantidad,
+    'nueva_ubicacion_id': nuevaUbicacionId,
+  };
+
+  final response = await http.post(
+    Uri.parse('$apiUrl/stock/$stockId/relocate'),
+    headers: headers,
+    body: jsonEncode(body),
+  );
+
+  if (response.statusCode == 200) {
+    return json.decode(utf8.decode(response.bodyBytes));
+  } else {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al reubicar el producto.');
   }
 }

@@ -8,6 +8,10 @@ from .item import (
 from .alert import AlertResponse
 from .stock_update import StockUpdate, StockRemove
 from .product_update import ProductUpdate
+from .product_actions import (
+    OpenProductRequest, FreezeProductRequest, UnfreezeProductRequest,
+    RelocateProductRequest, ProductActionResponse
+)
 
 __all__ = [
     "Location",
@@ -22,4 +26,9 @@ __all__ = [
     "ProductSchema",
     "LocationSchema",
     "ProductUpdate",
+    "OpenProductRequest",
+    "FreezeProductRequest",
+    "UnfreezeProductRequest",
+    "RelocateProductRequest",
+    "ProductActionResponse",
 ]

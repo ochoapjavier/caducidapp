@@ -29,8 +29,8 @@ class LocationRepository:
             .all()
         )
 
-    def create_location(self, nombre: str, user_id: str) -> Location:
-        new_location = Location(nombre=nombre, user_id=user_id)
+    def create_location(self, nombre: str, user_id: str, es_congelador: bool = False) -> Location:
+        new_location = Location(nombre=nombre, user_id=user_id, es_congelador=es_congelador)
         self.db.add(new_location)
         self.db.commit()
         self.db.refresh(new_location)
@@ -40,8 +40,10 @@ class LocationRepository:
         self.db.delete(location)
         self.db.commit()
 
-    def update_location(self, location: Location, new_name: str) -> Location:
+    def update_location(self, location: Location, new_name: str, es_congelador: bool = None) -> Location:
         location.nombre = new_name
+        if es_congelador is not None:
+            location.es_congelador = es_congelador
         self.db.commit()
         self.db.refresh(location)
         return location

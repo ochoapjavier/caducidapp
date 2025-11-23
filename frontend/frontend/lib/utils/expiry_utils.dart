@@ -105,4 +105,66 @@ class ExpiryUtils {
     final days = daysUntilExpiry(expiryDate);
     return days <= warningThreshold; // Muestra alerta para productos <= 10 días o caducados
   }
+
+  // ============================================================================
+  // FUNCIONES PARA ESTADOS DE PRODUCTO (abierto, congelado, cerrado)
+  // ============================================================================
+
+  /// Obtiene el color del badge según el estado del producto
+  static Color getStateBadgeColor(String estado) {
+    switch (estado.toLowerCase()) {
+      case 'abierto':
+        return Colors.orange.shade700;
+      case 'congelado':
+        return Colors.blue.shade700;
+      case 'cerrado':
+      default:
+        return Colors.transparent; // No mostrar badge para cerrado
+    }
+  }
+
+  /// Obtiene el ícono según el estado del producto
+  static IconData getStateIcon(String estado) {
+    switch (estado.toLowerCase()) {
+      case 'abierto':
+        return Icons.open_in_new_rounded;
+      case 'congelado':
+        return Icons.ac_unit_rounded;
+      case 'cerrado':
+      default:
+        return Icons.inventory_2_outlined;
+    }
+  }
+
+  /// Obtiene la etiqueta de texto para el estado del producto
+  static String getStateLabel(String estado) {
+    switch (estado.toLowerCase()) {
+      case 'abierto':
+        return 'ABIERTO';
+      case 'congelado':
+        return 'CONGELADO';
+      case 'cerrado':
+      default:
+        return 'CERRADO';
+    }
+  }
+
+  /// Determina si se debe mostrar el badge de estado
+  /// Solo se muestra para productos abiertos o congelados
+  static bool shouldShowStateBadge(String estado) {
+    return estado.toLowerCase() == 'abierto' || 
+           estado.toLowerCase() == 'congelado';
+  }
+
+  /// Determina qué botones de acción mostrar según el estado
+  static Map<String, bool> getAvailableActions(String estado) {
+    final estadoLower = estado.toLowerCase();
+    
+    return {
+      'abrir': estadoLower == 'cerrado',
+      'congelar': estadoLower != 'congelado',
+      'descongelar': estadoLower == 'congelado',
+      'reubicar': true, // Siempre disponible
+    };
+  }
 }

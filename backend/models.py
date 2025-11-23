@@ -1,5 +1,5 @@
 # backend/models.py
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, UniqueConstraint, Index
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, UniqueConstraint, Index, Boolean
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -12,6 +12,7 @@ class Location(Base):
     id_ubicacion = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
     user_id = Column(String(255), nullable=False, index=True)
+    es_congelador = Column(Boolean, nullable=False, default=False)  # Indicates if location is a freezer
     __table_args__ = (
         UniqueConstraint('nombre', 'user_id', name='_nombre_user_uc'),
     )
@@ -59,6 +60,7 @@ class InventoryStock(Base):
     """Units of a product in a specific location.
 
     Grouped by (product, location, expiration_date).
+    Now supports product states: closed (sealed), open, frozen.
     """
     __tablename__ = 'inventario_stock'
     id_stock = Column(Integer, primary_key=True, index=True)
@@ -67,9 +69,17 @@ class InventoryStock(Base):
     fk_ubicacion = Column(Integer, ForeignKey('ubicacion.id_ubicacion'), nullable=False)
     cantidad_actual = Column(Integer, nullable=False)
     fecha_caducidad = Column(Date, nullable=False, index=True)
-    estado = Column(String(50), default='Activo')
+    estado = Column(String(50), default='Activo')  # Legacy field, kept for compatibility
+    
+    # New fields for product state management
+    estado_producto = Column(String(20), default='cerrado', nullable=False)  # 'cerrado', 'abierto', 'congelado'
+    fecha_apertura = Column(Date, nullable=True)  # Date when product was opened
+    fecha_congelacion = Column(Date, nullable=True)  # Date when product was frozen
+    dias_caducidad_abierto = Column(Integer, nullable=True)  # Shelf life days once opened
+    
     __table_args__ = (
         Index('ix_stock_user_fecha', 'user_id', 'fecha_caducidad'),
+        Index('ix_inventario_stock_estado', 'estado_producto'),
     )
 
     # Keep attribute names to match existing API schemas (producto_maestro, ubicacion)

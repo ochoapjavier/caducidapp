@@ -16,7 +16,11 @@ class LocationService:
         if existing_location:
             raise HTTPException(status_code=409, detail=f"Ya tienes una ubicación llamada '{ubicacion_data.nombre}'.")
         try:
-            return self.repo.create_location(ubicacion_data.nombre, user_id)
+            return self.repo.create_location(
+                ubicacion_data.nombre, 
+                user_id, 
+                es_congelador=ubicacion_data.es_congelador
+            )
         except IntegrityError:
             raise HTTPException(status_code=409, detail="Error de integridad, es posible que el nombre ya exista.")
         except Exception:
@@ -34,11 +38,11 @@ class LocationService:
         self.repo.delete_location(location)
         return {"status": "success", "message": "Ubicación eliminada correctamente."}
 
-    def update_ubicacion(self, id_ubicacion: int, new_name: str, user_id: str) -> Location:
+    def update_ubicacion(self, id_ubicacion: int, new_name: str, user_id: str, es_congelador: bool = None) -> Location:
         location_to_update = self.repo.get_location_by_id_and_user(id_ubicacion, user_id)
         if not location_to_update:
             raise HTTPException(status_code=404, detail="Ubicación no encontrada o no tienes permiso para actualizarla.")
         existing_with_new_name = self.repo.get_location_by_name_and_user(new_name, user_id)
         if existing_with_new_name and existing_with_new_name.id_ubicacion != id_ubicacion:
             raise HTTPException(status_code=409, detail=f"El nombre '{new_name}' ya está en uso por otra ubicación.")
-        return self.repo.update_location(location_to_update, new_name)
+        return self.repo.update_location(location_to_update, new_name, es_congelador=es_congelador)

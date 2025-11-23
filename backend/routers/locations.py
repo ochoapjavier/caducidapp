@@ -42,4 +42,9 @@ def update_location_endpoint(
     service: LocationService = Depends(get_location_service),
     user_id: str = Depends(get_current_user_id)
 ):
-    return service.update_ubicacion(id_ubicacion, ubicacion_data.nombre, user_id)
+    return service.update_ubicacion(
+        id_ubicacion, 
+        ubicacion_data.nombre, 
+        user_id,
+        es_congelador=ubicacion_data.es_congelador
+    )
