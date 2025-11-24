@@ -51,70 +51,104 @@ class _AuthScreenState extends State<AuthScreen> {
         
         // Verificar si el email está verificado
         if (!userCredential.user!.emailVerified) {
+          // Guardar referencia al usuario ANTES de hacer signOut
+          final user = userCredential.user!;
+          final userEmail = user.email ?? _userEmail;
+          
           // Cerrar sesión si no está verificado
           await _firebaseAuth.signOut();
           
           if (mounted) {
-            showDialog(
-              context: context,
-              builder: (ctx) => AlertDialog(
-                title: Row(
-                  children: [
-                    Icon(Icons.warning, color: Colors.orange),
-                    SizedBox(width: 8),
-                    Text('Email no verificado'),
-                  ],
-                ),
-                content: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Por favor, verifica tu email antes de iniciar sesión.'),
-                    SizedBox(height: 12),
-                    Text(
-                      '📬 Revisa tu bandeja de entrada',
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      '⚠️ Si no lo ves, revisa SPAM',
-                      style: TextStyle(color: Colors.orange[700]),
-                    ),
-                  ],
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(ctx).pop();
-                    },
-                    child: Text('Cerrar'),
+            // Usar WidgetsBinding para asegurar que el dialog se muestre después del frame actual
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              
+              showDialog(
+                context: context,
+                barrierDismissible: false, // No se puede cerrar tocando fuera
+                builder: (ctx) => AlertDialog(
+                  title: Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Email no verificado')),
+                    ],
                   ),
-                  ElevatedButton.icon(
-                    onPressed: () async {
-                      try {
-                        await userCredential.user!.sendEmailVerification();
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Por favor, verifica tu email antes de iniciar sesión.'),
+                      SizedBox(height: 12),
+                      Text(
+                        '� Email enviado a:',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      Text(
+                        userEmail,
+                        style: TextStyle(color: Colors.blue, fontSize: 12),
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        '�📬 Revisa tu bandeja de entrada',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        '⚠️ Si no lo ves, revisa SPAM',
+                        style: TextStyle(color: Colors.orange[700], fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
                         Navigator.of(ctx).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('✉️ Email reenviado. Revisa tu bandeja (y spam).'),
-                            backgroundColor: Colors.green,
-                          ),
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('Error al reenviar. Espera unos minutos e intenta de nuevo.'),
-                            backgroundColor: Colors.red,
-                          ),
-                        );
-                      }
-                    },
-                    icon: Icon(Icons.email),
-                    label: Text('Reenviar email'),
-                  ),
-                ],
-              ),
-            );
+                      },
+                      child: Text('Cerrar'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          // Reautenticar temporalmente para enviar email
+                          UserCredential tempCred = await _firebaseAuth.signInWithEmailAndPassword(
+                            email: _userEmail,
+                            password: _userPassword,
+                          );
+                          await tempCred.user!.sendEmailVerification();
+                          await _firebaseAuth.signOut();
+                          
+                          if (ctx.mounted) {
+                            Navigator.of(ctx).pop();
+                          }
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('✉️ Email reenviado. Revisa tu bandeja (y spam).'),
+                                backgroundColor: Colors.green,
+                                duration: Duration(seconds: 5),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error al reenviar. Espera unos minutos e intenta de nuevo.'),
+                                backgroundColor: Colors.red,
+                                duration: Duration(seconds: 5),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: Icon(Icons.email),
+                      label: Text('Reenviar email'),
+                    ),
+                  ],
+                ),
+              );
+            });
           }
           return; // Salir de la función
         }

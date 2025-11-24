@@ -805,6 +805,29 @@ class MyApp extends StatelessWidget {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
             if (userSnapshot.hasData) {
+              // Verificar si el email está verificado
+              final user = userSnapshot.data!;
+              if (!user.emailVerified) {
+                // Si el email NO está verificado, cerrar sesión y mostrar AuthScreen
+                FirebaseAuth.instance.signOut();
+                
+                // Mostrar mensaje al usuario
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text('⚠️ Por favor, verifica tu email antes de continuar. Revisa tu bandeja (y spam).'),
+                        backgroundColor: Colors.orange,
+                        duration: Duration(seconds: 5),
+                      ),
+                    );
+                  }
+                });
+                
+                return const AuthScreen();
+              }
+              
+              // Email verificado, permitir acceso
               return const HogarAwareMainScreen();
             }
             return const AuthScreen();
