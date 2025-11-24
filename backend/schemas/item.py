@@ -28,9 +28,10 @@ class StockItem(BaseModel):
     cantidad_actual: int
     fecha_caducidad: date
     # Nuevos campos para gestión de estados
-    estado_producto: str = 'cerrado'  # 'cerrado', 'abierto', 'congelado'
+    estado_producto: str = 'cerrado'  # 'cerrado', 'abierto', 'congelado', 'descongelado'
     fecha_apertura: date | None = None
     fecha_congelacion: date | None = None
+    fecha_descongelacion: date | None = None
     dias_caducidad_abierto: int | None = None
     # Relaciones anidadas
     producto_maestro: "ProductSchema"
@@ -47,6 +48,7 @@ class StockAlertItem(BaseModel):
     estado_producto: str = 'cerrado'
     fecha_apertura: date | None = None
     fecha_congelacion: date | None = None
+    fecha_descongelacion: date | None = None
     producto_maestro: "ProductSchema"
     ubicacion: "LocationSchema"
     

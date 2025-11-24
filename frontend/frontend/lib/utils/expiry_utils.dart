@@ -117,6 +117,8 @@ class ExpiryUtils {
         return Colors.orange.shade700;
       case 'congelado':
         return Colors.blue.shade700;
+      case 'descongelado':
+        return Colors.teal.shade700; // Verde azulado - diferente de caducados (morado)
       case 'cerrado':
       default:
         return Colors.transparent; // No mostrar badge para cerrado
@@ -130,6 +132,8 @@ class ExpiryUtils {
         return Icons.open_in_new_rounded;
       case 'congelado':
         return Icons.ac_unit_rounded;
+      case 'descongelado':
+        return Icons.severe_cold_rounded;
       case 'cerrado':
       default:
         return Icons.inventory_2_outlined;
@@ -143,6 +147,8 @@ class ExpiryUtils {
         return 'ABIERTO';
       case 'congelado':
         return 'CONGELADO';
+      case 'descongelado':
+        return 'DESCONGELADO';
       case 'cerrado':
       default:
         return 'CERRADO';
@@ -150,10 +156,11 @@ class ExpiryUtils {
   }
 
   /// Determina si se debe mostrar el badge de estado
-  /// Solo se muestra para productos abiertos o congelados
+  /// Solo se muestra para productos abiertos, congelados o descongelados
   static bool shouldShowStateBadge(String estado) {
     return estado.toLowerCase() == 'abierto' || 
-           estado.toLowerCase() == 'congelado';
+           estado.toLowerCase() == 'congelado' ||
+           estado.toLowerCase() == 'descongelado';
   }
 
   /// Determina qué botones de acción mostrar según el estado
@@ -162,9 +169,95 @@ class ExpiryUtils {
     
     return {
       'abrir': estadoLower == 'cerrado',
-      'congelar': estadoLower != 'congelado',
+      'congelar': estadoLower != 'congelado', // Cerrado, abierto, descongelado pueden congelarse
       'descongelar': estadoLower == 'congelado',
       'reubicar': true, // Siempre disponible
     };
+  }
+
+  // ============================================================================
+  // FUNCIONES PARA PRIORIZACIÓN DE ALERTAS
+  // ============================================================================
+
+  /// Obtiene la prioridad de alerta de un producto (menor número = mayor prioridad)
+  /// 0 = Descongelado (consumir HOY/MAÑANA)
+  /// 1 = Caducado (ya pasó la fecha)
+  /// 2 = Crítico (0-5 días)
+  /// 3 = Abierto (estado especial)
+  /// 4 = Advertencia (6-10 días)
+  /// 5 = Normal (>10 días)
+  /// 6 = Congelado (no en alertas)
+  static int getAlertPriority(DateTime expiryDate, String estado) {
+    final estadoLower = estado.toLowerCase();
+    
+    // Máxima prioridad: productos descongelados
+    if (estadoLower == 'descongelado') {
+      return 0;
+    }
+    
+    // Congelados no aparecen en alertas (menor prioridad)
+    if (estadoLower == 'congelado') {
+      return 6;
+    }
+    
+    final days = daysUntilExpiry(expiryDate);
+    
+    // Caducados
+    if (days < 0) {
+      return 1;
+    }
+    
+    // Críticos (0-5 días)
+    if (days <= criticalThreshold) {
+      return 2;
+    }
+    
+    // Abiertos tienen prioridad especial
+    if (estadoLower == 'abierto') {
+      return 3;
+    }
+    
+    // Advertencia (6-10 días)
+    if (days <= warningThreshold) {
+      return 4;
+    }
+    
+    // Normal (>10 días)
+    return 5;
+  }
+
+  /// Determina si un producto debe aparecer en alertas
+  static bool shouldShowInAlerts(DateTime expiryDate, String estado) {
+    final estadoLower = estado.toLowerCase();
+    
+    // Descongelados SIEMPRE en alertas (máxima prioridad)
+    if (estadoLower == 'descongelado') {
+      return true;
+    }
+    
+    // Congelados NUNCA en alertas (pausados)
+    if (estadoLower == 'congelado') {
+      return false;
+    }
+    
+    // Resto: según fecha de caducidad
+    return needsAlert(expiryDate);
+  }
+
+  /// Obtiene un mensaje descriptivo para productos descongelados
+  static String getUnfrozenAlertMessage(DateTime expiryDate) {
+    final days = daysUntilExpiry(expiryDate);
+    
+    if (days < 0) {
+      return '¡CADUCADO! No consumir';
+    } else if (days == 0) {
+      return '¡Consumir HOY!';
+    } else if (days == 1) {
+      return '¡Consumir MAÑANA!';
+    } else if (days <= 3) {
+      return 'Consumir en $days días';
+    } else {
+      return 'Caduca en $days días';
+    }
   }
 }

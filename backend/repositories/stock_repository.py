@@ -8,10 +8,11 @@ class StockRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_stock_item(self, hogar_id: int, fk_producto_maestro: int, fk_ubicacion: int, cantidad_actual: int, fecha_caducidad: date) -> InventoryStock:
+    def create_stock_item(self, hogar_id: int, user_id: str, fk_producto_maestro: int, fk_ubicacion: int, cantidad_actual: int, fecha_caducidad: date) -> InventoryStock:
         """Create a new stock item in a household."""
         new_item = InventoryStock(
             hogar_id=hogar_id,
+            user_id=user_id,
             fk_producto_maestro=fk_producto_maestro,
             fk_ubicacion=fk_ubicacion,
             cantidad_actual=cantidad_actual,
@@ -42,15 +43,21 @@ class StockRepository:
         
         Rules:
         - EXCLUDES frozen products (estado_producto='congelado')
+        - INCLUDES unfrozen products ALWAYS (highest priority - need quick consumption)
         - INCLUDES opened products ALWAYS (regardless of days)
         - INCLUDES products (opened or closed) expiring in <= days
         - INCLUDES already expired products
-        - EXCLUDES frozen products
+        
+        Priority order:
+        1. Unfrozen (descongelado) - most urgent
+        2. Expired or expiring soon
+        3. Opened
         """
         today = date.today()
         limit_date = today + timedelta(days=days)
 
-        return (
+        # Get all non-frozen products within expiry window
+        items = (
             self.db.query(InventoryStock)
             .options(
                 joinedload(InventoryStock.producto_maestro),
@@ -61,11 +68,29 @@ class StockRepository:
                 InventoryStock.estado_producto != 'congelado',  # EXCLUDE frozen
                 InventoryStock.fecha_caducidad <= limit_date  # Only soon-expiring items
             )
-            .order_by(
-                InventoryStock.fecha_caducidad
-            )
             .all()
         )
+        
+        # Sort with multi-level priority:
+        # 1. By expiry date (expired/urgent/soon)
+        # 2. By state within same expiry date (descongelado > abierto > cerrado)
+        def sort_key(item):
+            # Primary: expiry date (most urgent first)
+            days_until_expiry = (item.fecha_caducidad - today).days
+            
+            # Secondary: state priority
+            # 0 = descongelado (highest priority)
+            # 1 = abierto (medium priority) 
+            # 2 = cerrado (lowest priority)
+            state_priority = {
+                'descongelado': 0,
+                'abierto': 1,
+                'cerrado': 2
+            }.get(item.estado_producto, 2)  # Default to cerrado priority
+            
+            return (days_until_expiry, state_priority)
+        
+        return sorted(items, key=sort_key)
 
     def get_stock_item_by_id_and_hogar(self, id_stock: int, hogar_id: int) -> InventoryStock | None:
         """Get stock item by ID within a household."""

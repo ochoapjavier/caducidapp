@@ -44,10 +44,11 @@ def open_product(
     auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
     """Open sealed product units. Requires member or admin role."""
-    hogar_id, _ = auth_data
+    hogar_id, user_id = auth_data
     return service.open_product(
         stock_id=stock_id,
         hogar_id=hogar_id,
+        user_id=user_id,
         cantidad=request.cantidad,
         nueva_ubicacion_id=request.nueva_ubicacion_id,
         mantener_fecha_caducidad=request.mantener_fecha_caducidad,
@@ -76,10 +77,11 @@ def freeze_product(
     auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
     """Freeze product units. Requires member or admin role."""
-    hogar_id, _ = auth_data
+    hogar_id, user_id = auth_data
     return service.freeze_product(
         stock_id=stock_id,
         hogar_id=hogar_id,
+        user_id=user_id,
         cantidad=request.cantidad,
         ubicacion_congelador_id=request.ubicacion_congelador_id
     )
@@ -89,12 +91,15 @@ def freeze_product(
     "/{stock_id}/unfreeze",
     response_model=ProductActionResponse,
     status_code=status.HTTP_200_OK,
-    summary="Unfreeze product",
+    summary="Unfreeze product units",
     description="""
-    Unfreezes a frozen product, updating it with:
-    - State changed to 'abierto' (open) - must be consumed quickly
+    Unfreezes units of a frozen product, creating a new item with:
+    - State changed to 'descongelado' (unfrozen) - must be consumed quickly
     - New short expiration date (typically 1-2 days)
     - Moved to specified location (typically fridge)
+    
+    The frozen item quantity is decremented. If you unfreeze 1 of 3 units,
+    2 remain frozen and 1 is unfrozen in the new location.
     
     ⚠️ Unfrozen products should be consumed quickly!
     """
@@ -105,11 +110,13 @@ def unfreeze_product(
     service: ProductActionsService = Depends(get_product_actions_service),
     auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
-    """Unfreeze product. Requires member or admin role."""
-    hogar_id, _ = auth_data
+    """Unfreeze product units. Requires member or admin role."""
+    hogar_id, user_id = auth_data
     return service.unfreeze_product(
         stock_id=stock_id,
         hogar_id=hogar_id,
+        user_id=user_id,
+        cantidad=request.cantidad,
         nueva_ubicacion_id=request.nueva_ubicacion_id,
         dias_vida_util=request.dias_vida_util
     )
@@ -136,10 +143,11 @@ def relocate_product(
     auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
     """Relocate product to different location. Requires member or admin role."""
-    hogar_id, _ = auth_data
+    hogar_id, user_id = auth_data
     return service.relocate_product(
         stock_id=stock_id,
         hogar_id=hogar_id,
+        user_id=user_id,
         cantidad=request.cantidad,
         nueva_ubicacion_id=request.nueva_ubicacion_id
     )

@@ -432,11 +432,13 @@ Future<Map<String, dynamic>> freezeProduct({
 /// Descongela un producto congelado, estableciendo una nueva fecha de caducidad corta.
 Future<Map<String, dynamic>> unfreezeProduct({
   required int stockId,
+  required int cantidad,
   required int nuevaUbicacionId,
   int diasVidaUtil = 2,
 }) async {
   final headers = await _getAuthHeaders();
   final body = {
+    'cantidad': cantidad,
     'nueva_ubicacion_id': nuevaUbicacionId,
     'dias_vida_util': diasVidaUtil,
   };

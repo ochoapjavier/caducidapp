@@ -15,7 +15,7 @@ class StockService:
         self.stock_repo = StockRepository(db)
         self.db = db
 
-    def process_manual_stock(self, item_data: StockItemCreate, hogar_id: int) -> StockItem:
+    def process_manual_stock(self, item_data: StockItemCreate, hogar_id: int, user_id: str) -> StockItem:
         """Process manually entered stock item for a household."""
         # 1. Validate that location belongs to household
         ubicacion = self.location_repo.get_location_by_id_and_hogar(item_data.ubicacion_id, hogar_id)
@@ -30,10 +30,11 @@ class StockService:
                 name=item_data.product_name,
                 brand=item_data.brand,
                 hogar_id=hogar_id,
+                user_id=user_id,
                 image_url=item_data.image_url
             )
         else:
-            producto_maestro = self.product_repo.get_or_create_by_name(item_data.product_name, hogar_id)
+            producto_maestro = self.product_repo.get_or_create_by_name(item_data.product_name, hogar_id, user_id)
         
         if not producto_maestro:
              raise HTTPException(status_code=500, detail="No se pudo crear o encontrar el producto maestro.")
@@ -54,6 +55,7 @@ class StockService:
             # If not exists, create new entry
             new_stock_item = self.stock_repo.create_stock_item(
                 hogar_id=hogar_id,
+                user_id=user_id,
                 fk_producto_maestro=producto_maestro.id_producto,
                 fk_ubicacion=ubicacion.id_ubicacion,
                 cantidad_actual=item_data.cantidad,
@@ -63,7 +65,7 @@ class StockService:
         # Return complete response object
         return StockItem.from_orm(new_stock_item)
 
-    def process_scan_stock(self, item_data: StockItemCreateFromScan, hogar_id: int) -> StockItem:
+    def process_scan_stock(self, item_data: StockItemCreateFromScan, hogar_id: int, user_id: str) -> StockItem:
         """Process scanned barcode stock item for a household."""
         # 1. Validate that location belongs to household
         ubicacion = self.location_repo.get_location_by_id_and_hogar(item_data.ubicacion_id, hogar_id)
@@ -76,6 +78,7 @@ class StockService:
             name=item_data.product_name,
             brand=item_data.brand,
             hogar_id=hogar_id,
+            user_id=user_id,
             image_url=item_data.image_url
         )
 
@@ -95,6 +98,7 @@ class StockService:
             # If not exists, create new entry
             new_stock_item = self.stock_repo.create_stock_item(
                 hogar_id=hogar_id,
+                user_id=user_id,
                 fk_producto_maestro=producto_maestro.id_producto,
                 fk_ubicacion=ubicacion.id_ubicacion,
                 cantidad_actual=item_data.cantidad,

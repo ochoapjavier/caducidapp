@@ -45,12 +45,14 @@ class FreezeProductRequest(BaseModel):
 
 class UnfreezeProductRequest(BaseModel):
     """Request to unfreeze a product."""
+    cantidad: int = Field(..., gt=0, description="Number of units to unfreeze")
     nueva_ubicacion_id: int = Field(..., description="New location ID (typically fridge)")
     dias_vida_util: int = Field(2, ge=1, le=7, description="Days to consume after unfreezing (default: 2)")
 
     class Config:
         json_schema_extra = {
             "example": {
+                "cantidad": 1,
                 "nueva_ubicacion_id": 2,
                 "dias_vida_util": 2
             }

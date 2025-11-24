@@ -24,6 +24,7 @@ class ProductActionsService:
         self,
         stock_id: int,
         hogar_id: int,
+        user_id: str,
         cantidad: int,
         nueva_ubicacion_id: int | None,
         mantener_fecha_caducidad: bool,
@@ -84,6 +85,7 @@ class ProductActionsService:
         # Create new opened item
         new_item = InventoryStock(
             hogar_id=hogar_id,
+            user_id=user_id,
             fk_producto_maestro=original_item.fk_producto_maestro,
             fk_ubicacion=target_location_id,
             cantidad_actual=cantidad,
@@ -107,6 +109,7 @@ class ProductActionsService:
         self,
         stock_id: int,
         hogar_id: int,
+        user_id: str,
         cantidad: int,
         ubicacion_congelador_id: int
     ) -> dict:
@@ -156,6 +159,7 @@ class ProductActionsService:
         # Create new frozen item
         new_item = InventoryStock(
             hogar_id=hogar_id,
+            user_id=user_id,
             fk_producto_maestro=original_item.fk_producto_maestro,
             fk_ubicacion=ubicacion_congelador_id,
             cantidad_actual=cantidad,
@@ -178,16 +182,20 @@ class ProductActionsService:
         self,
         stock_id: int,
         hogar_id: int,
+        user_id: str,
+        cantidad: int,
         nueva_ubicacion_id: int,
         dias_vida_util: int
     ) -> dict:
         """
-        Unfreezes a product and sets short expiration.
+        Unfreezes units of a frozen product.
         
         Steps:
         1. Validate item exists and is frozen
-        2. Validate new location
-        3. Update item: change state to 'abierto', new expiration, new location
+        2. Validate quantity available
+        3. Validate new location (non-freezer)
+        4. Decrement quantity from frozen item
+        5. Create new item with estado='descongelado' in new location
         """
         # Get frozen item
         frozen_item = self.stock_repo.get_stock_item_by_id_and_hogar(stock_id, hogar_id)
@@ -201,37 +209,66 @@ class ProductActionsService:
                 detail=f"Solo se pueden descongelar productos congelados. Estado actual: {frozen_item.estado_producto}"
             )
         
+        # Validate quantity
+        if frozen_item.cantidad_actual < cantidad:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Solo hay {frozen_item.cantidad_actual} unidades disponibles"
+            )
+        
         # Validate new location
         new_location = self.location_repo.get_location_by_id_and_hogar(nueva_ubicacion_id, hogar_id)
         if not new_location:
             raise HTTPException(status_code=404, detail="Ubicación no encontrada")
         
+        # PROPOSAL 4: Prevent unfreezing to freezer locations
+        if new_location.es_congelador:
+            raise HTTPException(
+                status_code=400,
+                detail="No puedes descongelar a una ubicación de tipo congelador. "
+                       "Selecciona una ubicación normal (nevera, despensa, etc.)"
+            )
+        
         # Calculate new expiration (unfrozen products expire quickly)
         today = date.today()
         new_expiration = today + timedelta(days=dias_vida_util)
         
-        # Update item
-        frozen_item.estado_producto = 'abierto'  # Mark as open since it needs quick consumption
-        frozen_item.fecha_apertura = today
-        frozen_item.fecha_caducidad = new_expiration
-        frozen_item.fk_ubicacion = nueva_ubicacion_id
-        frozen_item.dias_caducidad_abierto = dias_vida_util
-        # Keep fecha_congelacion for history
+        # Update frozen item quantity
+        frozen_item.cantidad_actual -= cantidad
+        if frozen_item.cantidad_actual == 0:
+            self.stock_repo.delete_stock_item(frozen_item)
+        else:
+            self.db.commit()
         
+        # Create new unfrozen item
+        new_item = InventoryStock(
+            hogar_id=hogar_id,
+            user_id=user_id,
+            fk_producto_maestro=frozen_item.fk_producto_maestro,
+            fk_ubicacion=nueva_ubicacion_id,
+            cantidad_actual=cantidad,
+            fecha_caducidad=new_expiration,
+            estado_producto='descongelado',
+            fecha_congelacion=frozen_item.fecha_congelacion,  # Keep history
+            fecha_descongelacion=today,
+            dias_caducidad_abierto=dias_vida_util
+        )
+        self.db.add(new_item)
         self.db.commit()
-        self.db.refresh(frozen_item)
+        self.db.refresh(new_item)
         
         return {
             "message": "Producto descongelado exitosamente. ¡Consumir pronto!",
-            "item_original_id": frozen_item.id_stock,
-            "item_nuevo_id": frozen_item.id_stock,
-            "cantidad_procesada": frozen_item.cantidad_actual
+            "item_original_id": stock_id if frozen_item.cantidad_actual > 0 else None,
+            "item_nuevo_id": new_item.id_stock,
+            "cantidad_procesada": cantidad
         }
 
     def relocate_product(
         self,
         stock_id: int,
         hogar_id: int,
+        user_id: str,
         cantidad: int,
         nueva_ubicacion_id: int
     ) -> dict:
@@ -297,6 +334,7 @@ class ProductActionsService:
             # Create new item in target location
             new_item = InventoryStock(
                 hogar_id=hogar_id,
+                user_id=user_id,
                 fk_producto_maestro=original_item.fk_producto_maestro,
                 fk_ubicacion=nueva_ubicacion_id,
                 cantidad_actual=cantidad,

@@ -20,8 +20,8 @@ class Hogar {
       idHogar: json['id_hogar'],
       nombre: json['nombre'],
       icono: json['icono'] ?? 'home',
-      totalMiembros: json['total_miembros'] ?? 0,
-      rol: json['rol'] ?? 'miembro',
+      totalMiembros: json['miembros_count'] ?? 0,
+      rol: json['mi_rol'] ?? 'miembro',
     );
   }
   
