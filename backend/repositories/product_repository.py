@@ -7,7 +7,7 @@ class ProductRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_or_create_by_name(self, name: str, hogar_id: int, user_id: str) -> Product:
+    def get_or_create_by_name(self, name: str, hogar_id: int) -> Product:
         """Get or create a product by name within a household (for products without barcode)."""
         # Case-insensitive search for household products without a barcode
         product = (
@@ -21,7 +21,7 @@ class ProductRepository:
         )
 
         if not product:
-            product = Product(nombre=name, hogar_id=hogar_id, user_id=user_id)
+            product = Product(nombre=name, hogar_id=hogar_id)
             self.db.add(product)
             self.db.commit()
             self.db.refresh(product)
@@ -41,7 +41,6 @@ class ProductRepository:
         name: str,
         brand: str | None,
         hogar_id: int,
-        user_id: str,
         image_url: str | None = None,
     ) -> Product:
         """Get or create a product by barcode within a household."""
@@ -52,7 +51,6 @@ class ProductRepository:
                 nombre=name,
                 marca=brand,
                 hogar_id=hogar_id,
-                user_id=user_id,
                 image_url=image_url,
             )
             self.db.add(product)

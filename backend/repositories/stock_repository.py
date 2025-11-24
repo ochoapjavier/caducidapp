@@ -8,11 +8,10 @@ class StockRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def create_stock_item(self, hogar_id: int, user_id: str, fk_producto_maestro: int, fk_ubicacion: int, cantidad_actual: int, fecha_caducidad: date) -> InventoryStock:
+    def create_stock_item(self, hogar_id: int, fk_producto_maestro: int, fk_ubicacion: int, cantidad_actual: int, fecha_caducidad: date) -> InventoryStock:
         """Create a new stock item in a household."""
         new_item = InventoryStock(
             hogar_id=hogar_id,
-            user_id=user_id,
             fk_producto_maestro=fk_producto_maestro,
             fk_ubicacion=fk_ubicacion,
             cantidad_actual=cantidad_actual,

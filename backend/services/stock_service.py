@@ -30,11 +30,10 @@ class StockService:
                 name=item_data.product_name,
                 brand=item_data.brand,
                 hogar_id=hogar_id,
-                user_id=user_id,
                 image_url=item_data.image_url
             )
         else:
-            producto_maestro = self.product_repo.get_or_create_by_name(item_data.product_name, hogar_id, user_id)
+            producto_maestro = self.product_repo.get_or_create_by_name(item_data.product_name, hogar_id)
         
         if not producto_maestro:
              raise HTTPException(status_code=500, detail="No se pudo crear o encontrar el producto maestro.")
@@ -55,7 +54,6 @@ class StockService:
             # If not exists, create new entry
             new_stock_item = self.stock_repo.create_stock_item(
                 hogar_id=hogar_id,
-                user_id=user_id,
                 fk_producto_maestro=producto_maestro.id_producto,
                 fk_ubicacion=ubicacion.id_ubicacion,
                 cantidad_actual=item_data.cantidad,
@@ -78,7 +76,6 @@ class StockService:
             name=item_data.product_name,
             brand=item_data.brand,
             hogar_id=hogar_id,
-            user_id=user_id,
             image_url=item_data.image_url
         )
 
@@ -98,7 +95,6 @@ class StockService:
             # If not exists, create new entry
             new_stock_item = self.stock_repo.create_stock_item(
                 hogar_id=hogar_id,
-                user_id=user_id,
                 fk_producto_maestro=producto_maestro.id_producto,
                 fk_ubicacion=ubicacion.id_ubicacion,
                 cantidad_actual=item_data.cantidad,
