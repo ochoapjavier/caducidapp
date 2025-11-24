@@ -24,7 +24,6 @@ class ProductActionsService:
         self,
         stock_id: int,
         hogar_id: int,
-        user_id: str,
         cantidad: int,
         nueva_ubicacion_id: int | None,
         mantener_fecha_caducidad: bool,
@@ -85,7 +84,6 @@ class ProductActionsService:
         # Create new opened item
         new_item = InventoryStock(
             hogar_id=hogar_id,
-            user_id=user_id,
             fk_producto_maestro=original_item.fk_producto_maestro,
             fk_ubicacion=target_location_id,
             cantidad_actual=cantidad,
@@ -109,7 +107,6 @@ class ProductActionsService:
         self,
         stock_id: int,
         hogar_id: int,
-        user_id: str,
         cantidad: int,
         ubicacion_congelador_id: int
     ) -> dict:
@@ -159,7 +156,6 @@ class ProductActionsService:
         # Create new frozen item
         new_item = InventoryStock(
             hogar_id=hogar_id,
-            user_id=user_id,
             fk_producto_maestro=original_item.fk_producto_maestro,
             fk_ubicacion=ubicacion_congelador_id,
             cantidad_actual=cantidad,
@@ -182,7 +178,6 @@ class ProductActionsService:
         self,
         stock_id: int,
         hogar_id: int,
-        user_id: str,
         cantidad: int,
         nueva_ubicacion_id: int,
         dias_vida_util: int
@@ -243,7 +238,6 @@ class ProductActionsService:
         # Create new unfrozen item
         new_item = InventoryStock(
             hogar_id=hogar_id,
-            user_id=user_id,
             fk_producto_maestro=frozen_item.fk_producto_maestro,
             fk_ubicacion=nueva_ubicacion_id,
             cantidad_actual=cantidad,
@@ -268,7 +262,6 @@ class ProductActionsService:
         self,
         stock_id: int,
         hogar_id: int,
-        user_id: str,
         cantidad: int,
         nueva_ubicacion_id: int
     ) -> dict:
@@ -334,7 +327,6 @@ class ProductActionsService:
             # Create new item in target location
             new_item = InventoryStock(
                 hogar_id=hogar_id,
-                user_id=user_id,
                 fk_producto_maestro=original_item.fk_producto_maestro,
                 fk_ubicacion=nueva_ubicacion_id,
                 cantidad_actual=cantidad,

@@ -48,7 +48,6 @@ def open_product(
     return service.open_product(
         stock_id=stock_id,
         hogar_id=hogar_id,
-        user_id=user_id,
         cantidad=request.cantidad,
         nueva_ubicacion_id=request.nueva_ubicacion_id,
         mantener_fecha_caducidad=request.mantener_fecha_caducidad,
@@ -81,7 +80,6 @@ def freeze_product(
     return service.freeze_product(
         stock_id=stock_id,
         hogar_id=hogar_id,
-        user_id=user_id,
         cantidad=request.cantidad,
         ubicacion_congelador_id=request.ubicacion_congelador_id
     )
@@ -115,7 +113,6 @@ def unfreeze_product(
     return service.unfreeze_product(
         stock_id=stock_id,
         hogar_id=hogar_id,
-        user_id=user_id,
         cantidad=request.cantidad,
         nueva_ubicacion_id=request.nueva_ubicacion_id,
         dias_vida_util=request.dias_vida_util
@@ -147,7 +144,6 @@ def relocate_product(
     return service.relocate_product(
         stock_id=stock_id,
         hogar_id=hogar_id,
-        user_id=user_id,
         cantidad=request.cantidad,
         nueva_ubicacion_id=request.nueva_ubicacion_id
     )
