@@ -1,13 +1,15 @@
 {
-    "name": "frontend",
-    "short_name": "frontend",
-    "start_url": ".",
+    "name": "CaducidApp - Control de Caducidades",
+    "short_name": "CaducidApp",
+    "start_url": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#FFFFFF",
+    "theme_color": "#6750A4",
+    "description": "Gestiona el inventario de tu hogar y controla las fechas de caducidad de tus productos.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "scope": "/",
+    "categories": ["productivity", "lifestyle"],
     "icons": [
         {
             "src": "icons/Icon-192.png",

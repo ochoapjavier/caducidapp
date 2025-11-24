@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from database import get_db
 from repositories.product_repository import ProductRepository
 from schemas import ProductSchema, ProductUpdate
-from auth.firebase_auth import get_current_user_id
+from dependencies import get_active_hogar_id
 
 router = APIRouter()
 
@@ -13,16 +13,13 @@ router = APIRouter()
 def get_product_by_barcode(
     barcode: str, 
     db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id) # <-- AÑADIDO: Ruta protegida
+    hogar_id: int = Depends(get_active_hogar_id)
 ):
-    """Busca un producto maestro por su código de barras."""
+    """Find a master product by barcode in the household."""
     repo = ProductRepository(db)
-    # CORRECCIÓN: Usar el método que filtra por usuario y pasar el user_id.
-    product = repo.get_by_barcode_and_user(barcode, user_id)
+    product = repo.get_by_barcode_and_hogar(barcode, hogar_id)
     if not product:
-        # Es importante que si el producto no pertenece al usuario, se devuelva un 404.
-        # El frontend está preparado para manejar este caso.
-        raise HTTPException(status_code=404, detail="Producto no encontrado en el catálogo maestro.")
+        raise HTTPException(status_code=404, detail="Producto no encontrado en el catálogo del hogar.")
     return product
 
 @router.put("/by-barcode/{barcode}", response_model=ProductSchema)
@@ -30,16 +27,15 @@ def update_product_by_barcode(
     barcode: str, 
     product_update: ProductUpdate, 
     db: Session = Depends(get_db),
-    user_id: str = Depends(get_current_user_id) # <-- AÑADIDO: Ruta protegida
+    hogar_id: int = Depends(get_active_hogar_id)
 ):
-    """Actualiza el nombre y/o marca de un producto maestro existente."""
+    """Update name and/or brand of an existing master product in the household."""
     repo = ProductRepository(db)
-    # CORRECCIÓN: Pasar el user_id al método de actualización.
     updated_product = repo.update_product_by_barcode(
         barcode=barcode,
         new_name=product_update.nombre,
         new_brand=product_update.marca,
-        user_id=user_id
+        hogar_id=hogar_id
     )
     if not updated_product:
         raise HTTPException(status_code=404, detail="No se pudo actualizar. Producto no encontrado.")

@@ -201,6 +201,645 @@ class InventoryViewState extends State<InventoryView> {
     );
   }
 
+  // ============================================================================
+  // DIÁLOGOS PARA ACCIONES DE ESTADO DE PRODUCTO
+  // ============================================================================
+
+  /// Diálogo para abrir un producto cerrado
+  Future<void> _showOpenProductDialog(dynamic item) async {
+    final stockId = item['id_stock'];
+    final productName = item['producto_maestro']['nombre'];
+    final currentQuantity = item['cantidad_actual'];
+    
+    int quantity = 1;
+    int diasVidaUtil = 4;
+    int? selectedLocationId;
+    bool mantenerFechaCaducidad = true;
+    
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    // Obtener ubicaciones para el dropdown
+    final locations = await fetchUbicaciones();
+    
+    if (!mounted) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: Text('Abrir "$productName"'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Disponible: $currentQuantity unidades',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 16),
+                // Spinner para cantidad
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Cantidad a abrir',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity > 1
+                          ? () => setStateDialog(() => quantity--)
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colorScheme.outline),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$quantity',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity < currentQuantity
+                          ? () => setStateDialog(() => quantity++)
+                          : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                    labelText: 'Nueva ubicación (opcional)',
+                    helperText: 'Ej: mover de despensa a nevera',
+                    border: OutlineInputBorder(),
+                  ),
+                  value: selectedLocationId,
+                  items: locations.map((loc) => DropdownMenuItem<int>(
+                    value: loc.id,
+                    child: Text(loc.nombre),
+                  )).toList(),
+                  onChanged: (value) => setStateDialog(() => selectedLocationId = value),
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Mantener fecha de caducidad original'),
+                  subtitle: Text(
+                    mantenerFechaCaducidad
+                      ? 'La fecha no cambiará al abrir'
+                      : 'Se recalculará según días de vida útil',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  value: mantenerFechaCaducidad,
+                  onChanged: (value) => setStateDialog(() => mantenerFechaCaducidad = value),
+                ),
+                // Campo de días solo si NO mantiene fecha
+                if (!mantenerFechaCaducidad) ...[
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Días de vida útil',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: diasVidaUtil > 1
+                            ? () => setStateDialog(() => diasVidaUtil--)
+                            : null,
+                        icon: const Icon(Icons.remove_circle_outline),
+                        color: colorScheme.primary,
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: colorScheme.outline),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$diasVidaUtil',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: diasVidaUtil < 30
+                            ? () => setStateDialog(() => diasVidaUtil++)
+                            : null,
+                        icon: const Icon(Icons.add_circle_outline),
+                        color: colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'Nueva fecha: ${DateTime.now().add(Duration(days: diasVidaUtil)).day}/${DateTime.now().add(Duration(days: diasVidaUtil)).month}/${DateTime.now().add(Duration(days: diasVidaUtil)).year}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      fontStyle: FontStyle.italic,
+                      color: colorScheme.primary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Abrir'),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    if (confirmed == true) {
+      try {
+        if (quantity <= 0 || quantity > currentQuantity) {
+          throw Exception('Cantidad inválida');
+        }
+        
+        await openProduct(
+          stockId: stockId,
+          cantidad: quantity,
+          nuevaUbicacionId: selectedLocationId,
+          mantenerFechaCaducidad: mantenerFechaCaducidad,
+          diasVidaUtil: diasVidaUtil,
+        );
+        
+        await refreshInventory();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Producto abierto correctamente'),
+              backgroundColor: colorScheme.primary,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: colorScheme.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// Diálogo para congelar un producto
+  Future<void> _showFreezeProductDialog(dynamic item) async {
+    final stockId = item['id_stock'];
+    final productName = item['producto_maestro']['nombre'];
+    final currentQuantity = item['cantidad_actual'];
+    
+    int quantity = currentQuantity;
+    int? freezerLocationId;
+    
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    // Obtener ubicaciones y filtrar solo las que son congeladores
+    final allLocations = await fetchUbicaciones();
+    final locations = allLocations.where((loc) => loc.esCongelador).toList();
+    
+    if (!mounted) return;
+    
+    // Validar que existen ubicaciones de tipo congelador
+    if (locations.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No tienes ubicaciones de tipo congelador. Crea una primero en la pantalla de Ubicaciones.'),
+          backgroundColor: colorScheme.error,
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {},
+          ),
+        ),
+      );
+      return;
+    }
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: Text('Congelar "$productName"'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Disponible: $currentQuantity unidades',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Al congelar, el producto dejará de aparecer en las alertas de caducidad.',
+                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                ),
+                const SizedBox(height: 16),
+                // Spinner para cantidad
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Cantidad a congelar',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity > 1
+                          ? () => setStateDialog(() => quantity--)
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colorScheme.outline),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$quantity',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity < currentQuantity
+                          ? () => setStateDialog(() => quantity++)
+                          : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                    labelText: 'Ubicación del congelador *',
+                    border: OutlineInputBorder(),
+                  ),
+                  value: freezerLocationId,
+                  items: locations.map((loc) => DropdownMenuItem<int>(
+                    value: loc.id,
+                    child: Text(loc.nombre),
+                  )).toList(),
+                  onChanged: (value) => setStateDialog(() => freezerLocationId = value),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: freezerLocationId == null ? null : () => Navigator.of(ctx).pop(true),
+              child: const Text('Congelar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    if (confirmed == true && freezerLocationId != null) {
+      try {
+        if (quantity <= 0 || quantity > currentQuantity) {
+          throw Exception('Cantidad inválida');
+        }
+        
+        await freezeProduct(
+          stockId: stockId,
+          cantidad: quantity,
+          ubicacionCongeladorId: freezerLocationId!,
+        );
+        
+        await refreshInventory();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Producto congelado correctamente'),
+              backgroundColor: colorScheme.primary,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: colorScheme.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// Diálogo para descongelar un producto
+  Future<void> _showUnfreezeProductDialog(dynamic item) async {
+    final stockId = item['id_stock'];
+    final productName = item['producto_maestro']['nombre'];
+    
+    int? newLocationId;
+    int diasVidaUtil = 2;
+    
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    // Obtener ubicaciones
+    final locations = await fetchUbicaciones();
+    
+    if (!mounted) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: Text('Descongelar "$productName"'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Al descongelar, se recomienda consumir el producto en pocos días.',
+                  style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                    labelText: 'Nueva ubicación *',
+                    helperText: 'Ej: Nevera',
+                    border: OutlineInputBorder(),
+                  ),
+                  value: newLocationId,
+                  items: locations.map((loc) => DropdownMenuItem<int>(
+                    value: loc.id,
+                    child: Text(loc.nombre),
+                  )).toList(),
+                  onChanged: (value) => setStateDialog(() => newLocationId = value),
+                ),
+                const SizedBox(height: 16),
+                // Spinner para días
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Días para consumir',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: diasVidaUtil > 1
+                          ? () => setStateDialog(() => diasVidaUtil--)
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colorScheme.outline),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$diasVidaUtil',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: diasVidaUtil < 7
+                          ? () => setStateDialog(() => diasVidaUtil++)
+                          : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                  ],
+                ),
+                Text(
+                  'Nueva fecha: ${DateTime.now().add(Duration(days: diasVidaUtil)).day}/${DateTime.now().add(Duration(days: diasVidaUtil)).month}/${DateTime.now().add(Duration(days: diasVidaUtil)).year}',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                    color: colorScheme.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: newLocationId == null ? null : () => Navigator.of(ctx).pop(true),
+              child: const Text('Descongelar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    if (confirmed == true && newLocationId != null) {
+      try {
+        if (diasVidaUtil <= 0 || diasVidaUtil > 7) {
+          throw Exception('Días inválidos (1-7)');
+        }
+        
+        await unfreezeProduct(
+          stockId: stockId,
+          nuevaUbicacionId: newLocationId!,
+          diasVidaUtil: diasVidaUtil,
+        );
+        
+        await refreshInventory();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Producto descongelado correctamente'),
+              backgroundColor: colorScheme.primary,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: colorScheme.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
+  /// Diálogo para reubicar un producto
+  Future<void> _showRelocateProductDialog(dynamic item) async {
+    final stockId = item['id_stock'];
+    final productName = item['producto_maestro']['nombre'];
+    final currentLocationName = item['ubicacion']['nombre'];
+    final currentQuantity = item['cantidad_actual'];
+    
+    int? newLocationId;
+    int quantity = 1;
+    
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    // Obtener ubicaciones
+    final locations = await fetchUbicaciones();
+    
+    if (!mounted) return;
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: Text('Reubicar "$productName"'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ubicación actual: $currentLocationName',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                Text(
+                  'Unidades disponibles: $currentQuantity',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Spinner para cantidad a reubicar
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Cantidad a reubicar',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity > 1
+                          ? () => setStateDialog(() => quantity--)
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colorScheme.outline),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$quantity',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity < currentQuantity
+                          ? () => setStateDialog(() => quantity++)
+                          : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(
+                    labelText: 'Nueva ubicación *',
+                    border: OutlineInputBorder(),
+                  ),
+                  value: newLocationId,
+                  items: locations.map((loc) => DropdownMenuItem<int>(
+                    value: loc.id,
+                    child: Text(loc.nombre),
+                  )).toList(),
+                  onChanged: (value) => setStateDialog(() => newLocationId = value),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: newLocationId == null ? null : () => Navigator.of(ctx).pop(true),
+              child: const Text('Reubicar'),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    if (confirmed == true && newLocationId != null) {
+      try {
+        await relocateProduct(
+          stockId: stockId,
+          cantidad: quantity,
+          nuevaUbicacionId: newLocationId!,
+        );
+        
+        await refreshInventory();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Producto reubicado correctamente'),
+              backgroundColor: colorScheme.primary,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: colorScheme.error,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -339,11 +978,13 @@ class InventoryViewState extends State<InventoryView> {
                                 final imageUrl = item['producto_maestro']['image_url'];
                                 final expiryDate = DateTime.parse(item['fecha_caducidad']);
                                 final stockId = item['id_stock'];
+                                final estadoProducto = item['estado_producto'] ?? 'cerrado';
                                 
                                 // Usando utilidades centralizadas para mantener consistencia
                                 final expiryColor = ExpiryUtils.getExpiryColor(expiryDate, colorScheme);
                                 final statusLabel = ExpiryUtils.getStatusLabel(expiryDate);
                                 final daysUntilExpiry = ExpiryUtils.daysUntilExpiry(expiryDate);
+                                final availableActions = ExpiryUtils.getAvailableActions(estadoProducto);
                                 return Container(
                                   margin: EdgeInsets.only(
                                     left: 12,
@@ -385,144 +1026,243 @@ class InventoryViewState extends State<InventoryView> {
                                           ),
                                         Padding(
                                           padding: EdgeInsets.fromLTRB(expiryColor != Colors.transparent ? 12 : 14, 12, 14, 12),
-                                          child: Row(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.stretch,
                                             children: [
-                                              CircleAvatar(
-                                                radius: 20,
-                                                backgroundColor: Colors.grey[200],
-                                                child: imageUrl != null
-                                                    ? ClipOval(
-                                                        child: Image.network(
-                                                          imageUrl,
-                                                          fit: BoxFit.cover,
-                                                          width: 40,
-                                                          height: 40,
-                                                          loadingBuilder: (context, child, progress) => progress == null
-                                                              ? child
-                                                              : const SizedBox(
-                                                                  width: 20,
-                                                                  height: 20,
-                                                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                                                ),
-                                                          errorBuilder: (context, error, stackTrace) => const Icon(
-                                                            Icons.image_not_supported,
-                                                            color: Colors.grey,
-                                                            size: 20,
-                                                          ),
-                                                        ),
-                                                      )
-                                                    : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 20),
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                child: Stack(
-                                                  children: [
-                                                    Column(
+                                              // FILA PRINCIPAL: Imagen + Información + Badges
+                                              Row(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  CircleAvatar(
+                                                    radius: 20,
+                                                    backgroundColor: Colors.grey[200],
+                                                    child: imageUrl != null
+                                                        ? ClipOval(
+                                                            child: Image.network(
+                                                              imageUrl,
+                                                              fit: BoxFit.cover,
+                                                              width: 40,
+                                                              height: 40,
+                                                              loadingBuilder: (context, child, progress) => progress == null
+                                                                  ? child
+                                                                  : const SizedBox(
+                                                                      width: 20,
+                                                                      height: 20,
+                                                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                                                    ),
+                                                              errorBuilder: (context, error, stackTrace) => const Icon(
+                                                                Icons.image_not_supported,
+                                                                color: Colors.grey,
+                                                                size: 20,
+                                                              ),
+                                                            ),
+                                                          )
+                                                        : const Icon(Icons.inventory_2_outlined, color: Colors.grey, size: 20),
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    child: Column(
                                                       crossAxisAlignment: CrossAxisAlignment.start,
                                                       children: [
-                                                        // Nombre del producto (con espacio para badge de cantidad)
+                                                        // ═══════════════════════════════════════════════════
+                                                        // 📱 DISEÑO UX/UI DE CLASE MUNDIAL
+                                                        // ═══════════════════════════════════════════════════
+                                                        
+                                                        // 1️⃣ NOMBRE + MARCA (en una sola línea, jerarquía visual clara)
                                                         Padding(
                                                           padding: const EdgeInsets.only(right: 48),
-                                                          child: Text(
-                                                            productName,
-                                                            style: textTheme.titleMedium?.copyWith(
-                                                              fontWeight: FontWeight.w600,
-                                                              fontSize: 15,
-                                                            ),
+                                                          child: RichText(
                                                             maxLines: 2,
                                                             overflow: TextOverflow.ellipsis,
+                                                            text: TextSpan(
+                                                              children: [
+                                                                TextSpan(
+                                                                  text: productName,
+                                                                  style: textTheme.titleMedium?.copyWith(
+                                                                    fontWeight: FontWeight.w700,
+                                                                    fontSize: 15,
+                                                                    color: colorScheme.onSurface,
+                                                                  ),
+                                                                ),
+                                                                if (brand != null && brand.isNotEmpty) ...[
+                                                                  TextSpan(
+                                                                    text: ' · ',
+                                                                    style: textTheme.bodySmall?.copyWith(
+                                                                      color: colorScheme.onSurfaceVariant.withOpacity(0.5),
+                                                                      fontWeight: FontWeight.w300,
+                                                                    ),
+                                                                  ),
+                                                                  TextSpan(
+                                                                    text: brand,
+                                                                    style: textTheme.bodySmall?.copyWith(
+                                                                      color: colorScheme.onSurfaceVariant,
+                                                                      fontSize: 13,
+                                                                      fontWeight: FontWeight.w500,
+                                                                    ),
+                                                                  ),
+                                                                ],
+                                                              ],
+                                                            ),
                                                           ),
                                                         ),
-                                                        const SizedBox(height: 4),
-                                                        // Metadata: marca y fecha en líneas separadas
-                                                        if (brand != null && brand.isNotEmpty)
-                                                          Container(
-                                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                            decoration: BoxDecoration(
-                                                              color: colorScheme.surfaceVariant,
-                                                              borderRadius: BorderRadius.circular(4),
-                                                            ),
-                                                            child: Text(
-                                                              brand,
-                                                              style: textTheme.labelSmall?.copyWith(
-                                                                color: colorScheme.onSurfaceVariant,
-                                                                fontSize: 11,
-                                                              ),
+                                                        const SizedBox(height: 8),
+                                                        
+                                                        // 2️⃣ ALERTA PRIORITARIA + FECHA DE CADUCIDAD (destacada con color e icono)
+                                                        Container(
+                                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                                          decoration: BoxDecoration(
+                                                            color: expiryColor != Colors.transparent
+                                                                ? expiryColor.withAlpha((255 * 0.12).round())
+                                                                : colorScheme.surfaceVariant.withAlpha((255 * 0.5).round()),
+                                                            borderRadius: BorderRadius.circular(6),
+                                                            border: Border.all(
+                                                              color: expiryColor != Colors.transparent
+                                                                  ? expiryColor.withAlpha((255 * 0.3).round())
+                                                                  : Colors.transparent,
+                                                              width: 1,
                                                             ),
                                                           ),
-                                                        const SizedBox(height: 4),
-                                                        // Fecha y badge de estado en la misma línea
-                                                        Row(
-                                                          mainAxisSize: MainAxisSize.min,
-                                                          children: [
-                                                            // Badge de fecha
-                                                            Container(
-                                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                              decoration: BoxDecoration(
-                                                                color: expiryColor != Colors.transparent
-                                                                    ? expiryColor.withAlpha((255 * 0.15).round())
-                                                                    : colorScheme.surfaceVariant,
-                                                                borderRadius: BorderRadius.circular(4),
-                                                              ),
-                                                              child: Row(
-                                                                mainAxisSize: MainAxisSize.min,
-                                                                children: [
-                                                                  Icon(
-                                                                    daysUntilExpiry < 0 
-                                                                        ? Icons.block_rounded
-                                                                        : Icons.calendar_today,
-                                                                    size: 10,
-                                                                    color: expiryColor != Colors.transparent
-                                                                        ? expiryColor
-                                                                        : colorScheme.onSurfaceVariant,
+                                                          child: IntrinsicHeight(
+                                                            child: Row(
+                                                              mainAxisSize: MainAxisSize.min,
+                                                              children: [
+                                                                Icon(
+                                                                  daysUntilExpiry < 0 
+                                                                      ? Icons.dangerous_rounded
+                                                                      : daysUntilExpiry <= 3
+                                                                          ? Icons.warning_amber_rounded
+                                                                          : daysUntilExpiry <= 7
+                                                                              ? Icons.schedule_rounded
+                                                                              : Icons.check_circle_outline_rounded,
+                                                                  size: 16,
+                                                                  color: expiryColor != Colors.transparent
+                                                                      ? expiryColor
+                                                                      : colorScheme.onSurfaceVariant,
+                                                                ),
+                                                                const SizedBox(width: 6),
+                                                                // Badge de urgencia (si aplica)
+                                                                if (expiryColor != Colors.transparent) ...[
+                                                                  Container(
+                                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                                                    decoration: BoxDecoration(
+                                                                      color: expiryColor,
+                                                                      borderRadius: BorderRadius.circular(4),
+                                                                    ),
+                                                                    child: Text(
+                                                                      statusLabel.toUpperCase(),
+                                                                      style: textTheme.labelSmall?.copyWith(
+                                                                        color: Colors.white,
+                                                                        fontSize: 9,
+                                                                        fontWeight: FontWeight.w800,
+                                                                        letterSpacing: 0.5,
+                                                                      ),
+                                                                    ),
                                                                   ),
-                                                                  const SizedBox(width: 4),
+                                                                  const SizedBox(width: 5),
                                                                   Text(
-                                                                    '${expiryDate.day}/${expiryDate.month}/${expiryDate.year}',
-                                                                    style: textTheme.labelSmall?.copyWith(
+                                                                    '·',
+                                                                    style: TextStyle(
+                                                                      color: expiryColor.withAlpha((255 * 0.5).round()),
+                                                                      fontWeight: FontWeight.w300,
+                                                                    ),
+                                                                  ),
+                                                                  const SizedBox(width: 5),
+                                                                ],
+                                                                Flexible(
+                                                                  child: Text(
+                                                                    '${expiryDate.day.toString().padLeft(2, '0')}/${expiryDate.month.toString().padLeft(2, '0')}/${expiryDate.year}',
+                                                                    style: textTheme.bodySmall?.copyWith(
                                                                       color: expiryColor != Colors.transparent
                                                                           ? expiryColor
                                                                           : colorScheme.onSurfaceVariant,
                                                                       fontSize: 11,
-                                                                      fontWeight: FontWeight.w600,
+                                                                      fontWeight: FontWeight.w700,
                                                                       decoration: daysUntilExpiry < 0 
                                                                           ? TextDecoration.lineThrough 
                                                                           : null,
                                                                     ),
+                                                                    overflow: TextOverflow.ellipsis,
                                                                   ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          ),
+                                                        ),
+                                                        
+                                                        // 3️⃣ ESTADO DEL PRODUCTO (Abierto/Congelado) con fecha contextual
+                                                        if (ExpiryUtils.shouldShowStateBadge(estadoProducto)) ...[
+                                                          const SizedBox(height: 6),
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                                            decoration: BoxDecoration(
+                                                              color: ExpiryUtils.getStateBadgeColor(estadoProducto).withAlpha((255 * 0.12).round()),
+                                                              borderRadius: BorderRadius.circular(6),
+                                                              border: Border.all(
+                                                                color: ExpiryUtils.getStateBadgeColor(estadoProducto).withAlpha((255 * 0.3).round()),
+                                                                width: 1,
+                                                              ),
+                                                            ),
+                                                            child: IntrinsicHeight(
+                                                              child: Row(
+                                                                mainAxisSize: MainAxisSize.min,
+                                                                children: [
+                                                                  Icon(
+                                                                    ExpiryUtils.getStateIcon(estadoProducto),
+                                                                    size: 16,
+                                                                    color: ExpiryUtils.getStateBadgeColor(estadoProducto),
+                                                                  ),
+                                                                  const SizedBox(width: 6),
+                                                                  Text(
+                                                                    ExpiryUtils.getStateLabel(estadoProducto).toUpperCase(),
+                                                                    style: textTheme.labelSmall?.copyWith(
+                                                                      color: ExpiryUtils.getStateBadgeColor(estadoProducto),
+                                                                      fontSize: 10,
+                                                                      fontWeight: FontWeight.w800,
+                                                                      letterSpacing: 0.6,
+                                                                    ),
+                                                                  ),
+                                                                  // Fecha de apertura o congelación
+                                                                  if ((estadoProducto == 'abierto' && item['fecha_apertura'] != null) ||
+                                                                      (estadoProducto == 'congelado' && item['fecha_congelacion'] != null)) ...[
+                                                                    const SizedBox(width: 6),
+                                                                    Text(
+                                                                      '·',
+                                                                      style: TextStyle(
+                                                                        color: ExpiryUtils.getStateBadgeColor(estadoProducto).withAlpha((255 * 0.5).round()),
+                                                                        fontWeight: FontWeight.w300,
+                                                                      ),
+                                                                    ),
+                                                                    const SizedBox(width: 6),
+                                                                    Flexible(
+                                                                      child: Text(
+                                                                        () {
+                                                                          final fecha = estadoProducto == 'abierto'
+                                                                              ? DateTime.parse(item['fecha_apertura'])
+                                                                              : DateTime.parse(item['fecha_congelacion']);
+                                                                          return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
+                                                                        }(),
+                                                                        style: textTheme.bodySmall?.copyWith(
+                                                                          color: ExpiryUtils.getStateBadgeColor(estadoProducto),
+                                                                          fontSize: 11,
+                                                                          fontWeight: FontWeight.w700,
+                                                                        ),
+                                                                        overflow: TextOverflow.ellipsis,
+                                                                      ),
+                                                                    ),
+                                                                  ],
                                                                 ],
                                                               ),
                                                             ),
-                                                            // Badge de estado (Caducado/Urgente/Próximo) - a la derecha de la fecha
-                                                            if (expiryColor != Colors.transparent) ...[
-                                                              const SizedBox(width: 4),
-                                                              Container(
-                                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                                decoration: BoxDecoration(
-                                                                  color: expiryColor.withAlpha((255 * 0.2).round()),
-                                                                  borderRadius: BorderRadius.circular(4),
-                                                                ),
-                                                                child: Text(
-                                                                  statusLabel,
-                                                                  style: textTheme.labelSmall?.copyWith(
-                                                                    color: expiryColor,
-                                                                    fontSize: 10,
-                                                                    fontWeight: FontWeight.w700,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ],
-                                                        ),
-                                                        const SizedBox(height: 32),
+                                                          ),
+                                                        ],
                                                       ],
                                                     ),
-                                                    // Badge de cantidad (top-right)
-                                                    Positioned(
-                                                      top: 0,
-                                                      right: 0,
-                                                      child: Container(
+                                                  ),
+                                                  // Badge de cantidad + botón editar (columna derecha)
+                                                  Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                                    children: [
+                                                      Container(
                                                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                                         decoration: BoxDecoration(
                                                           color: colorScheme.primaryContainer,
@@ -536,43 +1276,107 @@ class InventoryViewState extends State<InventoryView> {
                                                           ),
                                                         ),
                                                       ),
-                                                    ),
-                                                    // Botones de acción (bottom-right)
-                                                    Positioned(
-                                                      bottom: 0,
-                                                      right: 0,
-                                                      child: Row(
-                                                        mainAxisSize: MainAxisSize.min,
-                                                        children: [
+                                                      const SizedBox(height: 8),
+                                                      // Botón Editar
+                                                      IconButton(
+                                                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                        padding: const EdgeInsets.all(6),
+                                                        tooltip: 'Editar',
+                                                        icon: const Icon(Icons.edit_outlined, size: 18),
+                                                        onPressed: () => _showEditStockItemDialog(item),
+                                                        style: IconButton.styleFrom(
+                                                          backgroundColor: colorScheme.primaryContainer,
+                                                          foregroundColor: colorScheme.onPrimaryContainer,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                              
+                                              // Separador visual entre información y acciones
+                                              const SizedBox(height: 12),
+                                              Divider(
+                                                color: colorScheme.outlineVariant.withOpacity(0.3),
+                                                thickness: 1,
+                                                height: 1,
+                                              ),
+                                              const SizedBox(height: 12),
+                                              
+                                              // 4️⃣ BOTONES DE ACCIÓN (centrados en todo el ancho)
+                                              Center(
+                                                child: Wrap(
+                                                  spacing: 6,
+                                                  runSpacing: 6,
+                                                  alignment: WrapAlignment.center,
+                                                  children: [
+                                                          // Botón Abrir (solo si cerrado)
+                                                          if (availableActions['abrir'] == true)
+                                                            IconButton(
+                                                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                              padding: const EdgeInsets.all(6),
+                                                              tooltip: 'Abrir',
+                                                              icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                                                              onPressed: () => _showOpenProductDialog(item),
+                                                              style: IconButton.styleFrom(
+                                                                backgroundColor: Colors.orange.shade100,
+                                                                foregroundColor: Colors.orange.shade800,
+                                                              ),
+                                                            ),
+                                                          // Botón Congelar (si no está congelado)
+                                                          if (availableActions['congelar'] == true)
+                                                            IconButton(
+                                                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                              padding: const EdgeInsets.all(6),
+                                                              tooltip: 'Congelar',
+                                                              icon: const Icon(Icons.ac_unit_rounded, size: 18),
+                                                              onPressed: () => _showFreezeProductDialog(item),
+                                                              style: IconButton.styleFrom(
+                                                                backgroundColor: Colors.blue.shade100,
+                                                                foregroundColor: Colors.blue.shade800,
+                                                              ),
+                                                            ),
+                                                          // Botón Descongelar (solo si congelado)
+                                                          if (availableActions['descongelar'] == true)
+                                                            IconButton(
+                                                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                              padding: const EdgeInsets.all(6),
+                                                              tooltip: 'Descongelar',
+                                                              icon: const Icon(Icons.wb_sunny_rounded, size: 18),
+                                                              onPressed: () => _showUnfreezeProductDialog(item),
+                                                              style: IconButton.styleFrom(
+                                                                backgroundColor: Colors.amber.shade100,
+                                                                foregroundColor: Colors.amber.shade800,
+                                                              ),
+                                                            ),
+                                                          // Botón Reubicar (siempre disponible)
+                                                          if (availableActions['reubicar'] == true)
+                                                            IconButton(
+                                                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                              padding: const EdgeInsets.all(6),
+                                                              tooltip: 'Reubicar',
+                                                              icon: const Icon(Icons.move_up_rounded, size: 18),
+                                                              onPressed: () => _showRelocateProductDialog(item),
+                                                              style: IconButton.styleFrom(
+                                                                backgroundColor: Colors.purple.shade100,
+                                                                foregroundColor: Colors.purple.shade800,
+                                                              ),
+                                                            ),
+                                                          // Botón Usar
                                                           IconButton(
-                                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                                             padding: const EdgeInsets.all(6),
                                                             tooltip: 'Usar',
-                                                            icon: const Icon(Icons.remove_circle_outline, size: 20),
+                                                            icon: const Icon(Icons.remove_circle_outline, size: 18),
                                                             onPressed: () => _showRemoveQuantityDialog(stockId, quantity, productName),
                                                             style: IconButton.styleFrom(
                                                               backgroundColor: colorScheme.secondaryContainer,
                                                               foregroundColor: colorScheme.onSecondaryContainer,
                                                             ),
                                                           ),
-                                                          const SizedBox(width: 6),
-                                                          IconButton(
-                                                            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                                            padding: const EdgeInsets.all(6),
-                                                            tooltip: 'Editar',
-                                                            icon: const Icon(Icons.edit_outlined, size: 20),
-                                                            onPressed: () => _showEditStockItemDialog(item),
-                                                            style: IconButton.styleFrom(
-                                                              backgroundColor: colorScheme.primaryContainer,
-                                                              foregroundColor: colorScheme.onPrimaryContainer,
-                                                            ),
-                                                          ),
                                                         ],
                                                       ),
                                                     ),
-                                                  ],
-                                                ),
-                                              ),
                                             ],
                                           ),
                                         ),

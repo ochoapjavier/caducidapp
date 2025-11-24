@@ -7,30 +7,31 @@ class ProductRepository:
     def __init__(self, db: Session):
         self.db = db
 
-    def get_or_create_by_name(self, name: str, user_id: str) -> Product:
-        # Case-insensitive search for user products without a barcode
+    def get_or_create_by_name(self, name: str, hogar_id: int) -> Product:
+        """Get or create a product by name within a household (for products without barcode)."""
+        # Case-insensitive search for household products without a barcode
         product = (
             self.db.query(Product)
             .filter(
                 func.lower(Product.nombre) == func.lower(name),
                 Product.barcode.is_(None),
-                Product.user_id == user_id,
+                Product.hogar_id == hogar_id,
             )
             .first()
         )
 
         if not product:
-            product = Product(nombre=name, user_id=user_id)
+            product = Product(nombre=name, hogar_id=hogar_id)
             self.db.add(product)
             self.db.commit()
             self.db.refresh(product)
         return product
 
-    def get_by_barcode_and_user(self, barcode: str, user_id: str) -> Product | None:
-        """Find a product by its barcode for the given user."""
+    def get_by_barcode_and_hogar(self, barcode: str, hogar_id: int) -> Product | None:
+        """Find a product by its barcode within a household."""
         return (
             self.db.query(Product)
-            .filter(and_(Product.barcode == barcode, Product.user_id == user_id))
+            .filter(and_(Product.barcode == barcode, Product.hogar_id == hogar_id))
             .first()
         )
 
@@ -39,16 +40,17 @@ class ProductRepository:
         barcode: str,
         name: str,
         brand: str | None,
-        user_id: str,
+        hogar_id: int,
         image_url: str | None = None,
     ) -> Product:
-        product = self.get_by_barcode_and_user(barcode, user_id)
+        """Get or create a product by barcode within a household."""
+        product = self.get_by_barcode_and_hogar(barcode, hogar_id)
         if not product:
             product = Product(
                 barcode=barcode,
                 nombre=name,
                 marca=brand,
-                user_id=user_id,
+                hogar_id=hogar_id,
                 image_url=image_url,
             )
             self.db.add(product)
@@ -57,10 +59,10 @@ class ProductRepository:
         return product
 
     def update_product_by_barcode(
-        self, barcode: str, user_id: str, new_name: str, new_brand: str | None
+        self, barcode: str, hogar_id: int, new_name: str, new_brand: str | None
     ) -> Product | None:
-        """Update name/brand for a product identified by (barcode, user)."""
-        product = self.get_by_barcode_and_user(barcode, user_id)
+        """Update name/brand for a product identified by (barcode, hogar)."""
+        product = self.get_by_barcode_and_hogar(barcode, hogar_id)
         if product:
             product.nombre = new_name
             product.marca = new_brand

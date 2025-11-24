@@ -13,6 +13,7 @@ class UbicacionManager extends StatefulWidget {
 class _UbicacionManagerState extends State<UbicacionManager> {
   final TextEditingController _addController = TextEditingController();
   late Future<List<Ubicacion>> _futureUbicaciones;
+  bool _isNewLocationFreezer = false; // Estado para el checkbox de crear
 
   @override
   void initState() {
@@ -40,8 +41,11 @@ class _UbicacionManagerState extends State<UbicacionManager> {
   void _addAndReloadUbicacion() async {
     if (_addController.text.isEmpty) return;
     try {
-      await createUbicacion(_addController.text);
+      await createUbicacion(_addController.text, esCongelador: _isNewLocationFreezer);
       _addController.clear();
+      setState(() {
+        _isNewLocationFreezer = false; // Reset checkbox después de crear
+      });
       _reloadUbicaciones();
       _showSnackbar('Ubicación creada con éxito!');
     } catch (e) {
@@ -49,9 +53,9 @@ class _UbicacionManagerState extends State<UbicacionManager> {
     }
   }
 
-  void _editAndReloadUbicacion(int id, String newName) async {
+  void _editAndReloadUbicacion(int id, String newName, {bool? esCongelador}) async {
     try {
-      await updateUbicacion(id, newName);
+      await updateUbicacion(id, newName, esCongelador: esCongelador);
       _reloadUbicaciones();
       _showSnackbar('Ubicación actualizada con éxito!');
     } catch (e) {
@@ -71,33 +75,70 @@ class _UbicacionManagerState extends State<UbicacionManager> {
 
   Future<void> _showEditDialog(Ubicacion ubicacion) async {
     final editController = TextEditingController(text: ubicacion.nombre);
+    bool isEditFreezer = ubicacion.esCongelador; // Estado inicial
+    
     return showDialog<void>(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Editar Ubicación'),
-          content: TextField(
-            controller: editController,
-            autofocus: true,
-            decoration: const InputDecoration(
-              labelText: 'Nuevo nombre',
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: const Text('Cancelar'),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-            FilledButton(
-              child: const Text('Guardar'),
-              onPressed: () {
-                if (editController.text.isNotEmpty) {
-                  Navigator.of(context).pop();
-                  _editAndReloadUbicacion(ubicacion.id, editController.text);
-                }
-              },
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Editar Ubicación'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: editController,
+                    autofocus: true,
+                    decoration: const InputDecoration(
+                      labelText: 'Nuevo nombre',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Row(
+                      children: const [
+                        Icon(Icons.ac_unit, size: 18),
+                        SizedBox(width: 8),
+                        Text('Es congelador'),
+                      ],
+                    ),
+                    subtitle: const Text(
+                      'Las ubicaciones de tipo congelador aparecerán al congelar productos',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                    value: isEditFreezer,
+                    onChanged: (bool? value) {
+                      setStateDialog(() {
+                        isEditFreezer = value ?? false;
+                      });
+                    },
+                  ),
+                ],
+              ),
+              actions: <Widget>[
+                TextButton(
+                  child: const Text('Cancelar'),
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+                FilledButton(
+                  child: const Text('Guardar'),
+                  onPressed: () {
+                    if (editController.text.isNotEmpty) {
+                      Navigator.of(context).pop();
+                      _editAndReloadUbicacion(
+                        ubicacion.id, 
+                        editController.text,
+                        esCongelador: isEditFreezer,
+                      );
+                    }
+                  },
+                ),
+              ],
+            );
+          },
         );
       },
     );
@@ -185,6 +226,27 @@ class _UbicacionManagerState extends State<UbicacionManager> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Row(
+                children: const [
+                  Icon(Icons.ac_unit, size: 18),
+                  SizedBox(width: 8),
+                  Text('Es congelador'),
+                ],
+              ),
+              subtitle: const Text(
+                'Las ubicaciones de tipo congelador aparecerán al congelar productos',
+                style: TextStyle(fontSize: 11),
+              ),
+              value: _isNewLocationFreezer,
+              onChanged: (bool? value) {
+                setState(() {
+                  _isNewLocationFreezer = value ?? false;
+                });
+              },
+            ),
           ],
         ),
       ),
@@ -217,17 +279,55 @@ class _UbicacionManagerState extends State<UbicacionManager> {
                         width: 40,
                         height: 40,
                         decoration: BoxDecoration(
-                          color: scheme.primary.withAlpha((255 * 0.12).round()),
+                          color: ubicacion.esCongelador 
+                              ? Colors.blue.shade100
+                              : scheme.primary.withAlpha((255 * 0.12).round()),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Icon(Icons.location_on_outlined, color: scheme.primary),
+                        child: Icon(
+                          ubicacion.esCongelador ? Icons.ac_unit : Icons.location_on_outlined,
+                          color: ubicacion.esCongelador ? Colors.blue.shade700 : scheme.primary,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Text(
-                          ubicacion.nombre,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-                          overflow: TextOverflow.ellipsis,
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                ubicacion.nombre,
+                                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            if (ubicacion.esCongelador) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade100,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: Colors.blue.shade300, width: 1),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.ac_unit, size: 10, color: Colors.blue.shade700),
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      'CONGELADOR',
+                                      style: TextStyle(
+                                        fontSize: 9,
+                                        fontWeight: FontWeight.w700,
+                                        color: Colors.blue.shade700,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
                         ),
                       ),
                       PopupMenuButton<String>(

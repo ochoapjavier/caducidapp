@@ -8,6 +8,15 @@ from .item import (
 from .alert import AlertResponse
 from .stock_update import StockUpdate, StockRemove
 from .product_update import ProductUpdate
+from .product_actions import (
+    OpenProductRequest, FreezeProductRequest, UnfreezeProductRequest,
+    RelocateProductRequest, ProductActionResponse
+)
+from .hogar import (
+    HogarCreate, HogarUpdate, HogarSchema, HogarDetalle, MiembroInfo,
+    HogarMiembroCreate, HogarMiembroUpdate, HogarMiembroSchema,
+    InvitacionResponse
+)
 
 __all__ = [
     "Location",
@@ -22,4 +31,18 @@ __all__ = [
     "ProductSchema",
     "LocationSchema",
     "ProductUpdate",
+    "OpenProductRequest",
+    "FreezeProductRequest",
+    "UnfreezeProductRequest",
+    "RelocateProductRequest",
+    "ProductActionResponse",
+    "HogarCreate",
+    "HogarUpdate",
+    "HogarSchema",
+    "HogarDetalle",
+    "MiembroInfo",
+    "HogarMiembroCreate",
+    "HogarMiembroUpdate",
+    "HogarMiembroSchema",
+    "InvitacionResponse",
 ]
