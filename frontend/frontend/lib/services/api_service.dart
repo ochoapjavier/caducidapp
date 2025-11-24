@@ -491,7 +491,7 @@ Future<Map<String, dynamic>> relocateProduct({
 Future<List<Hogar>> fetchHogares() async {
   final headers = await _getAuthHeaders();
   final response = await http.get(
-    Uri.parse('$apiUrl/hogares/'),
+    Uri.parse('$apiUrl/hogares'),
     headers: headers,
   );
 
@@ -523,7 +523,7 @@ Future<HogarDetalle> fetchHogarDetalle(int hogarId) async {
 Future<Hogar> createHogar(String nombre, {String icono = 'home'}) async {
   final headers = await _getAuthHeaders();
   final response = await http.post(
-    Uri.parse('$apiUrl/hogares/'),
+    Uri.parse('$apiUrl/hogares'),
     headers: headers,
     body: jsonEncode({
       'nombre': nombre,

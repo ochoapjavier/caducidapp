@@ -64,7 +64,6 @@ class Location(Base):
     id_ubicacion = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
     hogar_id = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
-    user_id = Column(String(255), nullable=True, index=True)  # Legacy, will be removed
     es_congelador = Column(Boolean, nullable=False, default=False)  # Indicates if location is a freezer
     __table_args__ = (
         UniqueConstraint('nombre', 'hogar_id', name='ubicacion_nombre_hogar_unique'),
@@ -95,7 +94,6 @@ class Product(Base):
     marca = Column(String(100), nullable=True)
     image_url = Column(String(512), nullable=True)
     hogar_id = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
-    user_id = Column(String(255), nullable=True, index=True)  # Legacy, will be removed
     __table_args__ = (
         UniqueConstraint('barcode', 'hogar_id', name='producto_barcode_hogar_unique'),
         Index('ix_producto_hogar_nombre', 'hogar_id', 'nombre'),
@@ -122,7 +120,6 @@ class InventoryStock(Base):
     __tablename__ = 'inventario_stock'
     id_stock = Column(Integer, primary_key=True, index=True)
     hogar_id = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
-    user_id = Column(String(255), nullable=True, index=True)  # Legacy, will be removed
     fk_producto_maestro = Column(Integer, ForeignKey('producto_maestro.id_producto'), nullable=False)
     fk_ubicacion = Column(Integer, ForeignKey('ubicacion.id_ubicacion'), nullable=False)
     cantidad_actual = Column(Integer, nullable=False)
