@@ -22,8 +22,8 @@ def add_manual_stock_endpoint(
     auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
     """Add stock manually. Requires member or admin role."""
-    hogar_id, _ = auth_data
-    return service.process_manual_stock(data, hogar_id)
+    hogar_id, user_id = auth_data
+    return service.process_manual_stock(data, hogar_id, user_id)
 
 @router.post("/from-scan", response_model=StockItem, status_code=status.HTTP_201_CREATED)
 def add_scan_stock_endpoint(
@@ -32,8 +32,8 @@ def add_scan_stock_endpoint(
     auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
     """Add stock from barcode scan. Requires member or admin role."""
-    hogar_id, _ = auth_data
-    return service.process_scan_stock(data, hogar_id)
+    hogar_id, user_id = auth_data
+    return service.process_scan_stock(data, hogar_id, user_id)
 
 @router.get("/", response_model=List[StockItem])
 def get_household_stock(

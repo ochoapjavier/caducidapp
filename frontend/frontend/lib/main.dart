@@ -65,6 +65,131 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
     futureAlertas = fetchAlertas();
   }
 
+  /// Muestra un diálogo para eliminar producto directamente desde alertas
+  void _showRemoveFromAlertsDialog(int stockId, int currentQuantity, String productName) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        int quantity = 1;
+        bool isProcessing = false;
+        
+        return StatefulBuilder(
+          builder: (context, setStateDialog) {
+            final colorScheme = Theme.of(context).colorScheme;
+
+            return AlertDialog(
+              title: Text('Eliminar "$productName"'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Disponible: $currentQuantity unidades',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 16),
+                  // Spinner para cantidad
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Cantidad a eliminar',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: isProcessing || quantity <= 1
+                            ? null
+                            : () => setStateDialog(() => quantity--),
+                        icon: const Icon(Icons.remove_circle_outline),
+                        color: colorScheme.primary,
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: colorScheme.outline),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '$quantity',
+                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: isProcessing || quantity >= currentQuantity
+                            ? null
+                            : () => setStateDialog(() => quantity++),
+                        icon: const Icon(Icons.add_circle_outline),
+                        color: colorScheme.primary,
+                      ),
+                    ],
+                  ),
+                  if (isProcessing) ...[
+                    const SizedBox(height: 16),
+                    const LinearProgressIndicator(),
+                    const SizedBox(height: 8),
+                    const Text('Eliminando...'),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isProcessing ? null : () => Navigator.of(ctx).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                ElevatedButton(
+                  onPressed: isProcessing ? null : () async {
+                    setStateDialog(() => isProcessing = true);
+                    
+                    try {
+                      // Llamar al API para eliminar
+                      await removeStockItems(stockId: stockId, cantidad: quantity);
+                      
+                      // Cerrar diálogo
+                      if (context.mounted) Navigator.of(ctx).pop();
+                      
+                      // Refrescar alertas
+                      setState(() {
+                        futureAlertas = fetchAlertas();
+                      });
+                      
+                      // Mostrar confirmación
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Producto eliminado'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      }
+                    } catch (e) {
+                      setStateDialog(() => isProcessing = false);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error: ${e.toString()}'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('Eliminar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -105,6 +230,13 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                 final statusIcon = ExpiryUtils.getStatusIcon(item.fechaCaducidad);
                 final expiryMessage = ExpiryUtils.getExpiryMessage(item.fechaCaducidad);
                 final daysDiff = ExpiryUtils.daysUntilExpiry(item.fechaCaducidad);
+                
+                // Estado del producto (para badge adicional)
+                final estadoProducto = item.estadoProducto;
+                final showStateBadge = ExpiryUtils.shouldShowStateBadge(estadoProducto);
+                final stateBadgeColor = ExpiryUtils.getStateBadgeColor(estadoProducto);
+                final stateLabel = ExpiryUtils.getStateLabel(estadoProducto);
+                final stateIcon = ExpiryUtils.getStateIcon(estadoProducto);
 
                 return Card(
                   elevation: 0,
@@ -148,6 +280,7 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                                 ),
                               ),
                               const SizedBox(height: 4),
+                              // Mensaje de caducidad
                               Text(
                                 expiryMessage,
                                 style: textTheme.bodySmall?.copyWith(
@@ -155,6 +288,27 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                                   fontWeight: FontWeight.w600,
                                 ),
                               ),
+                              // Badge del estado del producto (si no es cerrado)
+                              if (showStateBadge) ...[
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    Icon(
+                                      stateIcon,
+                                      size: 14,
+                                      color: stateBadgeColor,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      stateLabel,
+                                      style: textTheme.labelSmall?.copyWith(
+                                        color: stateBadgeColor,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -192,6 +346,23 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                                   color: statusColor,
                                   fontWeight: FontWeight.w600,
                                 ),
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            // Botón para eliminar producto
+                            IconButton(
+                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                              padding: const EdgeInsets.all(6),
+                              tooltip: 'Eliminar',
+                              icon: const Icon(Icons.delete_outline, size: 18),
+                              onPressed: () => _showRemoveFromAlertsDialog(
+                                item.id,
+                                item.cantidad,
+                                item.producto,
+                              ),
+                              style: IconButton.styleFrom(
+                                backgroundColor: colorScheme.errorContainer,
+                                foregroundColor: colorScheme.onErrorContainer,
                               ),
                             ),
                           ],
@@ -263,12 +434,58 @@ extension BrandPaletteDisplay on BrandPalette {
   }
 }
 
-class MainAppScreen extends StatelessWidget {
+class MainAppScreen extends StatefulWidget {
   const MainAppScreen({super.key});
+
+  @override
+  State<MainAppScreen> createState() => _MainAppScreenState();
+}
+
+class _MainAppScreenState extends State<MainAppScreen> {
+  String _nombreHogar = 'Gestión de Caducidades';
+  bool _isLoadingHogar = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarNombreHogar();
+  }
+
+  Future<void> _cargarNombreHogar() async {
+    try {
+      final hogarService = HogarService();
+      final hogarId = await hogarService.getHogarActivo();
+      
+      if (hogarId != null) {
+        // Obtener los detalles del hogar desde el API
+        final hogarDetalle = await fetchHogarDetalle(hogarId);
+        
+        if (mounted) {
+          setState(() {
+            _nombreHogar = hogarDetalle.nombre;
+            _isLoadingHogar = false;
+          });
+        }
+      } else if (mounted) {
+        setState(() {
+          _nombreHogar = 'Sin hogar';
+          _isLoadingHogar = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _nombreHogar = 'Gestión de Caducidades';
+          _isLoadingHogar = false;
+        });
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return DefaultTabController(
       length: 3,
@@ -276,17 +493,57 @@ class MainAppScreen extends StatelessWidget {
         appBar: AppBar(
           elevation: 0,
           backgroundColor: colorScheme.surface,
-          title: Text(
-            'Gestión de Caducidades',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
+          title: _isLoadingHogar
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colorScheme.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      'Cargando...',
+                      style: textTheme.titleMedium?.copyWith(
+                        color: colorScheme.onSurface.withAlpha((255 * 0.6).round()),
+                      ),
+                    ),
+                  ],
+                )
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.home_rounded,
+                      size: 20,
+                      color: colorScheme.primary,
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        _nombreHogar,
+                        style: textTheme.titleLarge,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
           actions: [
             // Botón para cambiar de hogar
             IconButton(
               icon: const Icon(Icons.swap_horiz),
               tooltip: 'Cambiar hogar',
-              onPressed: () {
-                Navigator.pushNamed(context, '/selector-hogar');
+              onPressed: () async {
+                // Navegar al selector de hogares y esperar resultado
+                await Navigator.pushNamed(context, '/selector-hogar');
+                // Al regresar, recargar el nombre del hogar
+                if (mounted) {
+                  _cargarNombreHogar();
+                }
               },
             ),
             // Botón para ver detalles del hogar actual
@@ -295,13 +552,18 @@ class MainAppScreen extends StatelessWidget {
               tooltip: 'Gestionar hogar',
               onPressed: () async {
                 final hogarService = HogarService();
-                final hogarActivo = await hogarService.getHogarActivo();
-                if (hogarActivo != null && context.mounted) {
-                  Navigator.pushNamed(
+                final hogarId = await hogarService.getHogarActivo();
+                if (hogarId != null && context.mounted) {
+                  // Navegar a detalles del hogar y esperar resultado
+                  await Navigator.pushNamed(
                     context,
                     '/hogar-detalle',
-                    arguments: hogarActivo,
+                    arguments: hogarId,
                   );
+                  // Al regresar, recargar el nombre por si cambió
+                  if (mounted) {
+                    _cargarNombreHogar();
+                  }
                 }
               },
             ),

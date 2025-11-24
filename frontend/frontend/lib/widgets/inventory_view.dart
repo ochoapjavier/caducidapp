@@ -82,7 +82,8 @@ class InventoryViewState extends State<InventoryView> {
   // Método _consumeItem eliminado (no usado tras rediseño)
   
   /// Muestra un diálogo para confirmar y especificar la cantidad a eliminar.
-  void _showRemoveQuantityDialog(int stockId, int currentQuantity, String productName) {
+  /// Método público para poder ser invocado desde otras vistas (ej: Alertas)
+  void showRemoveQuantityDialog(int stockId, int currentQuantity, String productName) {
     final quantityController = TextEditingController(text: '1');
     final formKey = GlobalKey<FormState>();
     bool isProcessing = false; // Estado local para el diálogo
@@ -410,6 +411,7 @@ class InventoryViewState extends State<InventoryView> {
     final stockId = item['id_stock'];
     final productName = item['producto_maestro']['nombre'];
     final currentQuantity = item['cantidad_actual'];
+    final estadoProducto = item['estado_producto'] ?? 'cerrado';
     
     int quantity = currentQuantity;
     int? freezerLocationId;
@@ -453,6 +455,34 @@ class InventoryViewState extends State<InventoryView> {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 8),
+                // Advertencia si es producto descongelado
+                if (estadoProducto.toLowerCase() == 'descongelado') ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade50,
+                      border: Border.all(color: Colors.orange.shade700, width: 2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.orange.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '⚠️ No se recomienda re-congelar productos ya descongelados por seguridad alimentaria.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.orange.shade900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 const Text(
                   'Al congelar, el producto dejará de aparecer en las alertas de caducidad.',
                   style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
@@ -565,14 +595,28 @@ class InventoryViewState extends State<InventoryView> {
   Future<void> _showUnfreezeProductDialog(dynamic item) async {
     final stockId = item['id_stock'];
     final productName = item['producto_maestro']['nombre'];
+    final currentQuantity = item['cantidad_actual'] as int;
     
     int? newLocationId;
     int diasVidaUtil = 2;
+    int quantity = 1; // Cantidad a descongelar
     
     final colorScheme = Theme.of(context).colorScheme;
     
-    // Obtener ubicaciones
-    final locations = await fetchUbicaciones();
+    // Obtener ubicaciones y filtrar solo las que NO son congeladores
+    final allLocations = await fetchUbicaciones();
+    final locations = allLocations.where((loc) => !loc.esCongelador).toList();
+    
+    // Validar que existen ubicaciones que no son congelador
+    if (locations.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No tienes ubicaciones normales (no congelador) para descongelar. Crea una primero en la pantalla de Ubicaciones.'),
+        ),
+      );
+      return;
+    }
     
     if (!mounted) return;
     
@@ -591,10 +635,55 @@ class InventoryViewState extends State<InventoryView> {
                   style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
                 ),
                 const SizedBox(height: 16),
+                // Selector de cantidad
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Cantidad a descongelar',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity > 1
+                          ? () => setStateDialog(() => quantity--)
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colorScheme.outline),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$quantity',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity < currentQuantity
+                          ? () => setStateDialog(() => quantity++)
+                          : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                  ],
+                ),
+                Text(
+                  'Disponible: $currentQuantity unidades',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+                const SizedBox(height: 16),
                 DropdownButtonFormField<int>(
                   decoration: const InputDecoration(
-                    labelText: 'Nueva ubicación *',
-                    helperText: 'Ej: Nevera',
+                    labelText: 'Nueva ubicación (no congelador) *',
+                    helperText: 'Ej: Nevera, Despensa',
                     border: OutlineInputBorder(),
                   ),
                   value: newLocationId,
@@ -673,8 +762,13 @@ class InventoryViewState extends State<InventoryView> {
           throw Exception('Días inválidos (1-7)');
         }
         
+        if (quantity <= 0 || quantity > currentQuantity) {
+          throw Exception('Cantidad inválida');
+        }
+        
         await unfreezeProduct(
           stockId: stockId,
+          cantidad: quantity,
           nuevaUbicacionId: newLocationId!,
           diasVidaUtil: diasVidaUtil,
         );
@@ -1221,9 +1315,10 @@ class InventoryViewState extends State<InventoryView> {
                                                                       letterSpacing: 0.6,
                                                                     ),
                                                                   ),
-                                                                  // Fecha de apertura o congelación
+                                                                  // Fecha de apertura, congelación o descongelación
                                                                   if ((estadoProducto == 'abierto' && item['fecha_apertura'] != null) ||
-                                                                      (estadoProducto == 'congelado' && item['fecha_congelacion'] != null)) ...[
+                                                                      (estadoProducto == 'congelado' && item['fecha_congelacion'] != null) ||
+                                                                      (estadoProducto == 'descongelado' && item['fecha_descongelacion'] != null)) ...[
                                                                     const SizedBox(width: 6),
                                                                     Text(
                                                                       '·',
@@ -1238,7 +1333,9 @@ class InventoryViewState extends State<InventoryView> {
                                                                         () {
                                                                           final fecha = estadoProducto == 'abierto'
                                                                               ? DateTime.parse(item['fecha_apertura'])
-                                                                              : DateTime.parse(item['fecha_congelacion']);
+                                                                              : estadoProducto == 'congelado'
+                                                                              ? DateTime.parse(item['fecha_congelacion'])
+                                                                              : DateTime.parse(item['fecha_descongelacion']);
                                                                           return '${fecha.day.toString().padLeft(2, '0')}/${fecha.month.toString().padLeft(2, '0')}/${fecha.year}';
                                                                         }(),
                                                                         style: textTheme.bodySmall?.copyWith(
@@ -1247,6 +1344,71 @@ class InventoryViewState extends State<InventoryView> {
                                                                           fontWeight: FontWeight.w700,
                                                                         ),
                                                                         overflow: TextOverflow.ellipsis,
+                                                                      ),
+                                                                    ),
+                                                                  ],
+                                                                  // Ícono de info para mostrar historial (solo para descongelados)
+                                                                  if (estadoProducto == 'descongelado' && 
+                                                                      item['fecha_congelacion'] != null &&
+                                                                      item['fecha_descongelacion'] != null) ...[
+                                                                    const SizedBox(width: 4),
+                                                                    GestureDetector(
+                                                                      onTap: () {
+                                                                        final fechaCongelacion = DateTime.parse(item['fecha_congelacion']);
+                                                                        final fechaDescongelacion = DateTime.parse(item['fecha_descongelacion']);
+                                                                        showDialog(
+                                                                          context: context,
+                                                                          builder: (ctx) => AlertDialog(
+                                                                            title: const Text('Historial de Congelación'),
+                                                                            content: Column(
+                                                                              mainAxisSize: MainAxisSize.min,
+                                                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                                                              children: [
+                                                                                Row(
+                                                                                  children: [
+                                                                                    Icon(Icons.ac_unit_rounded, color: Colors.blue.shade700, size: 20),
+                                                                                    const SizedBox(width: 8),
+                                                                                    Text(
+                                                                                      'Congelado: ${fechaCongelacion.day.toString().padLeft(2, '0')}/${fechaCongelacion.month.toString().padLeft(2, '0')}/${fechaCongelacion.year}',
+                                                                                      style: const TextStyle(fontSize: 14),
+                                                                                    ),
+                                                                                  ],
+                                                                                ),
+                                                                                const SizedBox(height: 8),
+                                                                                Row(
+                                                                                  children: [
+                                                                                    Icon(Icons.severe_cold_rounded, color: Colors.teal.shade700, size: 20),
+                                                                                    const SizedBox(width: 8),
+                                                                                    Text(
+                                                                                      'Descongelado: ${fechaDescongelacion.day.toString().padLeft(2, '0')}/${fechaDescongelacion.month.toString().padLeft(2, '0')}/${fechaDescongelacion.year}',
+                                                                                      style: const TextStyle(fontSize: 14),
+                                                                                    ),
+                                                                                  ],
+                                                                                ),
+                                                                                const SizedBox(height: 12),
+                                                                                Text(
+                                                                                  '${fechaDescongelacion.difference(fechaCongelacion).inDays} días congelado',
+                                                                                  style: TextStyle(
+                                                                                    fontSize: 12,
+                                                                                    fontStyle: FontStyle.italic,
+                                                                                    color: colorScheme.onSurface.withOpacity(0.6),
+                                                                                  ),
+                                                                                ),
+                                                                              ],
+                                                                            ),
+                                                                            actions: [
+                                                                              TextButton(
+                                                                                onPressed: () => Navigator.of(ctx).pop(),
+                                                                                child: const Text('Cerrar'),
+                                                                              ),
+                                                                            ],
+                                                                          ),
+                                                                        );
+                                                                      },
+                                                                      child: Icon(
+                                                                        Icons.info_outline_rounded,
+                                                                        size: 16,
+                                                                        color: ExpiryUtils.getStateBadgeColor(estadoProducto).withAlpha((255 * 0.7).round()),
                                                                       ),
                                                                     ),
                                                                   ],
@@ -1368,7 +1530,7 @@ class InventoryViewState extends State<InventoryView> {
                                                             padding: const EdgeInsets.all(6),
                                                             tooltip: 'Usar',
                                                             icon: const Icon(Icons.remove_circle_outline, size: 18),
-                                                            onPressed: () => _showRemoveQuantityDialog(stockId, quantity, productName),
+                                                            onPressed: () => showRemoveQuantityDialog(stockId, quantity, productName),
                                                             style: IconButton.styleFrom(
                                                               backgroundColor: colorScheme.secondaryContainer,
                                                               foregroundColor: colorScheme.onSecondaryContainer,

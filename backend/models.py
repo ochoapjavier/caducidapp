@@ -130,9 +130,10 @@ class InventoryStock(Base):
     estado = Column(String(50), default='Activo')  # Legacy field, kept for compatibility
     
     # New fields for product state management
-    estado_producto = Column(String(20), default='cerrado', nullable=False)  # 'cerrado', 'abierto', 'congelado'
+    estado_producto = Column(String(20), default='cerrado', nullable=False)  # 'cerrado', 'abierto', 'congelado', 'descongelado'
     fecha_apertura = Column(Date, nullable=True)  # Date when product was opened
     fecha_congelacion = Column(Date, nullable=True)  # Date when product was frozen
+    fecha_descongelacion = Column(Date, nullable=True)  # Date when frozen product was unfrozen
     dias_caducidad_abierto = Column(Integer, nullable=True)  # Shelf life days once opened
     
     __table_args__ = (
