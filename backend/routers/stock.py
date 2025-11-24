@@ -8,7 +8,7 @@ from schemas import (
     StockUpdate, StockRemove,
 )
 from services.stock_service import StockService
-from auth.firebase_auth import get_current_user_id
+from dependencies import get_active_hogar_id, require_miembro_or_admin_role
 
 router = APIRouter()
 
@@ -19,54 +19,61 @@ def get_stock_service(db: Session = Depends(get_db)):
 def add_manual_stock_endpoint(
     data: StockItemCreate, 
     service: StockService = Depends(get_stock_service),
-    user_id: str = Depends(get_current_user_id)
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
-    return service.process_manual_stock(data, user_id)
+    """Add stock manually. Requires member or admin role."""
+    hogar_id, _ = auth_data
+    return service.process_manual_stock(data, hogar_id)
 
 @router.post("/from-scan", response_model=StockItem, status_code=status.HTTP_201_CREATED)
 def add_scan_stock_endpoint(
     data: StockItemCreateFromScan, 
     service: StockService = Depends(get_stock_service),
-    user_id: str = Depends(get_current_user_id)
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
-    return service.process_scan_stock(data, user_id)
+    """Add stock from barcode scan. Requires member or admin role."""
+    hogar_id, _ = auth_data
+    return service.process_scan_stock(data, hogar_id)
 
 @router.get("/", response_model=List[StockItem])
-def get_user_stock(
+def get_household_stock(
     search: str | None = None,
     service: StockService = Depends(get_stock_service),
-    user_id: str = Depends(get_current_user_id)
+    hogar_id: int = Depends(get_active_hogar_id)
 ):
     """
-    Obtiene todo el inventario del usuario.
-    Permite filtrar por nombre de producto o código de barras con el parámetro 'search'.
+    Get all inventory for the household.
+    Allows filtering by product name or barcode with the 'search' parameter.
     """
-    return service.get_stock_for_user(user_id, search)
+    return service.get_stock_for_hogar(hogar_id, search)
 
 @router.patch("/{id_stock}/consume", status_code=200)
 def consume_one_item(
     id_stock: int,
     service: StockService = Depends(get_stock_service),
-    user_id: str = Depends(get_current_user_id)
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
-    """Consume una unidad de un item de stock. Si la cantidad llega a 0, el item es eliminado."""
-    return service.consume_stock_item(id_stock, user_id)
+    """Consume one unit of a stock item. If quantity reaches 0, the item is deleted. Requires member or admin role."""
+    hogar_id, _ = auth_data
+    return service.consume_stock_item(id_stock, hogar_id)
 
 @router.post("/remove", status_code=200)
 def remove_stock_items(
     payload: StockRemove,
     service: StockService = Depends(get_stock_service),
-    user_id: str = Depends(get_current_user_id)
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
-    """Elimina una cantidad específica de un item de stock."""
-    return service.remove_stock_quantity(payload.id_stock, payload.cantidad, user_id)
+    """Remove a specific quantity from a stock item. Requires member or admin role."""
+    hogar_id, _ = auth_data
+    return service.remove_stock_quantity(payload.id_stock, payload.cantidad, hogar_id)
 
 @router.patch("/{id_stock}", response_model=StockItem, status_code=200)
 def update_stock_item(
     id_stock: int,
     payload: StockUpdate,
     service: StockService = Depends(get_stock_service),
-    user_id: str = Depends(get_current_user_id)
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
-    """Actualiza campos editables de un item de stock: nombre/marca (producto maestro), fecha de caducidad, cantidad y ubicación."""
-    return service.update_stock_item_details(id_stock, user_id, payload)
+    """Update editable fields of a stock item: name/brand (master product), expiration date, quantity and location. Requires member or admin role."""
+    hogar_id, _ = auth_data
+    return service.update_stock_item_details(id_stock, hogar_id, payload)

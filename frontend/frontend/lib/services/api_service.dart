@@ -6,6 +6,8 @@ import 'package:http/http.dart' as http; // Importamos el paquete http
 import 'package:firebase_auth/firebase_auth.dart'; // Importamos Firebase Auth
 import '../models/alerta.dart';
 import '../models/ubicacion.dart';
+import '../models/hogar.dart';
+import 'hogar_service.dart';
 
 // --- 2. GESTIÓN DE ENTORNO AUTOMÁTICA ---
 // Usa la IP de tu máquina en la red local para pruebas en dispositivo físico.
@@ -27,10 +29,20 @@ Future<Map<String, String>> _getAuthHeaders() async {
     throw Exception('Usuario no autenticado. No se puede realizar la petición.');
   }
   final idToken = await user.getIdToken();
-  return {
+  
+  final headers = {
     'Content-Type': 'application/json; charset=UTF-8',
     'Authorization': 'Bearer $idToken',
   };
+  
+  // Añadir X-Hogar-Id si hay un hogar activo seleccionado
+  final hogarService = HogarService();
+  final hogarActivo = await hogarService.getHogarActivo();
+  if (hogarActivo != null) {
+    headers['X-Hogar-Id'] = hogarActivo.toString();
+  }
+  
+  return headers;
 }
 
 // Función asíncrona para obtener las alertas de caducidad (Future)
@@ -466,5 +478,175 @@ Future<Map<String, dynamic>> relocateProduct({
   } else {
     final errorBody = json.decode(utf8.decode(response.bodyBytes));
     throw Exception(errorBody['detail'] ?? 'Error al reubicar el producto.');
+  }
+}
+
+// ============================================================================
+// GESTIÓN DE HOGARES - Sistema Multihogar
+// ============================================================================
+
+/// Obtener la lista de hogares del usuario autenticado
+Future<List<Hogar>> fetchHogares() async {
+  final headers = await _getAuthHeaders();
+  final response = await http.get(
+    Uri.parse('$apiUrl/hogares/'),
+    headers: headers,
+  );
+
+  if (response.statusCode == 200) {
+    final List<dynamic> jsonList = json.decode(utf8.decode(response.bodyBytes));
+    return jsonList.map((json) => Hogar.fromJson(json)).toList();
+  } else {
+    throw Exception('Error al cargar hogares. Código: ${response.statusCode}');
+  }
+}
+
+/// Obtener los detalles completos de un hogar (incluyendo miembros)
+Future<HogarDetalle> fetchHogarDetalle(int hogarId) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.get(
+    Uri.parse('$apiUrl/hogares/$hogarId'),
+    headers: headers,
+  );
+
+  if (response.statusCode == 200) {
+    return HogarDetalle.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+  } else {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al cargar detalles del hogar');
+  }
+}
+
+/// Crear un nuevo hogar
+Future<Hogar> createHogar(String nombre, {String icono = 'home'}) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.post(
+    Uri.parse('$apiUrl/hogares/'),
+    headers: headers,
+    body: jsonEncode({
+      'nombre': nombre,
+      'icono': icono,
+    }),
+  );
+
+  if (response.statusCode == 200 || response.statusCode == 201) {
+    return Hogar.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+  } else {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al crear hogar');
+  }
+}
+
+/// Unirse a un hogar existente usando un código de invitación
+Future<void> unirseAHogar(String codigoInvitacion) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.post(
+    Uri.parse('$apiUrl/hogares/unirse'),
+    headers: headers,
+    body: jsonEncode({
+      'codigo_invitacion': codigoInvitacion.toUpperCase(),
+    }),
+  );
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al unirse al hogar');
+  }
+}
+
+/// Regenerar el código de invitación de un hogar (solo admin)
+Future<String> regenerarCodigoInvitacion(int hogarId) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.post(
+    Uri.parse('$apiUrl/hogares/$hogarId/invitacion/regenerar'),
+    headers: headers,
+  );
+
+  if (response.statusCode == 200) {
+    final body = json.decode(utf8.decode(response.bodyBytes));
+    return body['nuevo_codigo'];
+  } else {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al regenerar código');
+  }
+}
+
+/// Abandonar un hogar
+Future<void> abandonarHogar(int hogarId) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.post(
+    Uri.parse('$apiUrl/hogares/$hogarId/abandonar'),
+    headers: headers,
+  );
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al abandonar hogar');
+  }
+}
+
+/// Expulsar a un miembro del hogar (solo admin)
+Future<void> expulsarMiembro(int hogarId, String userId) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.delete(
+    Uri.parse('$apiUrl/hogares/$hogarId/miembros/$userId'),
+    headers: headers,
+  );
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al expulsar miembro');
+  }
+}
+
+/// Cambiar el rol de un miembro (solo admin)
+Future<void> cambiarRolMiembro(int hogarId, String userId, String nuevoRol) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.put(
+    Uri.parse('$apiUrl/hogares/$hogarId/miembros/$userId/rol'),
+    headers: headers,
+    body: jsonEncode({
+      'nuevo_rol': nuevoRol,
+    }),
+  );
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al cambiar rol');
+  }
+}
+
+/// Actualizar nombre e icono de un hogar (solo admin)
+Future<Hogar> updateHogar(int hogarId, String nombre, String icono) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.put(
+    Uri.parse('$apiUrl/hogares/$hogarId'),
+    headers: headers,
+    body: jsonEncode({
+      'nombre': nombre,
+      'icono': icono,
+    }),
+  );
+
+  if (response.statusCode == 200) {
+    return Hogar.fromJson(json.decode(utf8.decode(response.bodyBytes)));
+  } else {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al actualizar hogar');
+  }
+}
+
+/// Actualizar el apodo del miembro actual dentro de un hogar
+Future<void> updateMyApodo(int hogarId, String apodo) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.put(
+    Uri.parse('$apiUrl/hogares/$hogarId/miembros/mi-apodo'),
+    headers: headers,
+    body: jsonEncode({'apodo': apodo}),
+  );
+
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    final errorBody = json.decode(utf8.decode(response.bodyBytes));
+    throw Exception(errorBody['detail'] ?? 'Error al actualizar apodo');
   }
 }

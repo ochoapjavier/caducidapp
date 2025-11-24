@@ -7,6 +7,7 @@ class AlertService:
     def __init__(self, db: Session):
         self.repo = StockRepository(db)
 
-    def get_expiring_alerts_for_user(self, days: int, user_id: str) -> AlertResponse:
-        items = self.repo.get_alertas_caducidad_for_user(days, user_id)
+    def get_expiring_alerts_for_hogar(self, days: int, hogar_id: int) -> AlertResponse:
+        """Get expiring alerts for a household."""
+        items = self.repo.get_alertas_caducidad_for_hogar(days, hogar_id)
         return AlertResponse(productos_proximos_a_caducar=items)

@@ -11,7 +11,10 @@ import 'widgets/ubicacion_manager.dart';
 import 'theme/app_theme.dart';
 import 'screens/auth_screen.dart'; // Importamos la pantalla de autenticación
 import 'screens/inventory_management_screen.dart'; // Importamos la nueva pantalla contenedora
+import 'screens/hogar_selector_screen.dart'; // Selector de hogares
+import 'screens/hogar_detalle_screen.dart'; // Detalles del hogar
 import 'utils/expiry_utils.dart'; // Utilidades centralizadas para lógica de caducidad
+import 'services/hogar_service.dart';
 
 late final ValueNotifier<BrandPalette> _brandPaletteNotifier; // se inicializa tras leer prefs
 late final ValueNotifier<ThemeMode> _themeModeNotifier;      // system/light/dark
@@ -278,6 +281,30 @@ class MainAppScreen extends StatelessWidget {
             style: Theme.of(context).textTheme.titleLarge,
           ),
           actions: [
+            // Botón para cambiar de hogar
+            IconButton(
+              icon: const Icon(Icons.swap_horiz),
+              tooltip: 'Cambiar hogar',
+              onPressed: () {
+                Navigator.pushNamed(context, '/selector-hogar');
+              },
+            ),
+            // Botón para ver detalles del hogar actual
+            IconButton(
+              icon: const Icon(Icons.home_outlined),
+              tooltip: 'Gestionar hogar',
+              onPressed: () async {
+                final hogarService = HogarService();
+                final hogarActivo = await hogarService.getHogarActivo();
+                if (hogarActivo != null && context.mounted) {
+                  Navigator.pushNamed(
+                    context,
+                    '/hogar-detalle',
+                    arguments: hogarActivo,
+                  );
+                }
+              },
+            ),
             PopupMenuButton<String>(
               icon: const Icon(Icons.account_circle),
               onSelected: (value) {
@@ -298,6 +325,8 @@ class MainAppScreen extends StatelessWidget {
                   SharedPreferences.getInstance()
                       .then((prefs) => prefs.setString('theme_mode', key));
                 } else if (value == 'logout') {
+                  // Limpiar hogar activo al cerrar sesión
+                  HogarService().clearHogarActivo();
                   FirebaseAuth.instance.signOut();
                 }
               },
@@ -417,6 +446,52 @@ class MainAppScreen extends StatelessWidget {
   }
 }
 
+/// Widget que verifica si hay un hogar seleccionado antes de mostrar la pantalla principal
+class HogarAwareMainScreen extends StatefulWidget {
+  const HogarAwareMainScreen({super.key});
+
+  @override
+  State<HogarAwareMainScreen> createState() => _HogarAwareMainScreenState();
+}
+
+class _HogarAwareMainScreenState extends State<HogarAwareMainScreen> {
+  final HogarService _hogarService = HogarService();
+  bool _isChecking = true;
+  bool _hasHogar = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarHogar();
+  }
+
+  Future<void> _verificarHogar() async {
+    final tieneHogar = await _hogarService.tieneHogarActivo();
+    if (mounted) {
+      setState(() {
+        _hasHogar = tieneHogar;
+        _isChecking = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isChecking) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Si no tiene hogar, mostrar el selector directamente
+    if (!_hasHogar) {
+      return const HogarSelectorScreen();
+    }
+
+    return const MainAppScreen();
+  }
+}
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -460,18 +535,31 @@ class MyApp extends StatelessWidget {
           },
         );
       },
-      home: StreamBuilder(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (ctx, userSnapshot) {
-          if (userSnapshot.connectionState == ConnectionState.waiting) {
+      routes: {
+        '/': (context) => StreamBuilder(
+          stream: FirebaseAuth.instance.authStateChanges(),
+          builder: (ctx, userSnapshot) {
+            if (userSnapshot.connectionState == ConnectionState.waiting) {
+              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            }
+            if (userSnapshot.hasData) {
+              return const HogarAwareMainScreen();
+            }
+            return const AuthScreen();
+          },
+        ),
+        '/selector-hogar': (context) => const HogarSelectorScreen(),
+        '/hogar-detalle': (context) {
+          final hogarId = ModalRoute.of(context)?.settings.arguments as int?;
+          if (hogarId == null) {
+            // Si no hay hogarId, redirigir al selector
+            Future.microtask(() => Navigator.pushReplacementNamed(context, '/selector-hogar'));
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
-          if (userSnapshot.hasData) {
-            return const MainAppScreen();
-          }
-          return const AuthScreen();
+          return HogarDetalleScreen(hogarId: hogarId);
         },
-      ),
+      },
+      initialRoute: '/',
     );
   }
 }

@@ -6,7 +6,7 @@ Handles opening, freezing, unfreezing, and relocating products.
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from database import get_db
-from auth.firebase_auth import get_current_user_id
+from dependencies import require_miembro_or_admin_role
 from services import ProductActionsService
 from schemas import (
     OpenProductRequest,
@@ -41,11 +41,13 @@ def open_product(
     stock_id: int,
     request: OpenProductRequest,
     service: ProductActionsService = Depends(get_product_actions_service),
-    user_id: str = Depends(get_current_user_id)
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
+    """Open sealed product units. Requires member or admin role."""
+    hogar_id, _ = auth_data
     return service.open_product(
         stock_id=stock_id,
-        user_id=user_id,
+        hogar_id=hogar_id,
         cantidad=request.cantidad,
         nueva_ubicacion_id=request.nueva_ubicacion_id,
         mantener_fecha_caducidad=request.mantener_fecha_caducidad,
@@ -71,11 +73,13 @@ def freeze_product(
     stock_id: int,
     request: FreezeProductRequest,
     service: ProductActionsService = Depends(get_product_actions_service),
-    user_id: str = Depends(get_current_user_id)
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
+    """Freeze product units. Requires member or admin role."""
+    hogar_id, _ = auth_data
     return service.freeze_product(
         stock_id=stock_id,
-        user_id=user_id,
+        hogar_id=hogar_id,
         cantidad=request.cantidad,
         ubicacion_congelador_id=request.ubicacion_congelador_id
     )
@@ -99,11 +103,13 @@ def unfreeze_product(
     stock_id: int,
     request: UnfreezeProductRequest,
     service: ProductActionsService = Depends(get_product_actions_service),
-    user_id: str = Depends(get_current_user_id)
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
+    """Unfreeze product. Requires member or admin role."""
+    hogar_id, _ = auth_data
     return service.unfreeze_product(
         stock_id=stock_id,
-        user_id=user_id,
+        hogar_id=hogar_id,
         nueva_ubicacion_id=request.nueva_ubicacion_id,
         dias_vida_util=request.dias_vida_util
     )
@@ -127,11 +133,13 @@ def relocate_product(
     stock_id: int,
     request: RelocateProductRequest,
     service: ProductActionsService = Depends(get_product_actions_service),
-    user_id: str = Depends(get_current_user_id)
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
 ):
+    """Relocate product to different location. Requires member or admin role."""
+    hogar_id, _ = auth_data
     return service.relocate_product(
         stock_id=stock_id,
-        user_id=user_id,
+        hogar_id=hogar_id,
         cantidad=request.cantidad,
         nueva_ubicacion_id=request.nueva_ubicacion_id
     )

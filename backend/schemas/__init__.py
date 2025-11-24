@@ -12,6 +12,11 @@ from .product_actions import (
     OpenProductRequest, FreezeProductRequest, UnfreezeProductRequest,
     RelocateProductRequest, ProductActionResponse
 )
+from .hogar import (
+    HogarCreate, HogarUpdate, HogarSchema, HogarDetalle, MiembroInfo,
+    HogarMiembroCreate, HogarMiembroUpdate, HogarMiembroSchema,
+    InvitacionResponse
+)
 
 __all__ = [
     "Location",
@@ -31,4 +36,13 @@ __all__ = [
     "UnfreezeProductRequest",
     "RelocateProductRequest",
     "ProductActionResponse",
+    "HogarCreate",
+    "HogarUpdate",
+    "HogarSchema",
+    "HogarDetalle",
+    "MiembroInfo",
+    "HogarMiembroCreate",
+    "HogarMiembroUpdate",
+    "HogarMiembroSchema",
+    "InvitacionResponse",
 ]

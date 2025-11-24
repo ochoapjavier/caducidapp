@@ -23,7 +23,7 @@ class ProductActionsService:
     def open_product(
         self,
         stock_id: int,
-        user_id: str,
+        hogar_id: int,
         cantidad: int,
         nueva_ubicacion_id: int | None,
         mantener_fecha_caducidad: bool,
@@ -39,7 +39,7 @@ class ProductActionsService:
         4. Create new item with estado='abierto' and expiration date (kept or recalculated)
         """
         # Get original item
-        original_item = self.stock_repo.get_stock_item_by_id_and_user(stock_id, user_id)
+        original_item = self.stock_repo.get_stock_item_by_id_and_hogar(stock_id, hogar_id)
         if not original_item:
             raise HTTPException(status_code=404, detail="Item de stock no encontrado")
         
@@ -60,8 +60,8 @@ class ProductActionsService:
         # Determine target location
         target_location_id = nueva_ubicacion_id if nueva_ubicacion_id else original_item.fk_ubicacion
         
-        # Validate location exists and belongs to user
-        location = self.location_repo.get_location_by_id_and_user(target_location_id, user_id)
+        # Validate location exists and belongs to hogar
+        location = self.location_repo.get_location_by_id_and_hogar(target_location_id, hogar_id)
         if not location:
             raise HTTPException(status_code=404, detail="Ubicación no encontrada")
         
@@ -83,7 +83,7 @@ class ProductActionsService:
         
         # Create new opened item
         new_item = InventoryStock(
-            user_id=user_id,
+            hogar_id=hogar_id,
             fk_producto_maestro=original_item.fk_producto_maestro,
             fk_ubicacion=target_location_id,
             cantidad_actual=cantidad,
@@ -106,7 +106,7 @@ class ProductActionsService:
     def freeze_product(
         self,
         stock_id: int,
-        user_id: str,
+        hogar_id: int,
         cantidad: int,
         ubicacion_congelador_id: int
     ) -> dict:
@@ -121,7 +121,7 @@ class ProductActionsService:
         5. Create new item with estado='congelado'
         """
         # Get original item
-        original_item = self.stock_repo.get_stock_item_by_id_and_user(stock_id, user_id)
+        original_item = self.stock_repo.get_stock_item_by_id_and_hogar(stock_id, hogar_id)
         if not original_item:
             raise HTTPException(status_code=404, detail="Item de stock no encontrado")
         
@@ -140,7 +140,7 @@ class ProductActionsService:
             )
         
         # Validate freezer location
-        freezer_location = self.location_repo.get_location_by_id_and_user(ubicacion_congelador_id, user_id)
+        freezer_location = self.location_repo.get_location_by_id_and_hogar(ubicacion_congelador_id, hogar_id)
         if not freezer_location:
             raise HTTPException(status_code=404, detail="Ubicación del congelador no encontrada")
         
@@ -155,7 +155,7 @@ class ProductActionsService:
         
         # Create new frozen item
         new_item = InventoryStock(
-            user_id=user_id,
+            hogar_id=hogar_id,
             fk_producto_maestro=original_item.fk_producto_maestro,
             fk_ubicacion=ubicacion_congelador_id,
             cantidad_actual=cantidad,
@@ -177,7 +177,7 @@ class ProductActionsService:
     def unfreeze_product(
         self,
         stock_id: int,
-        user_id: str,
+        hogar_id: int,
         nueva_ubicacion_id: int,
         dias_vida_util: int
     ) -> dict:
@@ -190,7 +190,7 @@ class ProductActionsService:
         3. Update item: change state to 'abierto', new expiration, new location
         """
         # Get frozen item
-        frozen_item = self.stock_repo.get_stock_item_by_id_and_user(stock_id, user_id)
+        frozen_item = self.stock_repo.get_stock_item_by_id_and_hogar(stock_id, hogar_id)
         if not frozen_item:
             raise HTTPException(status_code=404, detail="Item de stock no encontrado")
         
@@ -202,7 +202,7 @@ class ProductActionsService:
             )
         
         # Validate new location
-        new_location = self.location_repo.get_location_by_id_and_user(nueva_ubicacion_id, user_id)
+        new_location = self.location_repo.get_location_by_id_and_hogar(nueva_ubicacion_id, hogar_id)
         if not new_location:
             raise HTTPException(status_code=404, detail="Ubicación no encontrada")
         
@@ -231,7 +231,7 @@ class ProductActionsService:
     def relocate_product(
         self,
         stock_id: int,
-        user_id: str,
+        hogar_id: int,
         cantidad: int,
         nueva_ubicacion_id: int
     ) -> dict:
@@ -247,7 +247,7 @@ class ProductActionsService:
         6. Decrement original item
         """
         # Get original item
-        original_item = self.stock_repo.get_stock_item_by_id_and_user(stock_id, user_id)
+        original_item = self.stock_repo.get_stock_item_by_id_and_hogar(stock_id, hogar_id)
         if not original_item:
             raise HTTPException(status_code=404, detail="Item de stock no encontrado")
         
@@ -266,13 +266,13 @@ class ProductActionsService:
             )
         
         # Validate new location
-        new_location = self.location_repo.get_location_by_id_and_user(nueva_ubicacion_id, user_id)
+        new_location = self.location_repo.get_location_by_id_and_hogar(nueva_ubicacion_id, hogar_id)
         if not new_location:
             raise HTTPException(status_code=404, detail="Ubicación no encontrada")
         
         # Check if equivalent item exists in target location
         existing_item = self.db.query(InventoryStock).filter(
-            InventoryStock.user_id == user_id,
+            InventoryStock.hogar_id == hogar_id,
             InventoryStock.fk_producto_maestro == original_item.fk_producto_maestro,
             InventoryStock.fk_ubicacion == nueva_ubicacion_id,
             InventoryStock.fecha_caducidad == original_item.fecha_caducidad,
@@ -296,7 +296,7 @@ class ProductActionsService:
         else:
             # Create new item in target location
             new_item = InventoryStock(
-                user_id=user_id,
+                hogar_id=hogar_id,
                 fk_producto_maestro=original_item.fk_producto_maestro,
                 fk_ubicacion=nueva_ubicacion_id,
                 cantidad_actual=cantidad,
