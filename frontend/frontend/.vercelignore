@@ -1,0 +1,32 @@
+# Build artifacts
+.dart_tool
+build
+!build/web
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Dependencies
+.packages
+pubspec.lock
+
+# Platform specific
+android
+ios
+linux
+macos
+windows
+
+# Test
+test
+
+# Misc
+.metadata
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Source maps (too large)
+*.map
+*.js.map

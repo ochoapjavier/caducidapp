@@ -20,11 +20,14 @@ app = FastAPI(title="Core Inventory API (Modular)")
 # En producción, deberías añadir aquí el dominio de tu aplicación web.
 origins = [
     "http://localhost", # Para pruebas locales directas
+    "https://caducidapp-grrcy8u7q-ochoapjaviers-projects.vercel.app",  # Vercel deployment
+    "https://caducidapp.vercel.app",  # Vercel production domain (if configured)
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=r'http://localhost:\d+', # Permite http://localhost:CUALQUIER_PUERTO
+    allow_origins=origins,  # Permite los dominios específicos de producción
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
