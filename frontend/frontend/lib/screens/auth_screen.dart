@@ -44,19 +44,146 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       if (_isLoginMode) {
         // Modo Login
-        await _firebaseAuth.signInWithEmailAndPassword(
+        UserCredential userCredential = await _firebaseAuth.signInWithEmailAndPassword(
           email: _userEmail,
           password: _userPassword,
         );
-        // Si el login es exitoso, el stream de autenticación (que configuraremos después)
+        
+        // Verificar si el email está verificado
+        if (!userCredential.user!.emailVerified) {
+          // Cerrar sesión si no está verificado
+          await _firebaseAuth.signOut();
+          
+          if (mounted) {
+            showDialog(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                title: Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.orange),
+                    SizedBox(width: 8),
+                    Text('Email no verificado'),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Por favor, verifica tu email antes de iniciar sesión.'),
+                    SizedBox(height: 12),
+                    Text(
+                      '📬 Revisa tu bandeja de entrada',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      '⚠️ Si no lo ves, revisa SPAM',
+                      style: TextStyle(color: Colors.orange[700]),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(ctx).pop();
+                    },
+                    child: Text('Cerrar'),
+                  ),
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      try {
+                        await userCredential.user!.sendEmailVerification();
+                        Navigator.of(ctx).pop();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('✉️ Email reenviado. Revisa tu bandeja (y spam).'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } catch (e) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Error al reenviar. Espera unos minutos e intenta de nuevo.'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+                    icon: Icon(Icons.email),
+                    label: Text('Reenviar email'),
+                  ),
+                ],
+              ),
+            );
+          }
+          return; // Salir de la función
+        }
+        // Si el login es exitoso y el email está verificado, el stream de autenticación
         // se encargará de navegar a la pantalla principal.
       } else {
         // Modo Registro
-        await _firebaseAuth.createUserWithEmailAndPassword(
+        UserCredential userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
           email: _userEmail,
           password: _userPassword,
         );
-        // Tras el registro, Firebase automáticamente inicia sesión con el nuevo usuario.
+        
+        // Enviar email de verificación
+        await userCredential.user!.sendEmailVerification();
+        
+        // Mostrar mensaje de éxito con instrucciones
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.email, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('¡Cuenta creada!'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Te hemos enviado un email de verificación a:'),
+                  SizedBox(height: 8),
+                  Text(
+                    _userEmail,
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    '📬 Revisa tu bandeja de entrada',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    '⚠️ Si no lo ves, revisa la carpeta de SPAM',
+                    style: TextStyle(color: Colors.orange[700]),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    '⏱️ El enlace expira en 1 hora',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Text('Entendido'),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        // Cerrar sesión automáticamente hasta que verifique el email
+        await _firebaseAuth.signOut();
       }
     } on FirebaseAuthException catch (error) {
       // Si Firebase devuelve un error (ej: email ya existe, contraseña incorrecta)
@@ -81,6 +208,9 @@ class _AuthScreenState extends State<AuthScreen> {
           break;
         case 'invalid-email':
           message = 'El formato del correo electrónico no es válido.';
+          break;
+        case 'too-many-requests':
+          message = 'Demasiados intentos. Por favor, espera unos minutos e inténtalo de nuevo.';
           break;
       }
 
