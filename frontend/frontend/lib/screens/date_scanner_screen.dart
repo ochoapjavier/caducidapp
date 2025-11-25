@@ -32,9 +32,21 @@ class _DateScannerScreenState extends State<DateScannerScreen> {
     final cameras = await availableCameras();
     if (cameras.isEmpty) return;
 
+    // Buscar específicamente la cámara trasera (importante para web/iPhone)
+    CameraDescription? backCamera;
+    for (final camera in cameras) {
+      if (camera.lensDirection == CameraLensDirection.back) {
+        backCamera = camera;
+        break;
+      }
+    }
+    
+    // Si no hay cámara trasera, usar la primera disponible
+    final selectedCamera = backCamera ?? cameras[0];
+
     // Usamos resolución muy alta para mejor precisión en texto pequeño
     _cameraController = CameraController(
-      cameras[0], 
+      selectedCamera, 
       ResolutionPreset.veryHigh, // Máxima resolución para mejor OCR
       enableAudio: false,
       imageFormatGroup: ImageFormatGroup.yuv420, // Formato óptimo para ML Kit
