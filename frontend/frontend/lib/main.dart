@@ -15,8 +15,9 @@ import 'screens/inventory_management_screen.dart'; // Importamos la nueva pantal
 import 'screens/hogar_selector_screen.dart'; // Selector de hogares
 import 'screens/hogar_detalle_screen.dart'; // Detalles del hogar
 import 'utils/expiry_utils.dart'; // Utilidades centralizadas para lógica de caducidad
-import 'services/hogar_service.dart';
-
+import 'services/notification_service.dart'; // Importar servicio de notificaciones
+import 'screens/settings_screen.dart'; // Importar pantalla de ajustes
+import 'services/hogar_service.dart'; // Importar servicio de hogares
 
 late final ValueNotifier<BrandPalette> _brandPaletteNotifier; // se inicializa tras leer prefs
 late final ValueNotifier<ThemeMode> _themeModeNotifier;      // system/light/dark
@@ -448,11 +449,17 @@ class _MainAppScreenState extends State<MainAppScreen> {
   bool _isLoadingHogar = true;
   String _appVersion = ''; // Variable para la versión
 
+
+
+// ... (imports existentes)
+
   @override
   void initState() {
     super.initState();
     _cargarNombreHogar();
     _loadAppVersion(); // Cargar versión al inicio
+    // Inicializar notificaciones (pedir permisos, registrar token)
+    NotificationService().initialize();
   }
 
   Future<void> _loadAppVersion() async {
@@ -603,6 +610,8 @@ class _MainAppScreenState extends State<MainAppScreen> {
                   _themeModeNotifier.value = mode;
                   SharedPreferences.getInstance()
                       .then((prefs) => prefs.setString('theme_mode', key));
+                } else if (value == 'settings') {
+                  Navigator.pushNamed(context, '/settings');
                 } else if (value == 'logout') {
                   // Limpiar hogar activo al cerrar sesión
                   HogarService().clearHogarActivo();
@@ -693,6 +702,16 @@ class _MainAppScreenState extends State<MainAppScreen> {
                     ),
                   ),
                   const PopupMenuDivider(),
+                  const PopupMenuItem<String>(
+                    value: 'settings',
+                    child: Row(
+                      children: [
+                        Icon(Icons.settings, size: 18),
+                        SizedBox(width: 10),
+                        Text('Ajustes'),
+                      ],
+                    ),
+                  ),
                   const PopupMenuItem<String>(
                     value: 'logout',
                     child: Text('Cerrar sesión'),
@@ -868,6 +887,7 @@ class MyApp extends StatelessWidget {
           },
         ),
         '/selector-hogar': (context) => const HogarSelectorScreen(),
+        '/settings': (context) => const SettingsScreen(),
         '/hogar-detalle': (context) {
           final hogarId = ModalRoute.of(context)?.settings.arguments as int?;
           if (hogarId == null) {
