@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -23,9 +24,31 @@ class _AuthScreenState extends State<AuthScreen> {
   // Variables para almacenar los datos del formulario
   String _userEmail = '';
   String _userPassword = '';
+  
+  // Variable para almacenar la versión de la app
+  String _appVersion = '';
 
   // Instancia de FirebaseAuth
   final _firebaseAuth = FirebaseAuth.instance;
+  
+  @override
+  void initState() {
+    super.initState();
+    _loadAppVersion();
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v${packageInfo.version} (Build ${packageInfo.buildNumber})';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading app version: $e');
+    }
+  }
 
   void _submitAuthForm() async {
     // Primero, validamos el formulario
@@ -44,19 +67,180 @@ class _AuthScreenState extends State<AuthScreen> {
     try {
       if (_isLoginMode) {
         // Modo Login
-        await _firebaseAuth.signInWithEmailAndPassword(
+        UserCredential userCredential = await _firebaseAuth.signInWithEmailAndPassword(
           email: _userEmail,
           password: _userPassword,
         );
-        // Si el login es exitoso, el stream de autenticación (que configuraremos después)
+        
+        // Verificar si el email está verificado
+        if (!userCredential.user!.emailVerified) {
+          // Guardar referencia al usuario ANTES de hacer signOut
+          final user = userCredential.user!;
+          final userEmail = user.email ?? _userEmail;
+          
+          // Cerrar sesión si no está verificado
+          await _firebaseAuth.signOut();
+          
+          if (mounted) {
+            // Usar WidgetsBinding para asegurar que el dialog se muestre después del frame actual
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (!mounted) return;
+              
+              showDialog(
+                context: context,
+                barrierDismissible: false, // No se puede cerrar tocando fuera
+                builder: (ctx) => AlertDialog(
+                  title: Row(
+                    children: [
+                      Icon(Icons.warning, color: Colors.orange),
+                      SizedBox(width: 8),
+                      Expanded(child: Text('Email no verificado')),
+                    ],
+                  ),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Por favor, verifica tu email antes de iniciar sesión.'),
+                      SizedBox(height: 12),
+                      Text(
+                        ' Email enviado a:',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                      ),
+                      Text(
+                        userEmail,
+                        style: TextStyle(color: Colors.blue, fontSize: 12),
+                      ),
+                      SizedBox(height: 12),
+                      Text(
+                        '📬 Revisa tu bandeja de entrada',
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                      SizedBox(height: 4),
+                      Text(
+                        '⚠️ Si no lo ves, revisa SPAM',
+                        style: TextStyle(color: Colors.orange[700], fontWeight: FontWeight.bold),
+                      ),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                      },
+                      child: Text('Cerrar'),
+                    ),
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        try {
+                          // Reautenticar temporalmente para enviar email
+                          UserCredential tempCred = await _firebaseAuth.signInWithEmailAndPassword(
+                            email: _userEmail,
+                            password: _userPassword,
+                          );
+                          await tempCred.user!.sendEmailVerification();
+                          await _firebaseAuth.signOut();
+                          
+                          if (ctx.mounted) {
+                            Navigator.of(ctx).pop();
+                          }
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('✉️ Email reenviado. Revisa tu bandeja (y spam).'),
+                                backgroundColor: Colors.green,
+                                duration: Duration(seconds: 5),
+                              ),
+                            );
+                          }
+                        } catch (e) {
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Error al reenviar. Espera unos minutos e intenta de nuevo.'),
+                                backgroundColor: Colors.red,
+                                duration: Duration(seconds: 5),
+                              ),
+                            );
+                          }
+                        }
+                      },
+                      icon: Icon(Icons.email),
+                      label: Text('Reenviar email'),
+                    ),
+                  ],
+                ),
+              );
+            });
+          }
+          return; // Salir de la función
+        }
+        // Si el login es exitoso y el email está verificado, el stream de autenticación
         // se encargará de navegar a la pantalla principal.
       } else {
         // Modo Registro
-        await _firebaseAuth.createUserWithEmailAndPassword(
+        UserCredential userCredential = await _firebaseAuth.createUserWithEmailAndPassword(
           email: _userEmail,
           password: _userPassword,
         );
-        // Tras el registro, Firebase automáticamente inicia sesión con el nuevo usuario.
+        
+        // Enviar email de verificación
+        await userCredential.user!.sendEmailVerification();
+        
+        // Mostrar mensaje de éxito con instrucciones
+        if (mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => AlertDialog(
+              title: Row(
+                children: [
+                  Icon(Icons.email, color: Colors.green),
+                  SizedBox(width: 8),
+                  Text('¡Cuenta creada!'),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Te hemos enviado un email de verificación a:'),
+                  SizedBox(height: 8),
+                  Text(
+                    _userEmail,
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    '📬 Revisa tu bandeja de entrada',
+                    style: TextStyle(fontSize: 16),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    '⚠️ Si no lo ves, revisa la carpeta de SPAM',
+                    style: TextStyle(color: Colors.orange[700]),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    '⏱️ El enlace expira en 1 hora',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(ctx).pop();
+                  },
+                  child: Text('Entendido'),
+                ),
+              ],
+            ),
+          );
+        }
+        
+        // Cerrar sesión automáticamente hasta que verifique el email
+        await _firebaseAuth.signOut();
       }
     } on FirebaseAuthException catch (error) {
       // Si Firebase devuelve un error (ej: email ya existe, contraseña incorrecta)
@@ -81,6 +265,9 @@ class _AuthScreenState extends State<AuthScreen> {
           break;
         case 'invalid-email':
           message = 'El formato del correo electrónico no es válido.';
+          break;
+        case 'too-many-requests':
+          message = 'Demasiados intentos. Por favor, espera unos minutos e inténtalo de nuevo.';
           break;
       }
 
@@ -141,94 +328,107 @@ class _AuthScreenState extends State<AuthScreen> {
           padding: const EdgeInsets.all(24.0),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 420),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      // Título de la pantalla
-                      Text(
-                        _isLoginMode ? 'Bienvenido de nuevo' : 'Crea tu cuenta',
-                        style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _isLoginMode ? 'Inicia sesión para continuar' : 'Regístrate para empezar a gestionar tu inventario',
-                        style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.65)),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 24),
-
-                      // Campo de Email
-                      TextFormField(
-                        key: const ValueKey('email'),
-                        validator: (value) => (value == null || !value.contains('@')) ? 'Por favor, introduce un email válido.' : null,
-                        onSaved: (value) => _userEmail = value!,
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(
-                          labelText: 'Email',
-                          prefixIcon: Icon(Icons.email_outlined),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      // Campo de Contraseña
-                      TextFormField(
-                        key: const ValueKey('password'),
-                        validator: (value) => (value == null || value.length < 7) ? 'La contraseña debe tener al menos 7 caracteres.' : null,
-                        onSaved: (value) => _userPassword = value!,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Contraseña',
-                          prefixIcon: Icon(Icons.lock_outline),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-
-                      if (_isLoginMode)
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: TextButton(
-                            onPressed: _resetPassword,
-                            child: const Text('¿Olvidaste tu contraseña?'),
+            child: Column(
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(24.0),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          // Título de la pantalla
+                          Text(
+                            _isLoginMode ? 'Bienvenido de nuevo' : 'Crea tu cuenta',
+                            style: textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w600),
+                            textAlign: TextAlign.center,
                           ),
-                        ),
-                      const SizedBox(height: 16),
-
-                      // Botón principal y Spinner
-                      if (_isLoading)
-                        const Center(child: CircularProgressIndicator())
-                      else
-                        ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          const SizedBox(height: 8),
+                          Text(
+                            _isLoginMode ? 'Inicia sesión para continuar' : 'Regístrate para empezar a gestionar tu inventario',
+                            style: textTheme.bodyMedium?.copyWith(color: colorScheme.onSurface.withOpacity(0.65)),
+                            textAlign: TextAlign.center,
                           ),
-                          onPressed: _submitAuthForm,
-                          child: Text(_isLoginMode ? 'Iniciar Sesión' : 'Registrarse'),
-                        ),
-                      const SizedBox(height: 8),
-
-                      // Botón para cambiar de modo
-                      if (!_isLoading)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text(_isLoginMode ? '¿No tienes una cuenta?' : '¿Ya tienes una cuenta?'),
-                            TextButton(
-                              onPressed: () => setState(() => _isLoginMode = !_isLoginMode),
-                              child: Text(_isLoginMode ? 'Regístrate' : 'Inicia Sesión'),
+                          const SizedBox(height: 24),
+                
+                          // Campo de Email
+                          TextFormField(
+                            key: const ValueKey('email'),
+                            validator: (value) => (value == null || !value.contains('@')) ? 'Por favor, introduce un email válido.' : null,
+                            onSaved: (value) => _userEmail = value!,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                              prefixIcon: Icon(Icons.email_outlined),
                             ),
-                          ],
-                        ),
-                    ],
+                          ),
+                          const SizedBox(height: 16),
+                          // Campo de Contraseña
+                          TextFormField(
+                            key: const ValueKey('password'),
+                            validator: (value) => (value == null || value.length < 7) ? 'La contraseña debe tener al menos 7 caracteres.' : null,
+                            onSaved: (value) => _userPassword = value!,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Contraseña',
+                              prefixIcon: Icon(Icons.lock_outline),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                
+                          if (_isLoginMode)
+                            Align(
+                              alignment: Alignment.centerRight,
+                              child: TextButton(
+                                onPressed: _resetPassword,
+                                child: const Text('¿Olvidaste tu contraseña?'),
+                              ),
+                            ),
+                          const SizedBox(height: 16),
+                
+                          // Botón principal y Spinner
+                          if (_isLoading)
+                            const Center(child: CircularProgressIndicator())
+                          else
+                            ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              onPressed: _submitAuthForm,
+                              child: Text(_isLoginMode ? 'Iniciar Sesión' : 'Registrarse'),
+                            ),
+                          const SizedBox(height: 8),
+                
+                          // Botón para cambiar de modo
+                          if (!_isLoading)
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Text(_isLoginMode ? '¿No tienes una cuenta?' : '¿Ya tienes una cuenta?'),
+                                TextButton(
+                                  onPressed: () => setState(() => _isLoginMode = !_isLoginMode),
+                                  child: Text(_isLoginMode ? 'Regístrate' : 'Inicia Sesión'),
+                                ),
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ),
+                // Mostrar versión de la app
+                if (_appVersion.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16.0),
+                    child: Text(
+                      _appVersion,
+                      style: textTheme.bodySmall?.copyWith(color: Colors.grey),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),

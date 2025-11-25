@@ -1,0 +1,63 @@
+name: Deploy Frontend to Vercel
+
+on:
+  push:
+    branches:
+      - master
+      - main
+    paths:
+      - 'frontend/frontend/**'
+      - '.github/workflows/deploy_frontend.yml'
+
+jobs:
+  deploy:
+    name: Build & Deploy
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./frontend/frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          # Usamos stable para estar siempre a la última, o puedes fijar una versión específica
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Update Version (Auto-Bump)
+        run: |
+          # Extraer la versión base (ej: 1.0.0) del pubspec.yaml
+          BASE_VERSION=$(grep '^version: ' pubspec.yaml | sed 's/version: //g' | cut -d'+' -f1)
+          
+          # Crear nueva versión usando el número de ejecución de GitHub como build number
+          # Esto garantiza que siempre sea ascendente y único
+          NEW_VERSION="${BASE_VERSION}+${{ github.run_number }}"
+          
+          echo "🚀 Bumping version to $NEW_VERSION"
+          
+          # Reemplazar en el archivo
+          sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
+
+      - name: Build Web
+        run: flutter build web --release --no-source-maps
+
+      - name: Copy Vercel Config
+        # Copiamos la configuración para asegurar el no-cache en los archivos críticos
+        run: cp vercel.json build/web/vercel.json
+
+      - name: Deploy to Vercel
+        # Usamos npx vercel para no depender de acciones de terceros
+        # --prod: Despliegue a producción
+        # --yes: Confirmar automáticamente
+        # --token: Usamos el secreto configurado en GitHub
+        run: npx vercel deploy build/web --prod --token ${{ secrets.VERCEL_TOKEN }} --yes
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

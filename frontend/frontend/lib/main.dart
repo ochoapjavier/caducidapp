@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:package_info_plus/package_info_plus.dart'; // Importar package_info_plus
 
 import 'models/alerta.dart';
 import 'services/api_service.dart';
@@ -15,6 +16,7 @@ import 'screens/hogar_selector_screen.dart'; // Selector de hogares
 import 'screens/hogar_detalle_screen.dart'; // Detalles del hogar
 import 'utils/expiry_utils.dart'; // Utilidades centralizadas para lógica de caducidad
 import 'services/hogar_service.dart';
+
 
 late final ValueNotifier<BrandPalette> _brandPaletteNotifier; // se inicializa tras leer prefs
 late final ValueNotifier<ThemeMode> _themeModeNotifier;      // system/light/dark
@@ -444,11 +446,26 @@ class MainAppScreen extends StatefulWidget {
 class _MainAppScreenState extends State<MainAppScreen> {
   String _nombreHogar = 'Gestión de Caducidades';
   bool _isLoadingHogar = true;
+  String _appVersion = ''; // Variable para la versión
 
   @override
   void initState() {
     super.initState();
     _cargarNombreHogar();
+    _loadAppVersion(); // Cargar versión al inicio
+  }
+
+  Future<void> _loadAppVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() {
+          _appVersion = 'v${packageInfo.version} (${packageInfo.buildNumber})';
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading app version: $e');
+    }
   }
 
   Future<void> _cargarNombreHogar() async {
@@ -680,6 +697,23 @@ class _MainAppScreenState extends State<MainAppScreen> {
                     value: 'logout',
                     child: Text('Cerrar sesión'),
                   ),
+                  // Mostrar versión de la app al final del menú
+                  if (_appVersion.isNotEmpty) ...[
+                    const PopupMenuDivider(),
+                    PopupMenuItem<String>(
+                      enabled: false,
+                      height: 32,
+                      child: Center(
+                        child: Text(
+                          _appVersion,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.4),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ];
               },
             ),
@@ -805,6 +839,29 @@ class MyApp extends StatelessWidget {
               return const Scaffold(body: Center(child: CircularProgressIndicator()));
             }
             if (userSnapshot.hasData) {
+              // Verificar si el email está verificado
+              final user = userSnapshot.data!;
+              if (!user.emailVerified) {
+                // Si el email NO está verificado, cerrar sesión y mostrar AuthScreen
+                FirebaseAuth.instance.signOut();
+                
+                // Mostrar mensaje al usuario
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(
+                        content: Text('⚠️ Por favor, verifica tu email antes de continuar. Revisa tu bandeja (y spam).'),
+                        backgroundColor: Colors.orange,
+                        duration: Duration(seconds: 5),
+                      ),
+                    );
+                  }
+                });
+                
+                return const AuthScreen();
+              }
+              
+              // Email verificado, permitir acceso
               return const HogarAwareMainScreen();
             }
             return const AuthScreen();
