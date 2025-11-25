@@ -11,6 +11,7 @@ import models  # Asegura que los modelos se registren
 Base.metadata.create_all(bind=engine)
 
 from routers import router as inventory_router
+from routers import notifications as notifications_router
 
 app = FastAPI(title="Core Inventory API (Modular)")
 
@@ -35,6 +36,7 @@ app.add_middleware(
 
 # Montamos el router principal de la API
 app.include_router(inventory_router, prefix="/api/v1")
+app.include_router(notifications_router.router, prefix="/api/v1/notifications", tags=["Notifications"])
 
 @app.get("/")
 def read_root():

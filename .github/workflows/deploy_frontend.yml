@@ -35,18 +35,17 @@ jobs:
         run: |
           # Extraer la versión base (ej: 1.0.0) del pubspec.yaml
           BASE_VERSION=$(grep '^version: ' pubspec.yaml | sed 's/version: //g' | cut -d'+' -f1)
+          NEW_VERSION="${BASE_VERSION}+${{ github.run_number }}"
           
           # Crear nueva versión usando el número de ejecución de GitHub como build number
           # Esto garantiza que siempre sea ascendente y único
-          NEW_VERSION="${BASE_VERSION}+${{ github.run_number }}"
-          
           echo "🚀 Bumping version to $NEW_VERSION"
           
           # Reemplazar en el archivo
           sed -i "s/^version: .*/version: $NEW_VERSION/" pubspec.yaml
 
       - name: Build Web
-        run: flutter build web --release --no-source-maps
+        run: flutter build web --release --dart-define=FLUTTER_WEB_RENDERER=html --no-source-maps
 
       - name: Copy Vercel Config
         # Copiamos la configuración para asegurar el no-cache en los archivos críticos

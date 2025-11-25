@@ -1,0 +1,20 @@
+name: Cron - Trigger Notifications
+
+on:
+  schedule:
+    - cron: '0 * * * *' # Ejecutar cada hora a en punto (ej: 09:00, 10:00, etc.)
+  workflow_dispatch: # Permite ejecutarlo manualmente desde la pestaña Actions para probar
+
+jobs:
+  trigger:
+    name: Trigger Backend Notifications
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Backend Endpoint
+        run: |
+          # Llamada al endpoint protegido del backend
+          # Requiere que CRON_SECRET esté configurado en los secretos del repositorio
+          curl -X POST https://caducidapp-api.onrender.com/api/v1/notifications/cron/trigger-notifications \
+          -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+          -H "Content-Type: application/json" \
+          --fail # Falla el job si el servidor devuelve error (ej. 401, 500)

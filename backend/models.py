@@ -148,3 +148,32 @@ class InventoryStock(Base):
             f"InventoryStock(id={self.id_stock}, hogar={self.hogar_id}, producto={self.fk_producto_maestro}, "
             f"ubicacion={self.fk_ubicacion}, cantidad={self.cantidad_actual}, fecha={self.fecha_caducidad})"
         )
+
+
+class UserDevice(Base):
+    """FCM tokens for user devices (mobile, web)."""
+    __tablename__ = 'user_devices'
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(255), nullable=False, index=True)
+    fcm_token = Column(String, nullable=False)
+    platform = Column(String(50))  # android, web, ios
+    last_active = Column(DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (
+        UniqueConstraint('user_id', 'fcm_token', name='user_device_unique'),
+    )
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"UserDevice(user={self.user_id}, platform={self.platform})"
+
+
+class UserPreference(Base):
+    """User-specific notification settings."""
+    __tablename__ = 'user_preferences'
+    user_id = Column(String(255), primary_key=True)
+    notifications_enabled = Column(Boolean, default=True)
+    notification_time = Column(String(8), default='09:00:00')  # Stored as string HH:MM:SS for simplicity
+    timezone_offset = Column(Integer, default=0)  # Offset in minutes
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"UserPreference(user={self.user_id}, enabled={self.notifications_enabled})"

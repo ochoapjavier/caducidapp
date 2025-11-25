@@ -1,9 +1,9 @@
 // frontend/lib/services/api_service.dart
 
 import 'dart:convert';
-import 'package:flutter/foundation.dart'; // <-- 1. IMPORTAR FOUNDATION
-import 'package:http/http.dart' as http; // Importamos el paquete http
-import 'package:firebase_auth/firebase_auth.dart'; // Importamos Firebase Auth
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/alerta.dart';
 import '../models/ubicacion.dart';
 import '../models/hogar.dart';
@@ -19,13 +19,12 @@ const String _productionBaseUrl = 'https://caducidapp-api.onrender.com';
 const String baseUrl = kDebugMode ? _localBaseUrl : _productionBaseUrl;
 const String apiPrefix = '/api/v1/inventory';
 const String apiUrl = '$baseUrl$apiPrefix';
+const String apiV1Url = '$baseUrl/api/v1'; // Base para otros servicios (ej. notificaciones)
 
 // Función auxiliar para obtener las cabeceras con el token de autenticación
 Future<Map<String, String>> _getAuthHeaders() async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
-    // Si no hay usuario, no podemos enviar el token.
-    // Podrías lanzar un error o manejarlo según la lógica de tu app.
     throw Exception('Usuario no autenticado. No se puede realizar la petición.');
   }
   final idToken = await user.getIdToken();
@@ -51,17 +50,10 @@ Future<List<AlertaItem>> fetchAlertas() async {
   final response = await http.get(Uri.parse('$apiUrl/alertas/proxima-semana'), headers: headers);
 
   if (response.statusCode == 200) {
-    // 1. Decodificar el cuerpo JSON (string) a un mapa de Dart
     final Map<String, dynamic> jsonBody = json.decode(response.body);
-    
-    // 2. Extraer la lista que está bajo la clave 'productos_proximos_a_caducar'
     final List<dynamic> rawList = jsonBody['productos_proximos_a_caducar'];
-
-    // 3. Mapear la lista de JSONs a la lista de objetos AlertaItem
     return rawList.map((json) => AlertaItem.fromJson(json)).toList();
-    
   } else {
-    // Lanza una excepción si el backend responde con error 
     throw Exception('Error al cargar alertas: Código ${response.statusCode}. Asegúrate que el backend esté corriendo.');
   }
 }
@@ -72,14 +64,9 @@ Future<List<Ubicacion>> fetchUbicaciones() async {
   final response = await http.get(Uri.parse('$apiUrl/ubicaciones/'), headers: headers);
 
   if (response.statusCode == 200) {
-    // 1. El API devuelve una lista de objetos JSON, así que decodificamos directamente a una Lista.
     final List<dynamic> jsonList = json.decode(response.body);
-
-    // 2. Mapeamos cada objeto JSON de la lista a un objeto Ubicacion usando el constructor .fromJson.
     return jsonList.map((json) => Ubicacion.fromJson(json)).toList();
-    
   } else {
-    // Lanza una excepción si el backend responde con error.
     throw Exception('Error al cargar ubicaciones. Código de estado: ${response.statusCode}');
   }
 }
@@ -90,16 +77,13 @@ Future<void> createUbicacion(String nombre, {bool esCongelador = false}) async {
   final response = await http.post(
     Uri.parse('$apiUrl/ubicaciones/'),
     headers: headers,
-    // Crea el body JSON que espera FastAPI: {"nombre": "...", "es_congelador": ...}
     body: jsonEncode(<String, dynamic>{
       'nombre': nombre,
       'es_congelador': esCongelador,
     }),
   );
 
-  // Un código de estado que no está en el rango 2xx (ej. 200, 201) indica un error.
   if (response.statusCode < 200 || response.statusCode >= 300) {
-    // Si da error 400 (ej. nombre duplicado), lanza excepción
     final errorBody = json.decode(response.body);
     throw Exception(errorBody['detail']?? 'Error desconocido al crear ubicación');
   }
@@ -114,7 +98,6 @@ Future<void> deleteUbicacion(int id) async {
   );
 
   if (response.statusCode != 200) {
-    // Si el backend devuelve un error (ej. 404, 409), lo decodificamos y lanzamos.
     final errorBody = json.decode(response.body);
     throw Exception(errorBody['detail'] ?? 'Error desconocido al eliminar la ubicación.');
   }
@@ -136,7 +119,6 @@ Future<void> updateUbicacion(int id, String newName, {bool? esCongelador}) async
   );
 
   if (response.statusCode != 200) {
-    // Si el backend devuelve un error (ej. 404, 409), lo decodificamos y lanzamos.
     final errorBody = json.decode(response.body);
     throw Exception(errorBody['detail'] ?? 'Error desconocido al actualizar la ubicación.');
   }
@@ -145,25 +127,24 @@ Future<void> updateUbicacion(int id, String newName, {bool? esCongelador}) async
 /// Añade un nuevo item de stock al inventario del usuario.
 Future<void> addManualStockItem({
   required String productName,
-  String? brand, // <-- NUEVO: Parámetro opcional para la marca
-  String? barcode, // <-- NUEVO: Parámetro opcional para el EAN
-  String? imageUrl, // <-- NUEVO: Parámetro para la URL de la imagen
+  String? brand,
+  String? barcode,
+  String? imageUrl,
   required int ubicacionId,
   required int cantidad,
   required DateTime fechaCaducidad,
 }) async {
   final headers = await _getAuthHeaders();
   final response = await http.post(
-    Uri.parse('$apiUrl/stock/manual'), // El nuevo endpoint
+    Uri.parse('$apiUrl/stock/manual'),
     headers: headers,
     body: jsonEncode({
       'product_name': productName,
-      'brand': brand, // <-- NUEVO: Se añade al cuerpo de la petición
-      'barcode': barcode, // <-- NUEVO: Se añade al cuerpo de la petición
-      'image_url': imageUrl, // <-- NUEVO: Se añade al cuerpo de la petición
+      'brand': brand,
+      'barcode': barcode,
+      'image_url': imageUrl,
       'ubicacion_id': ubicacionId,
       'cantidad': cantidad,
-      // Formateamos la fecha a 'YYYY-MM-DD'
       'fecha_caducidad': fechaCaducidad.toIso8601String().split('T').first,
     }),
   );
@@ -177,16 +158,14 @@ Future<void> addManualStockItem({
 /// Busca un producto en nuestro catálogo por su código de barras.
 Future<Map<String, dynamic>?> fetchProductFromCatalog(String barcode) async {
   final headers = await _getAuthHeaders();
-  // Usamos el nuevo endpoint de productos
   final response = await http.get(Uri.parse('$apiUrl/products/by-barcode/$barcode'), headers: headers);
 
   if (response.statusCode == 200) {
     return json.decode(utf8.decode(response.bodyBytes));
   }
   if (response.statusCode == 404) {
-    return null; // No encontrado, es un caso esperado.
+    return null;
   }
-  // Otros errores
   throw Exception('Error al buscar producto en el catálogo: ${response.statusCode}');
 }
 
@@ -219,7 +198,6 @@ Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(String barcode) asyn
 
     if (response.statusCode == 200) {
       final data = json.decode(response.body);
-      // La API devuelve status: 0 si no encuentra el producto.
       if (data['status'] == 0) {
         return null;
       }
@@ -227,7 +205,6 @@ Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(String barcode) asyn
     }
     return null;
   } catch (e) {
-    // Si hay un error de red o de parsing, devolvemos null.
     return null;
   }
 }
@@ -243,7 +220,7 @@ Future<void> addScannedStockItem({
 }) async {
   final headers = await _getAuthHeaders();
   final response = await http.post(
-    Uri.parse('$apiUrl/stock/from-scan'), // El endpoint para escaneos
+    Uri.parse('$apiUrl/stock/from-scan'),
     headers: headers,
     body: jsonEncode({
       'barcode': barcode,
@@ -262,7 +239,6 @@ Future<void> addScannedStockItem({
 }
 
 /// Obtiene todos los items de stock para el usuario actual.
-/// Opcionalmente puede filtrar por un término de búsqueda.
 Future<List<dynamic>> fetchStockItems({String? searchTerm}) async {
   final headers = await _getAuthHeaders();
   var uri = Uri.parse('$apiUrl/stock/');
@@ -274,7 +250,6 @@ Future<List<dynamic>> fetchStockItems({String? searchTerm}) async {
   final response = await http.get(uri, headers: headers);
 
   if (response.statusCode == 200) {
-    // El backend devuelve una lista de objetos JSON.
     return json.decode(utf8.decode(response.bodyBytes));
   } else {
     throw Exception('Error al cargar el inventario: ${response.statusCode}');
@@ -324,7 +299,7 @@ Future<Map<String, dynamic>> removeStockItems({
   }
 }
 
-/// Actualiza un item de stock (nombre/marca del producto maestro, fecha, cantidad, ubicación).
+/// Actualiza un item de stock.
 Future<Map<String, dynamic>> updateStockItem({
   required int stockId,
   String? productName,
@@ -353,9 +328,6 @@ Future<Map<String, dynamic>> updateStockItem({
     } catch (_) {
       return {};
     }
-  } else if (response.statusCode == 200) {
-    // Already handled above; keeping for clarity.
-    return {};
   } else if (response.statusCode == 404) {
     throw Exception('Item no encontrado.');
   } else {
@@ -372,8 +344,7 @@ Future<Map<String, dynamic>> updateStockItem({
 // PRODUCT STATE MANAGEMENT ACTIONS
 // ============================================================================
 
-/// Abre unidades selladas de un producto, cambiando su estado a 'abierto'.
-/// Opcionalmente mantiene la fecha de caducidad original o la recalcula.
+/// Abre unidades selladas de un producto.
 Future<Map<String, dynamic>> openProduct({
   required int stockId,
   required int cantidad,
@@ -403,7 +374,7 @@ Future<Map<String, dynamic>> openProduct({
   }
 }
 
-/// Congela unidades de un producto para pausar su caducidad.
+/// Congela unidades de un producto.
 Future<Map<String, dynamic>> freezeProduct({
   required int stockId,
   required int cantidad,
@@ -429,7 +400,7 @@ Future<Map<String, dynamic>> freezeProduct({
   }
 }
 
-/// Descongela un producto congelado, estableciendo una nueva fecha de caducidad corta.
+/// Descongela un producto congelado.
 Future<Map<String, dynamic>> unfreezeProduct({
   required int stockId,
   required int cantidad,
@@ -457,7 +428,7 @@ Future<Map<String, dynamic>> unfreezeProduct({
   }
 }
 
-/// Mueve unidades de un producto a una ubicación diferente sin cambiar su estado.
+/// Mueve unidades de un producto a una ubicación diferente.
 Future<Map<String, dynamic>> relocateProduct({
   required int stockId,
   required int cantidad,
