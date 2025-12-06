@@ -23,17 +23,25 @@ class StockService:
             raise HTTPException(status_code=404, detail=f"Ubicación no encontrada o no pertenece a este hogar.")
 
         # 2. Find or create product in household catalog
-        # If barcode is provided, use it for search/create. Otherwise, use name.
-        if item_data.barcode:
-            producto_maestro = self.product_repo.get_or_create_by_barcode(
-                barcode=item_data.barcode,
-                name=item_data.product_name,
-                brand=item_data.brand,
-                hogar_id=hogar_id,
-                image_url=item_data.image_url
-            )
-        else:
-            producto_maestro = self.product_repo.get_or_create_by_name(item_data.product_name, hogar_id)
+        producto_maestro = None
+        
+        if item_data.product_id:
+            producto_maestro = self.product_repo.get_by_id(item_data.product_id)
+            if producto_maestro and producto_maestro.hogar_id != hogar_id:
+                producto_maestro = None
+
+        if not producto_maestro:
+            # If barcode is provided, use it for search/create. Otherwise, use name.
+            if item_data.barcode:
+                producto_maestro = self.product_repo.get_or_create_by_barcode(
+                    barcode=item_data.barcode,
+                    name=item_data.product_name,
+                    brand=item_data.brand,
+                    hogar_id=hogar_id,
+                    image_url=item_data.image_url
+                )
+            else:
+                producto_maestro = self.product_repo.get_or_create_by_name(item_data.product_name, hogar_id)
         
         if not producto_maestro:
              raise HTTPException(status_code=500, detail="No se pudo crear o encontrar el producto maestro.")

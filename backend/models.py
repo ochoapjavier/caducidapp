@@ -24,6 +24,7 @@ class Hogar(Base):
     ubicaciones = relationship("Location", back_populates="hogar", cascade="all, delete-orphan")
     productos = relationship("Product", back_populates="hogar", cascade="all, delete-orphan")
     stock_items = relationship("InventoryStock", back_populates="hogar", cascade="all, delete-orphan")
+    shopping_list_items = relationship("ShoppingListItem", back_populates="hogar", cascade="all, delete-orphan")
     
     def __repr__(self) -> str:  # pragma: no cover
         return f"Hogar(id={self.id_hogar}, nombre={self.nombre!r}, created_by={self.created_by})"
@@ -177,3 +178,25 @@ class UserPreference(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"UserPreference(user={self.user_id}, enabled={self.notifications_enabled})"
+
+
+class ShoppingListItem(Base):
+    """Item in the household shopping list."""
+    __tablename__ = 'shopping_list_items'
+    
+    id = Column(Integer, primary_key=True, index=True)
+    hogar_id = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
+    producto_nombre = Column(String(255), nullable=False)
+    fk_producto = Column(Integer, ForeignKey('producto_maestro.id_producto', ondelete='SET NULL'), nullable=True)
+    cantidad = Column(Integer, default=1, nullable=False)
+    completado = Column(Boolean, default=False, nullable=False, index=True)
+    added_by = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Relationships
+    hogar = relationship("Hogar", back_populates="shopping_list_items")
+    producto = relationship("Product")
+
+    def __repr__(self) -> str:  # pragma: no cover
+        return f"ShoppingItem(id={self.id}, nombre={self.producto_nombre}, hogar={self.hogar_id})"

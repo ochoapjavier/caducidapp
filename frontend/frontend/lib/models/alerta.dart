@@ -6,7 +6,8 @@ class AlertaItem {
   final String ubicacion;
   final int cantidad;
   final DateTime fechaCaducidad;
-  final String estadoProducto; // Nuevo campo para mostrar badge de estado
+  final int productoId;
+  final String estadoProducto;
 
   AlertaItem({
     required this.id,
@@ -14,21 +15,19 @@ class AlertaItem {
     required this.ubicacion,
     required this.cantidad,
     required this.fechaCaducidad,
-    this.estadoProducto = 'cerrado', // Default value
+    this.estadoProducto = 'cerrado',
+    required this.productoId,
   });
 
-  // Constructor factory para crear una instancia desde un JSON
   factory AlertaItem.fromJson(Map<String, dynamic> json) {
     return AlertaItem(
       id: json['id_stock'],
-      // Extraemos el nombre del objeto anidado 'producto_maestro'
       producto: json['producto_maestro']['nombre'],
-      // Extraemos el nombre del objeto anidado 'ubicacion'
       ubicacion: json['ubicacion']['nombre'],
-      // El nombre del campo ahora es 'cantidad_actual'
       cantidad: json['cantidad_actual'],
       fechaCaducidad: DateTime.parse(json['fecha_caducidad']),
-      estadoProducto: json['estado_producto'] ?? 'cerrado', // Extraer estado
+      estadoProducto: json['estado_producto'] ?? 'cerrado',
+      productoId: json['producto_maestro']['id_producto'],
     );
   }
 }

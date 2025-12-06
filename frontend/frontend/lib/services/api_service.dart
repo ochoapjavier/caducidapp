@@ -41,6 +41,16 @@ Future<Map<String, String>> _getAuthHeaders() async {
     headers['X-Hogar-Id'] = hogarActivo.toString();
   }
   
+  // DEBUG: Imprimir headers para depuración
+  debugPrint('--- API REQUEST HEADERS ---');
+  debugPrint('Authorization: Bearer ${idToken?.substring(0, 10) ?? "null"}...');
+  if (headers.containsKey('X-Hogar-Id')) {
+    debugPrint('X-Hogar-Id: ${headers['X-Hogar-Id']}');
+  } else {
+    debugPrint('X-Hogar-Id: NOT PRESENT');
+  }
+  debugPrint('---------------------------');
+  
   return headers;
 }
 
@@ -127,6 +137,7 @@ Future<void> updateUbicacion(int id, String newName, {bool? esCongelador}) async
 /// Añade un nuevo item de stock al inventario del usuario.
 Future<void> addManualStockItem({
   required String productName,
+  int? productId,
   String? brand,
   String? barcode,
   String? imageUrl,
@@ -140,6 +151,7 @@ Future<void> addManualStockItem({
     headers: headers,
     body: jsonEncode({
       'product_name': productName,
+      'product_id': productId,
       'brand': brand,
       'barcode': barcode,
       'image_url': imageUrl,

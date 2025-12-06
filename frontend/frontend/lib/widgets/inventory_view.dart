@@ -5,11 +5,21 @@ import 'package:flutter/services.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/utils/expiry_utils.dart'; // Utilidades centralizadas para lógica de caducidad
+import 'package:frontend/widgets/quantity_selection_dialog.dart';
+import 'package:frontend/services/shopping_service.dart';
+import 'package:frontend/services/hogar_service.dart';
 
 // Eliminado _isLoading (no se usaba)
 
 class InventoryView extends StatefulWidget {
-  const InventoryView({super.key});
+  final VoidCallback? onAddItem;
+  final VoidCallback? onRemoveItem;
+
+  const InventoryView({
+    super.key, 
+    this.onAddItem, 
+    this.onRemoveItem
+  });
 
   @override
   State<InventoryView> createState() => InventoryViewState(); // Clave pública
@@ -83,122 +93,57 @@ class InventoryViewState extends State<InventoryView> {
   
   /// Muestra un diálogo para confirmar y especificar la cantidad a eliminar.
   /// Método público para poder ser invocado desde otras vistas (ej: Alertas)
-  void showRemoveQuantityDialog(int stockId, int currentQuantity, String productName) {
-    final quantityController = TextEditingController(text: '1');
-    final formKey = GlobalKey<FormState>();
-    bool isProcessing = false; // Estado local para el diálogo
-
-    showDialog(
+  void showRemoveQuantityDialog(int stockId, int currentQuantity, String productName, int? productId) {
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) {
-        // Usamos StatefulBuilder para que el contenido del diálogo pueda tener su propio estado.
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            final int currentVal = int.tryParse(quantityController.text) ?? 0;
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => QuantitySelectionDialog(
+        title: 'Eliminar "$productName"',
+        subtitle: 'Disponibles: $currentQuantity',
+        maxQuantity: currentQuantity,
+        onConfirm: (quantity, addToShoppingList) async {
+          try {
+            // 1. Eliminar del stock
+            await removeStockItems(stockId: stockId, cantidad: quantity);
 
-            return AlertDialog(
-              title: Text('Eliminar "$productName"'),
-              content: Form(
-                key: formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text('Disponibles: $currentQuantity. ¿Cuántas unidades quieres eliminar?'),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: quantityController,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      textAlign: TextAlign.center,
-                      decoration: InputDecoration(
-                        labelText: 'Cantidad',
-                        border: const OutlineInputBorder(),
-                        prefixIcon: IconButton(
-                          icon: const Icon(Icons.remove_circle_outline),
-                          onPressed: isProcessing
-                              ? null
-                              : currentVal > 1
-                                  ? () => setStateDialog(() => quantityController.text = (currentVal - 1).toString())
-                                  : null,
-                        ),
-                        suffixIcon: IconButton(
-                          icon: const Icon(Icons.add_circle_outline),
-                          onPressed: isProcessing
-                              ? null
-                              : currentVal < currentQuantity
-                                  ? () => setStateDialog(() => quantityController.text = (currentVal + 1).toString())
-                                  : null,
-                        ),
-                      ),
-                      onChanged: (value) => setStateDialog(() {}),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) return 'Introduce un nº.';
-                        final n = int.tryParse(value);
-                        if (n == null) return 'Nº inválido.';
-                        if (n <= 0) return 'Debe ser > 0.';
-                        if (n > currentQuantity) return 'No hay tantas.';
-                        return null;
-                      },
-                    ),
-                    if (isProcessing) ...[
-                      const SizedBox(height: 16),
-                      const LinearProgressIndicator(),
-                      const SizedBox(height: 8),
-                      const Text('Eliminando...'),
-                    ],
-                  ],
+            // 2. Añadir a lista de compra si se solicitó
+            if (addToShoppingList) {
+              try {
+                final hogarId = await HogarService().getHogarActivo();
+                if (hogarId != null) {
+                  await ShoppingService().addItem(hogarId, productName, fkProducto: productId);
+                }
+              } catch (e) {
+                debugPrint('Error adding to shopping list: $e');
+              }
+            }
+
+            // 3. Refrescar inventario
+            await refreshInventory();
+
+            // 4. Notificar
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(addToShoppingList 
+                    ? 'Eliminado y añadido a la lista.' 
+                    : 'Producto eliminado.'),
+                  backgroundColor: Colors.green,
                 ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: isProcessing ? null : () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancelar'),
-                ),
-                ElevatedButton(
-                  onPressed: isProcessing
-                      ? null
-                      : () async {
-                          if (formKey.currentState?.validate() ?? false) {
-                            final quantityToRemove = int.parse(quantityController.text);
-
-                            // Mostrar indicador de proceso en el diálogo
-                            setStateDialog(() => isProcessing = true);
-
-                            try {
-                              // Llamada al API para eliminar
-                              await removeStockItems(stockId: stockId, cantidad: quantityToRemove);
-
-                              // Refrescar inventario y esperar a que termine
-                              await refreshInventory();
-
-                              // Cerrar diálogo y mostrar confirmación
-                              Navigator.of(ctx).pop();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Stock actualizado.'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            } catch (e) {
-                              // En caso de error, permitir reintento y notificar
-                              setStateDialog(() => isProcessing = false);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
-                              );
-                            }
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.redAccent,
-                    foregroundColor: Colors.white, // Forzar contraste legible
-                  ),
-                  child: const Text('Eliminar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+              );
+            }
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+              );
+            }
+          }
+        },
+      ),
     );
   }
 
@@ -940,62 +885,96 @@ class InventoryViewState extends State<InventoryView> {
     final textTheme = Theme.of(context).textTheme;
 
     // Quitamos el Scaffold interno para integrarlo mejor en la pantalla contenedora.
-    return Column(
+    return SafeArea(
+      child: Column(
       children: [
-        // Panel de filtros desplegable
-        ExpansionTile(
-          title: Text(
-            'Filtros',
-            style: textTheme.titleMedium,
-          ),
-          leading: Icon(Icons.filter_list, color: colorScheme.primary),
-          initiallyExpanded: false, // Empieza contraído
-          onExpansionChanged: (isExpanded) {
-            // Si se contrae y hay texto en los buscadores, los limpiamos y refrescamos la lista.
-            if (!isExpanded && (_nameSearchController.text.isNotEmpty || _eanSearchController.text.isNotEmpty)) {
-              _nameSearchController.clear();
-              _eanSearchController.clear();
-              refreshInventory();
-            }
-          },
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                children: [
-                  // Buscador por Nombre
-                  TextField(
-                    controller: _nameSearchController,
-                    decoration: const InputDecoration(
-                      labelText: 'Buscar por nombre',
-                      prefixIcon: Icon(Icons.text_fields),
-                    ),
-                    onChanged: (value) {
-                      if (_eanSearchController.text.isNotEmpty) _eanSearchController.clear();
-                    },
+        // Encabezado: Filtros + Acciones Rápidas
+        Material(
+          color: Theme.of(context).cardColor,
+          elevation: 1,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Filtros expandibles
+              Expanded(
+                child: ExpansionTile(
+                  title: Text(
+                    'Filtros',
+                    style: textTheme.titleMedium,
                   ),
-                  const SizedBox(height: 12),
-                  // Buscador por EAN
-                  TextField(
-                    controller: _eanSearchController,
-                    decoration: InputDecoration(
-                      labelText: 'Buscar por EAN',
-                      prefixIcon: const Icon(Icons.qr_code_2_outlined),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.qr_code_scanner),
-                        onPressed: _scanBarcode,
-                        tooltip: 'Escanear código',
+                  leading: Icon(Icons.filter_list, color: colorScheme.primary),
+                  initiallyExpanded: false, // Empieza contraído
+                  shape: const Border(), // Quitar bordes por defecto
+                  onExpansionChanged: (isExpanded) {
+                    // Si se contrae y hay texto en los buscadores, los limpiamos y refrescamos la lista.
+                    if (!isExpanded && (_nameSearchController.text.isNotEmpty || _eanSearchController.text.isNotEmpty)) {
+                      _nameSearchController.clear();
+                      _eanSearchController.clear();
+                      refreshInventory();
+                    }
+                  },
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                      child: Column(
+                        children: [
+                          // Buscador por Nombre
+                          TextField(
+                            controller: _nameSearchController,
+                            decoration: const InputDecoration(
+                              labelText: 'Buscar por nombre',
+                              prefixIcon: Icon(Icons.text_fields),
+                            ),
+                            onChanged: (value) {
+                              if (_eanSearchController.text.isNotEmpty) _eanSearchController.clear();
+                            },
+                          ),
+                          const SizedBox(height: 12),
+                          // Buscador por EAN
+                          TextField(
+                            controller: _eanSearchController,
+                            decoration: InputDecoration(
+                              labelText: 'Buscar por EAN',
+                              prefixIcon: const Icon(Icons.qr_code_2_outlined),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.qr_code_scanner),
+                                onPressed: _scanBarcode,
+                                tooltip: 'Escanear código',
+                              ),
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (value) {
+                              if (_nameSearchController.text.isNotEmpty) _nameSearchController.clear();
+                            },
+                          ),
+                        ],
                       ),
-                    ),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) {
-                      if (_nameSearchController.text.isNotEmpty) _nameSearchController.clear();
-                    },
-                  ),
-                ],
+                    )
+                  ],
+                ),
               ),
-            )
-          ],
+              // Botones de Acción (+ / -)
+              if (widget.onRemoveItem != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, right: 4),
+                  child: IconButton.filledTonal(
+                    onPressed: widget.onRemoveItem,
+                    icon: const Icon(Icons.remove),
+                    tooltip: 'Registrar Salida',
+                    // Eliminados colores explícitos para un look más integrado
+                  ),
+                ),
+              if (widget.onAddItem != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, right: 12),
+                  child: IconButton.filledTonal( // Cambiado a filledTonal para consistencia
+                    onPressed: widget.onAddItem,
+                    icon: const Icon(Icons.add),
+                    tooltip: 'Añadir Producto',
+                  ),
+                ),
+            ],
+          ),
         ),
         // Lista de inventario
         Expanded(
@@ -1530,7 +1509,12 @@ class InventoryViewState extends State<InventoryView> {
                                                             padding: const EdgeInsets.all(6),
                                                             tooltip: 'Usar',
                                                             icon: const Icon(Icons.remove_circle_outline, size: 18),
-                                                            onPressed: () => showRemoveQuantityDialog(stockId, quantity, productName),
+                                                            onPressed: () => showRemoveQuantityDialog(
+                                                              stockId, 
+                                                              quantity, 
+                                                              productName,
+                                                              item['producto_maestro']['id_producto'],
+                                                            ),
                                                             style: IconButton.styleFrom(
                                                               backgroundColor: colorScheme.secondaryContainer,
                                                               foregroundColor: colorScheme.onSecondaryContainer,
@@ -1558,7 +1542,8 @@ class InventoryViewState extends State<InventoryView> {
             ), // FutureBuilder
           ), // Expanded
         ],
-      ); // Column
+      ),
+    );
   }
   void _showEditStockItemDialog(dynamic item) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -1577,7 +1562,7 @@ class InventoryViewState extends State<InventoryView> {
     final formKey = GlobalKey<FormState>();
     bool saving = false;
 
-    Future<void> pickDate() async {
+    Future<void> pickDate(StateSetter setStateModal) async {
       final picked = await showDatePicker(
         context: context,
         initialDate: selectedDate,
@@ -1585,123 +1570,173 @@ class InventoryViewState extends State<InventoryView> {
         lastDate: DateTime(2101),
       );
       if (picked != null) {
-        selectedDate = picked;
-        dateController.text = '${picked.day.toString().padLeft(2,'0')}/${picked.month.toString().padLeft(2,'0')}/${picked.year}';
+        setStateModal(() {
+          selectedDate = picked;
+          dateController.text = '${picked.day.toString().padLeft(2,'0')}/${picked.month.toString().padLeft(2,'0')}/${picked.year}';
+        });
       }
     }
 
-    showDialog(
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) {
         return StatefulBuilder(
-          builder: (ctx, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Editar ítem'),
-              content: Form(
+          builder: (ctx, setStateModal) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: Form(
                 key: formKey,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      TextFormField(
-                        controller: nameController,
-                        decoration: const InputDecoration(labelText: 'Nombre del producto'),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Introduce un nombre' : null,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Editar Producto',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: brandController,
-                        decoration: const InputDecoration(labelText: 'Marca (opcional)'),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 24),
+                    TextFormField(
+                      controller: nameController,
+                      decoration: InputDecoration(
+                        labelText: 'Nombre del producto',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: const Icon(Icons.edit),
                       ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: qtyController,
-                        keyboardType: TextInputType.number,
-                        decoration: InputDecoration(
-                          labelText: 'Cantidad',
-                          prefixIcon: IconButton(
-                            icon: const Icon(Icons.remove_circle_outline),
-                            onPressed: saving ? null : () {
-                              final current = int.tryParse(qtyController.text) ?? 1;
-                              if (current > 1) {
-                                setStateDialog(() => qtyController.text = (current - 1).toString());
-                              }
-                            },
-                          ),
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.add_circle_outline),
-                            onPressed: saving ? null : () {
-                              final current = int.tryParse(qtyController.text) ?? 0;
-                              setStateDialog(() => qtyController.text = (current + 1).toString());
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Introduce un nombre' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: brandController,
+                      decoration: InputDecoration(
+                        labelText: 'Marca (opcional)',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: const Icon(Icons.branding_watermark),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: qtyController,
+                            keyboardType: TextInputType.number,
+                            textAlign: TextAlign.center,
+                            decoration: InputDecoration(
+                              labelText: 'Cantidad',
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                              prefixIcon: IconButton(
+                                icon: const Icon(Icons.remove_circle_outline),
+                                onPressed: saving ? null : () {
+                                  final current = int.tryParse(qtyController.text) ?? 1;
+                                  if (current > 1) {
+                                    setStateModal(() => qtyController.text = (current - 1).toString());
+                                  }
+                                },
+                              ),
+                              suffixIcon: IconButton(
+                                icon: const Icon(Icons.add_circle_outline),
+                                onPressed: saving ? null : () {
+                                  final current = int.tryParse(qtyController.text) ?? 0;
+                                  setStateModal(() => qtyController.text = (current + 1).toString());
+                                },
+                              ),
+                            ),
+                            validator: (v) {
+                              if (v == null || v.isEmpty) return 'Requerido';
+                              final n = int.tryParse(v);
+                              if (n == null || n <= 0) return '> 0';
+                              return null;
                             },
                           ),
                         ),
-                        validator: (v) {
-                          if (v == null || v.isEmpty) return 'Cantidad requerida';
-                          final n = int.tryParse(v);
-                          if (n == null || n <= 0) return 'Debe ser > 0';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: dateController,
-                        readOnly: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Fecha de caducidad',
-                          prefixIcon: Icon(Icons.calendar_today),
-                        ),
-                        onTap: saving ? null : pickDate,
-                      ),
-                      if (saving) ...[
-                        const SizedBox(height: 16),
-                        const LinearProgressIndicator(),
                       ],
-                    ],
-                  ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: dateController,
+                      readOnly: true,
+                      decoration: InputDecoration(
+                        labelText: 'Fecha de caducidad',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        prefixIcon: const Icon(Icons.calendar_today),
+                      ),
+                      onTap: saving ? null : () => pickDate(setStateModal),
+                    ),
+                    const SizedBox(height: 24),
+                    if (saving)
+                      const Center(child: CircularProgressIndicator())
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(ctx).pop(),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: const Text('Cancelar'),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: FilledButton(
+                              onPressed: () async {
+                                if (!(formKey.currentState?.validate() ?? false)) return;
+                                setStateModal(() => saving = true);
+                                try {
+                                  await updateStockItem(
+                                    stockId: stockId,
+                                    productName: nameController.text.trim() != initialName ? nameController.text.trim() : null,
+                                    brand: brandController.text.trim() != initialBrand ? brandController.text.trim() : null,
+                                    cantidadActual: int.parse(qtyController.text),
+                                    fechaCaducidad: selectedDate != initialExpiry ? selectedDate : null,
+                                  );
+                                  await refreshInventory();
+                                  if (mounted) {
+                                    Navigator.of(ctx).pop();
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: const Text('Ítem actualizado.'),
+                                        backgroundColor: colorScheme.primary,
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  setStateModal(() => saving = false);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error al actualizar: $e'),
+                                      backgroundColor: colorScheme.error,
+                                    ),
+                                  );
+                                }
+                              },
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: const Text('Guardar'),
+                            ),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: saving ? null : () => Navigator.of(ctx).pop(),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: saving ? null : () async {
-                    if (!(formKey.currentState?.validate() ?? false)) return;
-                    setStateDialog(() => saving = true);
-                    try {
-                      await updateStockItem(
-                        stockId: stockId,
-                        productName: nameController.text.trim() != initialName ? nameController.text.trim() : null,
-                        brand: brandController.text.trim() != initialBrand ? brandController.text.trim() : null,
-                        cantidadActual: int.parse(qtyController.text),
-                        fechaCaducidad: selectedDate != initialExpiry ? selectedDate : null,
-                      );
-                      await refreshInventory();
-                      if (mounted) {
-                        Navigator.of(ctx).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: const Text('Ítem actualizado.'),
-                            backgroundColor: colorScheme.primary,
-                          ),
-                        );
-                      }
-                    } catch (e) {
-                      setStateDialog(() => saving = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Error al actualizar: $e'),
-                          backgroundColor: colorScheme.error,
-                        ),
-                      );
-                    }
-                  },
-                  child: const Text('Guardar cambios'),
-                ),
-              ],
             );
           },
         );

@@ -1,9 +1,11 @@
-// frontend/lib/screens/remove_manual_item_screen.dart
-
 import 'package:flutter/material.dart';
 import 'package:frontend/models/ubicacion.dart';
 import 'package:frontend/services/api_service.dart';
-import 'package:intl/intl.dart'; // <-- IMPORTACIÓN AÑADIDA
+import 'package:frontend/services/shopping_service.dart';
+import 'package:frontend/services/hogar_service.dart';
+import 'package:intl/intl.dart';
+import 'package:frontend/utils/expiry_utils.dart';
+import 'package:frontend/widgets/quantity_selection_dialog.dart';
 
 class RemoveManualItemScreen extends StatefulWidget {
   const RemoveManualItemScreen({super.key});
@@ -13,46 +15,42 @@ class RemoveManualItemScreen extends StatefulWidget {
 }
 
 class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _quantityController = TextEditingController();
-
-  // Estado de la pantalla
-  var _isLoading = false;
-  late Future<void> _initialLoadFuture; // Un único Future para controlar la carga inicial
-  List<dynamic> _fullStock = []; // Lista completa del inventario
-
-  // Valores seleccionados
-  Ubicacion? _selectedUbicacion;
-  dynamic _selectedStockItem; // Item de stock seleccionado
-  List<dynamic> _itemsInLocation = []; // Items filtrados por ubicación
-
-  // Lista de ubicaciones cargadas
+  final _quantityController = TextEditingController(text: '1');
+  
+  // Estado
+  bool _isLoading = false;
+  List<dynamic> _fullStock = [];
   List<Ubicacion> _ubicaciones = [];
+  
+  // Selección
+  Ubicacion? _selectedUbicacion;
+  dynamic _selectedStockItem;
+  List<dynamic> _itemsInLocation = [];
 
   @override
   void initState() {
     super.initState();
-    // Lanzamos ambas cargas y esperamos a que terminen
-    _initialLoadFuture = _loadInitialData();
+    _loadInitialData();
   }
 
   Future<void> _loadInitialData() async {
     try {
-      // Esperamos a que ambas llamadas a la API terminen en paralelo
       final results = await Future.wait([
         fetchUbicaciones(),
         fetchStockItems(),
       ]);
-      _ubicaciones = results[0] as List<Ubicacion>;
-  _fullStock = results[1];
+      if (mounted) {
+        setState(() {
+          _ubicaciones = results[0] as List<Ubicacion>;
+          _fullStock = results[1] as List<dynamic>;
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar datos iniciales: ${e.toString()}')),
+          SnackBar(content: Text('Error al cargar datos: ${e.toString()}')),
         );
       }
-      // Relanzamos el error para que el FutureBuilder lo capture
-      rethrow;
     }
   }
 
@@ -65,12 +63,11 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
   void _onUbicacionChanged(Ubicacion? ubicacion) {
     setState(() {
       _selectedUbicacion = ubicacion;
-      _selectedStockItem = null; // Reseteamos el producto seleccionado
-      _quantityController.clear();
+      _selectedStockItem = null;
+      _quantityController.text = '1';
       if (ubicacion != null) {
-        // Filtramos el inventario para obtener solo los productos de la ubicación seleccionada
         _itemsInLocation = _fullStock
-            .where((item) => item['ubicacion']['id_ubicacion'] == ubicacion.id) // Ahora esto funcionará
+            .where((item) => item['ubicacion']['id_ubicacion'] == ubicacion.id)
             .toList();
       } else {
         _itemsInLocation = [];
@@ -81,106 +78,78 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
   void _onStockItemChanged(dynamic item) {
     setState(() {
       _selectedStockItem = item;
-      // Sugerimos la cantidad máxima disponible
-      if (item != null) {
-        _quantityController.text = item['cantidad_actual'].toString();
-      } else {
-        _quantityController.clear();
-      }
+      _quantityController.text = '1';
     });
-  }
-
-  void _incrementQuantity() {
-    if (_selectedStockItem == null) return;
-    final currentQuantity = int.tryParse(_quantityController.text) ?? 0;
-    final maxQuantity = _selectedStockItem!['cantidad_actual'] as int;
-
-    if (currentQuantity < maxQuantity) {
-      setState(() {
-        _quantityController.text = (currentQuantity + 1).toString();
-      });
+    
+    if (item != null) {
+      _showQuantityModal(item);
     }
   }
 
-  void _decrementQuantity() {
-    if (_selectedStockItem == null) return;
-    final currentQuantity = int.tryParse(_quantityController.text) ?? 0;
-
-    if (currentQuantity > 1) {
-      setState(() {
-        _quantityController.text = (currentQuantity - 1).toString();
-      });
-    }
-  }
-
-  // Listener para re-evaluar el estado de los botones cuando el texto cambia manualmente
-  void _onQuantityChanged() {
-    // Usamos setState para forzar una reconstrucción del widget y
-    // que los botones de + y - actualicen su estado (activado/desactivado).
-    setState(() {});
-  }
-
-  void _showConfirmationDialog() {
-    if (!(_formKey.currentState?.validate() ?? false)) {
-      return;
-    }
-
-    final productName = _selectedStockItem['producto_maestro']['nombre'];
-    final quantityToRemove = int.parse(_quantityController.text);
-
-    showDialog(
+  void _showQuantityModal(dynamic item) {
+    final maxQuantity = item['cantidad_actual'] as int;
+    
+    showModalBottomSheet(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Confirmar Salida'),
-        content: Text('¿Seguro que quieres eliminar $quantityToRemove unidad(es) de "$productName"?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancelar'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.of(ctx).pop(); // Cierra el diálogo
-              _submitRemoval(); // Procede con la eliminación
-            },
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.error,
-              foregroundColor: Theme.of(context).colorScheme.onError,
-            ),
-            child: const Text('Confirmar'),
-          ),
-        ],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => QuantitySelectionDialog(
+        title: 'Eliminar "${item['producto_maestro']['nombre']}"',
+        subtitle: 'Ubicación: ${item['ubicacion']['nombre']}',
+        maxQuantity: maxQuantity,
+        onConfirm: (quantity, addToShoppingList) {
+          _submitRemoval(item, quantity, addToShoppingList);
+        },
       ),
     );
   }
 
-  void _submitRemoval() async {
+  Future<void> _submitRemoval(dynamic item, int quantity, bool addToShoppingList) async {
     setState(() => _isLoading = true);
+    final productName = item['producto_maestro']['nombre'];
+    final productId = item['producto_maestro']['id_producto'];
 
     try {
       await removeStockItems(
-        stockId: _selectedStockItem['id_stock'],
-        cantidad: int.parse(_quantityController.text),
+        stockId: item['id_stock'],
+        cantidad: quantity,
       );
+
+      if (addToShoppingList) {
+        try {
+          final hogarId = await HogarService().getHogarActivo();
+          if (hogarId != null) {
+            await ShoppingService().addItem(hogarId, productName, fkProducto: productId);
+          }
+        } catch (e) {
+          debugPrint('Error adding to shopping list: $e');
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Stock actualizado con éxito.'),
-            backgroundColor: Theme.of(context).colorScheme.primary,
+            content: Text(addToShoppingList 
+              ? 'Eliminado y añadido a la lista.' 
+              : 'Stock actualizado.'),
+            backgroundColor: Colors.green,
           ),
         );
-        // Volvemos a la pantalla de inventario y le decimos que refresque (devolviendo true)
-        Navigator.of(context).pop(true);
+        // Recargar datos
+        _loadInitialData();
+        // Limpiar selección
+        setState(() {
+          _selectedStockItem = null;
+          _isLoading = false;
+        });
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
-      }
-    } finally {
-      if (mounted) {
         setState(() => _isLoading = false);
       }
     }
@@ -188,162 +157,134 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    // Estilo unificado para Acción Destructiva (igual que versión de escaneado)
-    final ButtonStyle destructiveActionStyle = FilledButton.styleFrom(
-      backgroundColor: scheme.error,
-      foregroundColor: scheme.onError,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    );
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Salida Manual de Stock'),
+        title: const Text('Salida Manual'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 640),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: FutureBuilder(
-                  future: _initialLoadFuture,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    if (snapshot.hasError) {
-                      return Center(
-                        child: Text('Error al cargar: ${snapshot.error}'),
-                      );
-                    }
-
-                    // Estado actual
-                    final bool isItemSelected = _selectedStockItem != null;
-                    final int currentQuantity =
-                        int.tryParse(_quantityController.text) ?? 0;
-                    final int maxQuantity = isItemSelected
-                        ? _selectedStockItem!['cantidad_actual']
-                        : 0;
-
-                    return Form(
-                      key: _formKey,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          DropdownButtonFormField<Ubicacion>(
-                            value: _selectedUbicacion,
-                            decoration: const InputDecoration(
-                              labelText: 'Selecciona una Ubicación',
-                            ),
-                            items: _ubicaciones
-                                .map((ubicacion) => DropdownMenuItem(
-                                      value: ubicacion,
-                                      child: Text(ubicacion.nombre),
-                                    ))
-                                .toList(),
-                            onChanged: _onUbicacionChanged,
-                            validator: (value) => value == null
-                                ? 'Selecciona una ubicación.'
-                                : null,
-                          ),
-                          const SizedBox(height: 16),
-
-                          DropdownButtonFormField<dynamic>(
-                            value: _selectedStockItem,
-                            decoration: InputDecoration(
-                              labelText: 'Selecciona un Producto',
-                              enabled: _selectedUbicacion != null,
-                            ),
-                            items: _itemsInLocation.map((item) {
-                              final productName =
-                                  item['producto_maestro']['nombre'];
-                              final expiryDate =
-                                  DateTime.parse(item['fecha_caducidad']);
-                              final formattedDate =
-                                  DateFormat('dd/MM/yy').format(expiryDate);
-                              final quantity = item['cantidad_actual'];
-                              return DropdownMenuItem(
-                                value: item,
-                                child: Text(
-                                  '$productName (Cad: $formattedDate, Disp: $quantity)',
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: _onStockItemChanged,
-                            validator: (value) => value == null
-                                ? 'Selecciona un producto.'
-                                : null,
-                            isExpanded: true,
-                          ),
-                          const SizedBox(height: 16),
-
-                          TextFormField(
-                            controller: _quantityController,
-                            textAlign: TextAlign.center,
-                            decoration: InputDecoration(
-                              labelText: 'Cantidad a Eliminar',
-                              enabled: isItemSelected,
-                              prefixIcon: IconButton(
-                                icon:
-                                    const Icon(Icons.remove_circle_outline),
-                                onPressed: isItemSelected && currentQuantity > 1
-                                    ? _decrementQuantity
-                                    : null,
-                              ),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.add_circle_outline),
-                                onPressed: isItemSelected &&
-                                        currentQuantity < maxQuantity
-                                    ? _incrementQuantity
-                                    : null,
-                              ),
-                            ),
-                            onChanged: (value) => _onQuantityChanged(),
-                            keyboardType: TextInputType.number,
-                            validator: (value) {
-                              if (value == null || value.isEmpty) {
-                                return 'Introduce una cantidad.';
-                              }
-                              final quantity = int.tryParse(value);
-                              if (quantity == null || quantity <= 0) {
-                                return 'La cantidad debe ser un número positivo.';
-                              }
-                              if (_selectedStockItem != null &&
-                                  quantity >
-                                      _selectedStockItem['cantidad_actual']) {
-                                return 'No puedes eliminar más de lo disponible (${_selectedStockItem['cantidad_actual']}).';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 32),
-
-                          _isLoading
-                              ? const Center(
-                                  child: CircularProgressIndicator(),
-                                )
-                              : FilledButton.icon(
-                                  onPressed: _selectedStockItem != null
-                                      ? _showConfirmationDialog
-                                      : null,
-                                  icon: const Icon(
-                                      Icons.delete_forever_outlined),
-                                  label: const Text('Eliminar del Inventario'),
-                                      style: destructiveActionStyle,
-                                ),
-                        ],
-                      ),
-                    );
-                  },
-                ),
+      body: _isLoading 
+        ? const Center(child: CircularProgressIndicator())
+        : Column(
+        children: [
+          // Selector de Ubicación
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: DropdownButtonFormField<Ubicacion>(
+              value: _selectedUbicacion,
+              decoration: const InputDecoration(
+                labelText: 'Selecciona Ubicación',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.location_on_outlined),
               ),
+              items: _ubicaciones.map((u) => DropdownMenuItem(
+                value: u,
+                child: Text(u.nombre),
+              )).toList(),
+              onChanged: _onUbicacionChanged,
             ),
           ),
-        ),
+          
+          // Lista de Productos
+          Expanded(
+            child: _selectedUbicacion == null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.touch_app, size: 64, color: Theme.of(context).disabledColor),
+                      const SizedBox(height: 16),
+                      const Text('Elige una ubicación para ver productos'),
+                    ],
+                  ),
+                )
+              : _itemsInLocation.isEmpty
+                ? const Center(child: Text('No hay productos aquí.'))
+                : ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _itemsInLocation.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final item = _itemsInLocation[index];
+                      final name = item['producto_maestro']['nombre'];
+                      final expiry = DateTime.parse(item['fecha_caducidad']);
+                      final fmtExpiry = DateFormat('dd/MM/yy').format(expiry);
+                      final qty = item['cantidad_actual'];
+                      final estado = item['estado_producto'] ?? 'cerrado';
+                      final showBadge = ExpiryUtils.shouldShowStateBadge(estado);
+                      final badgeColor = ExpiryUtils.getStateBadgeColor(estado);
+                      final badgeLabel = ExpiryUtils.getStateLabel(estado);
+                      
+                      return Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: InkWell(
+                          onTap: () => _onStockItemChanged(item),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(Icons.inventory_2, color: Theme.of(context).colorScheme.onPrimaryContainer),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.calendar_today, size: 14, color: Colors.grey[600]),
+                                          const SizedBox(width: 4),
+                                          Text('Cad: $fmtExpiry', style: TextStyle(color: Colors.grey[800], fontSize: 13)),
+                                          const SizedBox(width: 12),
+                                          Icon(Icons.numbers, size: 14, color: Colors.grey[600]),
+                                          const SizedBox(width: 4),
+                                          Text('Cant: $qty', style: TextStyle(color: Colors.grey[800], fontSize: 13)),
+                                          if (showBadge) ...[
+                                            const SizedBox(width: 12),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: badgeColor.withOpacity(0.2),
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: badgeColor, width: 1),
+                                              ),
+                                              child: Text(
+                                                badgeLabel,
+                                                style: TextStyle(
+                                                  color: badgeColor,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Icon(Icons.chevron_right, color: Colors.grey[400]),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

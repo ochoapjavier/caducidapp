@@ -48,8 +48,14 @@ async def get_active_hogar_id(
             )
         x_hogar_id = hogares[0].id_hogar
     
+    # DEBUG LOGGING
+    print(f"DEBUG: Checking access for user {user_id} to hogar {x_hogar_id}")
+    is_member = repo.user_is_member_of_hogar(user_id, x_hogar_id)
+    print(f"DEBUG: is_member result: {is_member}")
+
     # Check if user is a member of this household
-    if not repo.user_is_member_of_hogar(user_id, x_hogar_id):
+    if not is_member:
+        print(f"DEBUG: Access DENIED for user {user_id} to hogar {x_hogar_id}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail=f"No tienes acceso al hogar con ID {x_hogar_id}"

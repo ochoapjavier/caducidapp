@@ -1,101 +1,183 @@
-// frontend/lib/screens/remove_scanned_item_screen.dart
-
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:frontend/services/api_service.dart';
+import 'package:frontend/services/shopping_service.dart';
+import 'package:frontend/services/hogar_service.dart';
+import 'package:frontend/utils/expiry_utils.dart';
+import 'package:intl/intl.dart';
+import 'package:frontend/widgets/quantity_selection_dialog.dart';
 
 class RemoveScannedItemScreen extends StatefulWidget {
-  final String barcode;
-
-  const RemoveScannedItemScreen({super.key, required this.barcode});
+  final String? initialBarcode;
+  const RemoveScannedItemScreen({super.key, this.initialBarcode});
 
   @override
-  State<RemoveScannedItemScreen> createState() =>
-      _RemoveScannedItemScreenState();
+  State<RemoveScannedItemScreen> createState() => _RemoveScannedItemScreenState();
 }
 
 class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _quantityController = TextEditingController();
-
-  late Future<List<dynamic>> _foundItemsFuture;
+  final MobileScannerController _scannerController = MobileScannerController();
+  bool _isScanning = true;
+  bool _isLoading = false;
   List<dynamic> _foundItems = [];
-
-  dynamic _selectedStockItem;
-  var _isLoading = false;
+  String? _scannedBarcode;
 
   @override
   void initState() {
     super.initState();
-    // Buscamos en el inventario todos los items que coincidan con el EAN escaneado.
-    _foundItemsFuture = fetchStockItems(searchTerm: widget.barcode);
+    if (widget.initialBarcode != null) {
+      _isScanning = false;
+      _scannedBarcode = widget.initialBarcode;
+      _isLoading = true;
+      // Trigger search immediately
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _searchByBarcode(widget.initialBarcode!);
+      });
+    }
   }
 
   @override
   void dispose() {
-    _quantityController.dispose();
+    _scannerController.dispose();
     super.dispose();
   }
 
-  void _onStockItemChanged(dynamic item) {
-    setState(() {
-      _selectedStockItem = item;
-      if (item != null) {
-        // Por defecto, sugerimos eliminar 1 unidad.
-        _quantityController.text = '1';
-      } else {
-        _quantityController.clear();
+  Future<void> _searchByBarcode(String code) async {
+    try {
+      // 1. Buscar items con este código de barras en el inventario
+      final allStock = await fetchStockItems(searchTerm: code);
+      
+      // Filtrar por código de barras exacto (por si el search es fuzzy)
+      final exactMatches = allStock.where((item) {
+        final product = item['producto_maestro'];
+        return product != null && product['barcode'] == code;
+      }).toList();
+
+      if (mounted) {
+        setState(() {
+          _foundItems = exactMatches;
+          _isLoading = false;
+        });
+        
+        if (_foundItems.isEmpty) {
+          _showNotFoundDialog();
+        }
       }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al buscar producto: $e')),
+        );
+        // Volver a escanear
+        setState(() => _isScanning = true);
+      }
+    }
+  }
+
+  void _onDetect(BarcodeCapture capture) async {
+    if (!_isScanning) return;
+    
+    final List<Barcode> barcodes = capture.barcodes;
+    if (barcodes.isEmpty) return;
+
+    final String? code = barcodes.first.rawValue;
+    if (code == null) return;
+
+    setState(() {
+      _isScanning = false;
+      _scannedBarcode = code;
+      _isLoading = true;
     });
+
+    await _searchByBarcode(code);
   }
 
-  void _incrementQuantity() {
-    if (_selectedStockItem == null) return;
-    final currentQuantity = int.tryParse(_quantityController.text) ?? 0;
-    final maxQuantity = _selectedStockItem!['cantidad_actual'] as int;
-    if (currentQuantity < maxQuantity) {
-      _quantityController.text = (currentQuantity + 1).toString();
-      setState(() {}); // Para actualizar el estado de los botones
-    }
+  void _showNotFoundDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Producto no encontrado'),
+        content: Text('No tienes stock del producto con código $_scannedBarcode.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                _isScanning = true;
+                _foundItems = [];
+                _scannedBarcode = null;
+              });
+            },
+            child: const Text('Escanear otro'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(), // Salir de la pantalla
+            child: const Text('Salir'),
+          ),
+        ],
+      ),
+    );
   }
 
-  void _decrementQuantity() {
-    final currentQuantity = int.tryParse(_quantityController.text) ?? 0;
-    if (currentQuantity > 1) {
-      _quantityController.text = (currentQuantity - 1).toString();
-      setState(() {}); // Para actualizar el estado de los botones
-    }
+  void _onStockItemSelected(dynamic item) {
+    final maxQuantity = item['cantidad_actual'] as int;
+    
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => QuantitySelectionDialog(
+        title: 'Eliminar "${item['producto_maestro']['nombre']}"',
+        subtitle: 'Ubicación: ${item['ubicacion']['nombre']}',
+        maxQuantity: maxQuantity,
+        onConfirm: (quantity, addToShoppingList) {
+          _submitRemoval(item, quantity, addToShoppingList);
+        },
+      ),
+    );
   }
 
-  void _submitRemoval() async {
-    if (!(_formKey.currentState?.validate() ?? false)) return;
-
+  Future<void> _submitRemoval(dynamic item, int quantity, bool addToShoppingList) async {
     setState(() => _isLoading = true);
+    final productName = item['producto_maestro']['nombre'];
+    final productId = item['producto_maestro']['id_producto'];
 
     try {
       await removeStockItems(
-        stockId: _selectedStockItem['id_stock'],
-        cantidad: int.parse(_quantityController.text),
+        stockId: item['id_stock'],
+        cantidad: quantity,
       );
+
+      if (addToShoppingList) {
+        try {
+          final hogarId = await HogarService().getHogarActivo();
+          if (hogarId != null) {
+            await ShoppingService().addItem(hogarId, productName, fkProducto: productId);
+          }
+        } catch (e) {
+          debugPrint('Error adding to shopping list: $e');
+        }
+      }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Stock actualizado con éxito.'),
-              backgroundColor: Colors.green),
+          SnackBar(
+            content: Text(addToShoppingList 
+              ? 'Eliminado y añadido a la lista.' 
+              : 'Stock actualizado.'),
+            backgroundColor: Colors.green,
+          ),
         );
-        // Cierra esta pantalla y vuelve a la vista de "Eliminar"
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true); // Volver y refrescar
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Error: ${e.toString()}'),
-              backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
-      }
-    } finally {
-      if (mounted) {
         setState(() => _isLoading = false);
       }
     }
@@ -103,163 +185,135 @@ class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    // Estilo unificado para Acción Destructiva (igual en manual y escaneado)
-    final ButtonStyle destructiveActionStyle = FilledButton.styleFrom(
-      backgroundColor: colorScheme.error,
-      foregroundColor: colorScheme.onError,
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-    );
+    if (_isScanning) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Escanear para Salida')),
+        body: MobileScanner(
+          controller: _scannerController,
+          onDetect: _onDetect,
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Salida por Escáner'),
-      ),
-      body: FutureBuilder<List<dynamic>>(
-        future: _foundItemsFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
-            return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(16.0),
-                child: Text(
-                  'No se encontró ningún producto con este código de barras en tu inventario.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
-            );
-          }
-
-          _foundItems = snapshot.data!;
-          // Si solo hay un resultado, lo pre-seleccionamos.
-          if (_foundItems.length == 1 && _selectedStockItem == null) {
-            // Usamos addPostFrameCallback para evitar llamar a setState durante el build.
-            // Esto programa la llamada a _onStockItemChanged para DESPUÉS de que el frame se haya construido.
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              // Verificamos que el widget siga montado por seguridad.
-              if (mounted) _onStockItemChanged(_foundItems.first);
+        title: const Text('Resultados del Escaneo'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            setState(() {
+              _isScanning = true;
+              _foundItems = [];
+              _scannedBarcode = null;
             });
-          }
+          },
+        ),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Text(
+                    'Código: $_scannedBarcode',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                Expanded(
+                  child: ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _foundItems.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 12),
+                    itemBuilder: (context, index) {
+                      final item = _foundItems[index];
+                      final name = item['producto_maestro']['nombre'];
+                      final location = item['ubicacion']['nombre'];
+                      final expiry = DateTime.parse(item['fecha_caducidad']);
+                      final fmtExpiry = DateFormat('dd/MM/yy').format(expiry);
+                      final qty = item['cantidad_actual'];
+                      final estado = item['estado_producto'] ?? 'cerrado';
+                      final showBadge = ExpiryUtils.shouldShowStateBadge(estado);
+                      final badgeColor = ExpiryUtils.getStateBadgeColor(estado);
+                      final badgeLabel = ExpiryUtils.getStateLabel(estado);
 
-          final productName = _foundItems.first['producto_maestro']['nombre'];
-          final brand = _foundItems.first['producto_maestro']['marca'];
-
-          final bool isItemSelected = _selectedStockItem != null;
-          final int currentQuantity = int.tryParse(_quantityController.text) ?? 0;
-          final int maxQuantity = isItemSelected ? _selectedStockItem!['cantidad_actual'] : 0;
-
-          return Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                children: [
-                  // Información del producto (estilizada con Card Material 3)
-                  Card(
-                    elevation: 0,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Row(
-                        children: [
-                          Icon(Icons.label_important_outline, size: 32, color: colorScheme.primary),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                      return Card(
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        child: InkWell(
+                          onTap: () => _onStockItemSelected(item),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Row(
                               children: [
-                                Text(
-                                  productName,
-                                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(context).colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Icon(Icons.qr_code, color: Theme.of(context).colorScheme.onPrimaryContainer),
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  brand ?? 'Marca no disponible',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: colorScheme.onSurfaceVariant,
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        name,
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                       ),
+                                      Text(
+                                        location,
+                                        style: TextStyle(color: Theme.of(context).colorScheme.secondary, fontSize: 14),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Row(
+                                        children: [
+                                          Icon(Icons.calendar_today, size: 14, color: Colors.grey[600]),
+                                          const SizedBox(width: 4),
+                                          Text('Cad: $fmtExpiry', style: TextStyle(color: Colors.grey[800], fontSize: 13)),
+                                          const SizedBox(width: 12),
+                                          Icon(Icons.numbers, size: 14, color: Colors.grey[600]),
+                                          const SizedBox(width: 4),
+                                          Text('Cant: $qty', style: TextStyle(color: Colors.grey[800], fontSize: 13)),
+                                          if (showBadge) ...[
+                                            const SizedBox(width: 12),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(
+                                                color: badgeColor.withOpacity(0.2),
+                                                borderRadius: BorderRadius.circular(4),
+                                                border: Border.all(color: badgeColor, width: 1),
+                                              ),
+                                              child: Text(
+                                                badgeLabel,
+                                                style: TextStyle(
+                                                  color: badgeColor,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
+                                Icon(Icons.chevron_right, color: Colors.grey[400]),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 1. Dropdown para elegir la ubicación/item específico
-                  DropdownButtonFormField<dynamic>(
-                    value: _selectedStockItem,
-                    isExpanded: true,
-                    decoration: const InputDecoration(
-                      labelText: 'Selecciona la ubicación del producto',
-                    ),
-                    items: _foundItems.map((item) {
-                      final locationName = item['ubicacion']['nombre'];
-                      final quantity = item['cantidad_actual'];
-                      return DropdownMenuItem(
-                        value: item,
-                        child: Text('$locationName (Disponibles: $quantity)'),
+                        ),
                       );
-                    }).toList(),
-                    onChanged: _onStockItemChanged,
-                    validator: (value) => value == null ? 'Debes seleccionar una ubicación.' : null,
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 2. Campo de Cantidad (reutilizado de la salida manual)
-                  TextFormField(
-                    controller: _quantityController,
-                    textAlign: TextAlign.center,
-                    decoration: InputDecoration(
-                      labelText: 'Cantidad a Eliminar',
-                      enabled: isItemSelected,
-                      prefixIcon: IconButton(
-                        icon: const Icon(Icons.remove_circle_outline),
-                        onPressed: isItemSelected && currentQuantity > 1 ? _decrementQuantity : null,
-                      ),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.add_circle_outline),
-                        onPressed: isItemSelected && currentQuantity < maxQuantity ? _incrementQuantity : null,
-                      ),
-                    ),
-                    keyboardType: TextInputType.number,
-                    onChanged: (value) => setState(() {}),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return 'Introduce una cantidad.';
-                      final quantity = int.tryParse(value);
-                      if (quantity == null || quantity <= 0) return 'La cantidad debe ser positiva.';
-                      if (isItemSelected && quantity > maxQuantity) {
-                        return 'No puedes eliminar más de lo disponible ($maxQuantity).';
-                      }
-                      return null;
                     },
                   ),
-                  const SizedBox(height: 32),
-
-                  // 3. Botón de Eliminar
-                  if (_isLoading)
-                    const Center(child: CircularProgressIndicator())
-                  else
-                    FilledButton.icon(
-                      onPressed: isItemSelected ? _submitRemoval : null,
-                      icon: const Icon(Icons.delete_forever_outlined),
-                      label: const Text('Eliminar del Inventario'),
-                      style: destructiveActionStyle,
-                    ),
-                ],
-              ),
+                ),
+              ],
             ),
-          );
-        },
-      ),
     );
   }
 }

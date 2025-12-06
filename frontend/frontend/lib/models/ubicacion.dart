@@ -19,4 +19,12 @@ class Ubicacion {
       esCongelador: json['es_congelador'] as bool? ?? false,
     );
   }
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is Ubicacion && other.id == id;
+  }
+
+  @override
+  int get hashCode => id.hashCode;
 }
