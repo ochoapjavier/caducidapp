@@ -209,7 +209,7 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Ubicación: ${item.ubicacion} · Cantidad: ${item.cantidad}',
+                                  'Ubicación: ${item.ubicacion}',
                                   style: textTheme.bodySmall?.copyWith(
                                     color: colorScheme.onSurface.withAlpha((255 * 0.65).round()),
                                   ),
@@ -250,12 +250,6 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
                               Text(
-                                daysDiff < 0 ? 'Caducado' : 'Caduca',
-                                style: textTheme.labelSmall?.copyWith(
-                                  color: colorScheme.onSurface.withAlpha((255 * 0.60).round()),
-                                ),
-                              ),
-                              Text(
                                 '${item.fechaCaducidad.day}/${item.fechaCaducidad.month}/${item.fechaCaducidad.year}',
                                 style: textTheme.bodyMedium?.copyWith(
                                   color: statusColor,
@@ -264,22 +258,47 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                                 ),
                               ),
                               const SizedBox(height: 4),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: statusColor.withAlpha((255 * 0.12).round()),
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  statusLabel,
-                                  style: textTheme.labelSmall?.copyWith(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.w600,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  // Badge de Estado (Urgente, Próximo...)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: statusColor.withAlpha((255 * 0.12).round()),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      statusLabel,
+                                      style: textTheme.labelSmall?.copyWith(
+                                        color: statusColor,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(width: 6),
+                                  // Badge de Cantidad
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: statusColor, // Fondo sólido con el color de urgencia
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      'x${item.cantidad}',
+                                      style: textTheme.labelSmall?.copyWith(
+                                        color: Colors.white, // Texto blanco para contraste
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 8),
                               IconButton(

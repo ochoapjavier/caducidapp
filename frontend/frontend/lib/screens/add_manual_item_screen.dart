@@ -29,6 +29,7 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
 
   // State
   int? _selectedUbicacionId;
+  int? _selectedProductId; // Nuevo campo para guardar el ID del producto seleccionado
   DateTime? _selectedDate;
   String? _originalProductName;
   String? _originalBrand;
@@ -216,6 +217,7 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
     try {
       await addManualStockItem(
         productName: _productNameController.text,
+        productId: _selectedProductId, // Pasamos el ID del producto seleccionado
         brand: _brandController.text.isNotEmpty ? _brandController.text : null,
         barcode:
             _barcodeController.text.isNotEmpty ? _barcodeController.text : null,
@@ -285,15 +287,91 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
                           style: TextStyle(color: Colors.grey),
                         ),
                       ),
-                      TextFormField(
-                        controller: _productNameController,
-                        decoration: const InputDecoration(
-                            labelText: 'Nombre del Producto *'),
-                        textCapitalization: TextCapitalization.sentences,
-                        validator: (value) => (value == null ||
-                                value.trim().isEmpty)
-                            ? 'Introduce un nombre.'
-                            : null,
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          return Autocomplete<Map<String, dynamic>>(
+                            optionsBuilder: (TextEditingValue textEditingValue) async {
+                              if (textEditingValue.text.length < 2) {
+                                return const Iterable<Map<String, dynamic>>.empty();
+                              }
+                              try {
+                                return await fetchMasterProducts(textEditingValue.text);
+                              } catch (e) {
+                                debugPrint('Error fetching suggestions: $e');
+                                return const Iterable<Map<String, dynamic>>.empty();
+                              }
+                            },
+                            displayStringForOption: (option) => option['nombre'],
+                            fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                              // Sincronizar el controlador interno del Autocomplete con nuestro controlador del formulario
+                              if (textEditingController.text != _productNameController.text) {
+                                textEditingController.text = _productNameController.text;
+                              }
+                              
+                              // Escuchar cambios para actualizar nuestro controlador principal
+                              // Esto es necesario porque el Autocomplete usa su propio controller
+                              textEditingController.addListener(() {
+                                _productNameController.text = textEditingController.text;
+                              });
+
+                              return TextFormField(
+                                controller: textEditingController,
+                                focusNode: focusNode,
+                                decoration: const InputDecoration(
+                                  labelText: 'Nombre del Producto *',
+                                  suffixIcon: Icon(Icons.search),
+                                ),
+                                textCapitalization: TextCapitalization.sentences,
+                                validator: (value) => (value == null || value.trim().isEmpty)
+                                    ? 'Introduce un nombre.'
+                                    : null,
+                                onFieldSubmitted: (String value) {
+                                  onFieldSubmitted();
+                                },
+                              );
+                            },
+                            onSelected: (Map<String, dynamic> selection) {
+                              setState(() {
+                                _productNameController.text = selection['nombre'];
+                                if (selection['marca'] != null) {
+                                  _brandController.text = selection['marca'];
+                                }
+                                if (selection['barcode'] != null) {
+                                  _barcodeController.text = selection['barcode'];
+                                }
+                                if (selection['id_producto'] != null) {
+                                  _selectedProductId = selection['id_producto'];
+                                }
+                              });
+                            },
+                            optionsViewBuilder: (context, onSelected, options) {
+                              return Align(
+                                alignment: Alignment.topLeft,
+                                child: Material(
+                                  elevation: 4.0,
+                                  child: SizedBox(
+                                    width: constraints.maxWidth,
+                                    child: ListView.builder(
+                                      padding: EdgeInsets.zero,
+                                      shrinkWrap: true,
+                                      itemCount: options.length,
+                                      itemBuilder: (BuildContext context, int index) {
+                                        final option = options.elementAt(index);
+                                        return ListTile(
+                                          title: Text(option['nombre']),
+                                          subtitle: option['marca'] != null ? Text(option['marca']) : null,
+                                          onTap: () {
+                                            onSelected(option);
+                                          },
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        },
                       ),
                       const SizedBox(height: 16),
                       TextFormField(

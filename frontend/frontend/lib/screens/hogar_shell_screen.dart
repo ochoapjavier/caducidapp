@@ -65,19 +65,22 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
-            ),
+            if (theme.brightness == Brightness.light)
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
           ],
         ),
         child: NavigationBar(
           selectedIndex: _selectedIndex,
           onDestinationSelected: _onItemTapped,
-          backgroundColor: Colors.white,
+          backgroundColor: theme.brightness == Brightness.dark 
+              ? const Color(0xFF0F172A) // Slate 900 matches dark theme surface
+              : Colors.white,
           elevation: 0,
-          indicatorColor: theme.colorScheme.primary.withOpacity(0.1),
+          indicatorColor: theme.colorScheme.primary.withOpacity(0.15),
           destinations: const [
             NavigationDestination(
               icon: Icon(Icons.dashboard_outlined),
@@ -97,7 +100,7 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
             NavigationDestination(
               icon: Icon(Icons.person_outline),
               selectedIcon: Icon(Icons.person),
-              label: 'Perfil',
+              label: 'Cuenta',
             ),
           ],
         ),

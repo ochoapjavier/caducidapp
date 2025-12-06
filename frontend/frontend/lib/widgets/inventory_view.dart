@@ -156,11 +156,15 @@ class InventoryViewState extends State<InventoryView> {
     final stockId = item['id_stock'];
     final productName = item['producto_maestro']['nombre'];
     final currentQuantity = item['cantidad_actual'];
+    final int? defaultDiasConsumo = item['producto_maestro']['dias_consumo_abierto'];
     
     int quantity = 1;
-    int diasVidaUtil = 4;
+    // Si hay un valor por defecto, lo usamos y desactivamos "mantener fecha" por defecto.
+    // Si no, usamos 4 días y mantenemos la fecha original por defecto.
+    int diasVidaUtil = defaultDiasConsumo ?? 4;
+    bool mantenerFechaCaducidad = defaultDiasConsumo == null;
+    
     int? selectedLocationId;
-    bool mantenerFechaCaducidad = true;
     
     final colorScheme = Theme.of(context).colorScheme;
     
@@ -295,6 +299,21 @@ class InventoryViewState extends State<InventoryView> {
                       fontStyle: FontStyle.italic,
                       color: colorScheme.primary,
                     ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      Icon(Icons.info_outline, size: 14, color: colorScheme.secondary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          defaultDiasConsumo != null && defaultDiasConsumo == diasVidaUtil
+                              ? 'Usando tu preferencia guardada para este producto.'
+                              : 'Este valor se guardará como preferencia para la próxima vez.',
+                          style: TextStyle(fontSize: 11, color: colorScheme.secondary),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ],

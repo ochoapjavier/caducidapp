@@ -41,16 +41,6 @@ Future<Map<String, String>> _getAuthHeaders() async {
     headers['X-Hogar-Id'] = hogarActivo.toString();
   }
   
-  // DEBUG: Imprimir headers para depuración
-  debugPrint('--- API REQUEST HEADERS ---');
-  debugPrint('Authorization: Bearer ${idToken?.substring(0, 10) ?? "null"}...');
-  if (headers.containsKey('X-Hogar-Id')) {
-    debugPrint('X-Hogar-Id: ${headers['X-Hogar-Id']}');
-  } else {
-    debugPrint('X-Hogar-Id: NOT PRESENT');
-  }
-  debugPrint('---------------------------');
-  
   return headers;
 }
 
@@ -199,6 +189,23 @@ Future<void> updateProductInCatalog({
 
   if (response.statusCode != 200) {
     throw Exception('Error al actualizar el producto en el catálogo: ${response.statusCode}');
+  }
+}
+
+/// Busca productos maestros por nombre (para autocompletado).
+Future<List<Map<String, dynamic>>> fetchMasterProducts(String query) async {
+  final headers = await _getAuthHeaders();
+  final response = await http.get(
+    Uri.parse('$apiUrl/products/search?query=$query'),
+    headers: headers,
+  );
+
+  if (response.statusCode == 200) {
+    debugPrint('API Response: ${response.body}'); // DEBUG
+    final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+    return data.cast<Map<String, dynamic>>();
+  } else {
+    throw Exception('Error al buscar productos: ${response.statusCode}');
   }
 }
 

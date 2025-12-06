@@ -94,6 +94,7 @@ class Product(Base):
     nombre = Column(String(255), nullable=False, index=True)
     marca = Column(String(100), nullable=True)
     image_url = Column(String(512), nullable=True)
+    dias_consumo_abierto = Column(Integer, nullable=True)  # Default days to consume after opening
     hogar_id = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
     __table_args__ = (
         UniqueConstraint('barcode', 'hogar_id', name='producto_barcode_hogar_unique'),
