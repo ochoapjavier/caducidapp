@@ -7,6 +7,10 @@ class ProductRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    def get_by_id(self, product_id: int) -> Product | None:
+        """Get a product by its ID."""
+        return self.db.query(Product).filter(Product.id_producto == product_id).first()
+
     def get_or_create_by_name(self, name: str, hogar_id: int) -> Product:
         """Get or create a product by name within a household (for products without barcode)."""
         # Case-insensitive search for household products without a barcode
@@ -69,3 +73,15 @@ class ProductRepository:
             self.db.commit()
             self.db.refresh(product)
         return product
+
+    def search_by_name(self, query: str, hogar_id: int, limit: int = 10) -> list[Product]:
+        """Search products by name (case-insensitive) within a household."""
+        return (
+            self.db.query(Product)
+            .filter(
+                Product.hogar_id == hogar_id,
+                func.lower(Product.nombre).contains(func.lower(query))
+            )
+            .limit(limit)
+            .all()
+        )

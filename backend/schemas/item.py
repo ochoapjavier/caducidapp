@@ -5,6 +5,7 @@ from datetime import date
 class StockItemCreate(BaseModel):
     """Request: crear un nuevo item de stock en el inventario."""
     product_name: str
+    product_id: int | None = None
     barcode: str | None = None
     brand: str | None = None
     image_url: str | None = None
@@ -60,7 +61,9 @@ class ProductSchema(BaseModel):
     id_producto: int
     nombre: str
     marca: str | None = None
+    barcode: str | None = None
     image_url: str | None = None
+    dias_consumo_abierto: int | None = None
     model_config = ConfigDict(from_attributes=True)
 
 class LocationSchema(BaseModel):

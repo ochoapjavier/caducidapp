@@ -40,3 +40,19 @@ def update_product_by_barcode(
     if not updated_product:
         raise HTTPException(status_code=404, detail="No se pudo actualizar. Producto no encontrado.")
     return updated_product
+    return updated_product
+
+@router.get("/search", response_model=list[ProductSchema])
+def search_products(
+    query: str,
+    db: Session = Depends(get_db),
+    hogar_id: int = Depends(get_active_hogar_id)
+):
+    """Search products by name in the household."""
+    repo = ProductRepository(db)
+    # Asumimos que el repositorio tiene un método search_by_name o similar.
+    # Si no, lo implementaremos en el repositorio también.
+    # Por ahora, usaremos una consulta directa si el repo no lo soporta, 
+    # pero lo ideal es usar el repo.
+    # Vamos a verificar el repo primero.
+    return repo.search_by_name(query, hogar_id)

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../models/hogar.dart';
 import '../services/api_service.dart';
+import 'shopping_list_screen.dart';
 
 class HogarDetalleScreen extends StatefulWidget {
   final int hogarId;
@@ -420,6 +421,7 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
             ),
         ],
       ),
+
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null

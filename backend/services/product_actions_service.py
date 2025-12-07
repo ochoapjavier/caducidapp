@@ -81,6 +81,11 @@ class ProductActionsService:
         else:
             self.db.commit()
         
+        # Update master product with the new default shelf life
+        if dias_vida_util > 0:
+            original_item.producto_maestro.dias_consumo_abierto = dias_vida_util
+            self.db.add(original_item.producto_maestro)
+
         # Create new opened item
         new_item = InventoryStock(
             hogar_id=hogar_id,
