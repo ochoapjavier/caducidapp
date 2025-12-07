@@ -54,6 +54,9 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('Inventario'),
+      ),
       body: InventoryView(
         key: _inventoryViewKey,
         onAddItem: _showAddItemModal,

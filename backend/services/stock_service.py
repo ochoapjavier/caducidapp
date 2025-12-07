@@ -7,6 +7,7 @@ from repositories.stock_repository import StockRepository
 from schemas.item import StockItemCreate, StockItemCreateFromScan, StockItem
 from schemas.stock_update import StockUpdate
 from typing import List
+from datetime import datetime
 
 class StockService:
     def __init__(self, db: Session):
@@ -60,12 +61,21 @@ class StockService:
             new_stock_item = self.stock_repo.update_stock_item(existing_stock_item)
         else:
             # If not exists, create new entry
+            estado_producto = 'cerrado'
+            fecha_congelacion = None
+            
+            if ubicacion.es_congelador:
+                estado_producto = 'congelado'
+                fecha_congelacion = datetime.utcnow().date()
+
             new_stock_item = self.stock_repo.create_stock_item(
                 hogar_id=hogar_id,
                 fk_producto_maestro=producto_maestro.id_producto,
                 fk_ubicacion=ubicacion.id_ubicacion,
                 cantidad_actual=item_data.cantidad,
-                fecha_caducidad=item_data.fecha_caducidad
+                fecha_caducidad=item_data.fecha_caducidad,
+                estado_producto=estado_producto,
+                fecha_congelacion=fecha_congelacion
             )
         
         # Return complete response object
@@ -101,12 +111,21 @@ class StockService:
             new_stock_item = self.stock_repo.update_stock_item(existing_stock_item)
         else:
             # If not exists, create new entry
+            estado_producto = 'cerrado'
+            fecha_congelacion = None
+            
+            if ubicacion.es_congelador:
+                estado_producto = 'congelado'
+                fecha_congelacion = datetime.utcnow().date()
+
             new_stock_item = self.stock_repo.create_stock_item(
                 hogar_id=hogar_id,
                 fk_producto_maestro=producto_maestro.id_producto,
                 fk_ubicacion=ubicacion.id_ubicacion,
                 cantidad_actual=item_data.cantidad,
-                fecha_caducidad=item_data.fecha_caducidad
+                fecha_caducidad=item_data.fecha_caducidad,
+                estado_producto=estado_producto,
+                fecha_congelacion=fecha_congelacion
             )
         
         # Return complete response object

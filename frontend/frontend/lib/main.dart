@@ -132,8 +132,11 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return SafeArea(
-      child: RefreshIndicator(
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Inicio'),
+      ),
+      body: RefreshIndicator(
         onRefresh: () async {
           setState(() {
             futureAlertas = _loadAlertas();
@@ -452,7 +455,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Gestión de Caducidades',
+      title: 'Xpiry',
       theme: AppTheme.lightTheme,
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,

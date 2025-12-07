@@ -1,15 +1,18 @@
 {
-    "name": "CaducidApp - Control de Caducidades",
-    "short_name": "CaducidApp",
+    "name": "Xpiry - Control de Caducidades",
+    "short_name": "Xpiry",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "#FFFFFF",
-    "theme_color": "#6750A4",
+    "background_color": "#7C3AED",
+    "theme_color": "#7C3AED",
     "description": "Gestiona el inventario de tu hogar y controla las fechas de caducidad de tus productos.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "scope": "/",
-    "categories": ["productivity", "lifestyle"],
+    "categories": [
+        "productivity",
+        "lifestyle"
+    ],
     "icons": [
         {
             "src": "icons/Icon-192.png",
