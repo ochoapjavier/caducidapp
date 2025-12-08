@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/utils/expiry_utils.dart'; // Utilidades centralizadas para lógica de caducidad
+import 'package:frontend/utils/error_handler.dart';
 import 'package:frontend/widgets/quantity_selection_dialog.dart';
 import 'package:frontend/services/shopping_service.dart';
 import 'package:frontend/services/hogar_service.dart';
+import 'package:frontend/widgets/error_view.dart';
 
 // Eliminado _isLoading (no se usaba)
 
@@ -137,9 +139,7 @@ class InventoryViewState extends State<InventoryView> {
             }
           } catch (e) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
-              );
+              ErrorHandler.showError(context, e);
             }
           }
         },
@@ -359,12 +359,7 @@ class InventoryViewState extends State<InventoryView> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: colorScheme.error,
-            ),
-          );
+          ErrorHandler.showError(context, e);
         }
       }
     }
@@ -544,12 +539,7 @@ class InventoryViewState extends State<InventoryView> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: colorScheme.error,
-            ),
-          );
+          ErrorHandler.showError(context, e);
         }
       }
     }
@@ -749,12 +739,7 @@ class InventoryViewState extends State<InventoryView> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: colorScheme.error,
-            ),
-          );
+          ErrorHandler.showError(context, e);
         }
       }
     }
@@ -887,12 +872,7 @@ class InventoryViewState extends State<InventoryView> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $e'),
-              backgroundColor: colorScheme.error,
-            ),
-          );
+          ErrorHandler.showError(context, e);
         }
       }
     }
@@ -1004,7 +984,12 @@ class InventoryViewState extends State<InventoryView> {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
+                  return ErrorView(
+                    error: snapshot.error!,
+                    onRetry: () {
+                      refreshInventory();
+                    },
+                  );
                 }
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
                   return const Center(child: Text('No hay productos en tu inventario.'));

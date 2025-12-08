@@ -6,6 +6,7 @@ import '../services/notification_service.dart';
 import '../services/hogar_service.dart';
 import 'hogar_selector_screen.dart';
 import 'settings_screen.dart'; // Para reutilizar lógica o migrarla
+import 'locations_management_screen.dart';
 import '../services/theme_service.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -203,6 +204,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
             clipBehavior: Clip.antiAlias,
             child: Column(
               children: [
+                ListTile(
+                  leading: const Icon(Icons.location_on_outlined),
+                  title: const Text('Mis Ubicaciones'),
+                  subtitle: const Text('Gestionar despensas, neveras...'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => LocationsManagementScreen(hogarId: widget.hogarId),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.home_work_outlined),
                   title: const Text('Cambiar de Hogar'),

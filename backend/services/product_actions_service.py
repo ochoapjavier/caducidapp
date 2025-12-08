@@ -43,6 +43,10 @@ class ProductActionsService:
         if not original_item:
             raise HTTPException(status_code=404, detail="Item de stock no encontrado")
         
+        # Capture master product reference BEFORE any modification/deletion
+        # This prevents DetachedInstanceError if original_item is deleted
+        master_product = original_item.producto_maestro
+        
         # Validate quantity
         if original_item.cantidad_actual < cantidad:
             raise HTTPException(
@@ -82,14 +86,16 @@ class ProductActionsService:
             self.db.commit()
         
         # Update master product with the new default shelf life
+        # Use the captured master_product reference
         if dias_vida_util > 0:
-            original_item.producto_maestro.dias_consumo_abierto = dias_vida_util
-            self.db.add(original_item.producto_maestro)
+            master_product.dias_consumo_abierto = dias_vida_util
+            self.db.add(master_product)
+            self.db.commit() # Ensure this change is saved
 
         # Create new opened item
         new_item = InventoryStock(
             hogar_id=hogar_id,
-            fk_producto_maestro=original_item.fk_producto_maestro,
+            fk_producto_maestro=master_product.id_producto,
             fk_ubicacion=target_location_id,
             cantidad_actual=cantidad,
             fecha_caducidad=new_expiration,

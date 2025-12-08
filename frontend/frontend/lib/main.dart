@@ -22,6 +22,7 @@ import 'services/hogar_service.dart';
 import 'widgets/quantity_selection_dialog.dart';
 import 'services/shopping_service.dart';
 import 'services/theme_service.dart';
+import 'widgets/error_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -149,15 +150,13 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             } else if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Text(
-                    'Error al conectar: ${snapshot.error}.\n(Verifica Docker y CORS)',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Theme.of(context).colorScheme.error),
-                  ),
-                ),
+              return ErrorView(
+                error: snapshot.error!,
+                onRetry: () {
+                  setState(() {
+                    futureAlertas = _loadAlertas();
+                  });
+                },
               );
             } else if (snapshot.hasData && snapshot.data!.isNotEmpty) {
               return ListView.separated(

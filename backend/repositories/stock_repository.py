@@ -95,7 +95,10 @@ class StockRepository:
 
     def get_stock_item_by_id_and_hogar(self, id_stock: int, hogar_id: int) -> InventoryStock | None:
         """Get stock item by ID within a household."""
-        return self.db.query(InventoryStock).filter(
+        return self.db.query(InventoryStock).options(
+            joinedload(InventoryStock.producto_maestro),
+            joinedload(InventoryStock.ubicacion)
+        ).filter(
             InventoryStock.id_stock == id_stock,
             InventoryStock.hogar_id == hogar_id
         ).first()
