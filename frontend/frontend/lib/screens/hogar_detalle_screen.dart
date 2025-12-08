@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/hogar.dart';
 import '../services/api_service.dart';
 import 'shopping_list_screen.dart';
+import '../widgets/error_view.dart';
 
 class HogarDetalleScreen extends StatefulWidget {
   final int hogarId;
@@ -425,23 +426,9 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                        const SizedBox(height: 16),
-                        Text('Error: $_error'),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _loadDetalles,
-                          child: const Text('Reintentar'),
-                        ),
-                      ],
-                    ),
-                  ),
+              ? ErrorView(
+                  error: _error!,
+                  onRetry: _loadDetalles,
                 )
               : RefreshIndicator(
                   onRefresh: _loadDetalles,

@@ -6,6 +6,7 @@ import '../models/ubicacion.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../widgets/magic_move_dialog.dart';
+import '../widgets/error_view.dart';
 
 class ShoppingListScreen extends StatefulWidget {
   final int hogarId;
@@ -21,6 +22,7 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
   final TextEditingController _itemController = TextEditingController();
   List<ShoppingListItem> _items = [];
   bool _isLoading = true;
+  Object? _error;
   Timer? _debounce;
 
   @override
@@ -40,14 +42,14 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
       setState(() {
         _items = items;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
-      setState(() => _isLoading = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar la lista: $e')),
-        );
-      }
+      setState(() {
+        _isLoading = false;
+        _error = e;
+      });
+      // No mostramos SnackBar si ya mostramos la pantalla de error
     }
   }
 
@@ -210,7 +212,12 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : ListView(
+                : _error != null
+                    ? ErrorView(
+                        error: _error!,
+                        onRetry: _loadItems,
+                      )
+                    : ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     children: [
                       if (pendingItems.isNotEmpty) ...[

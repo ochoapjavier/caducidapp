@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/location_service.dart';
+import '../widgets/error_view.dart';
 
 class LocationsManagementScreen extends StatefulWidget {
   final int hogarId;
@@ -14,6 +15,7 @@ class _LocationsManagementScreenState extends State<LocationsManagementScreen> {
   final LocationService _locationService = LocationService();
   List<Location> _locations = [];
   bool _isLoading = true;
+  Object? _error;
 
   @override
   void initState() {
@@ -27,13 +29,14 @@ class _LocationsManagementScreenState extends State<LocationsManagementScreen> {
       setState(() {
         _locations = locations;
         _isLoading = false;
+        _error = null;
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar ubicaciones: $e')),
-        );
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+          _error = e;
+        });
       }
     }
   }
@@ -149,20 +152,25 @@ class _LocationsManagementScreenState extends State<LocationsManagementScreen> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : _locations.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.location_off_outlined, size: 64, color: Colors.grey[400]),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No hay ubicaciones creadas',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey),
-                      ),
-                    ],
-                  ),
+          : _error != null
+              ? ErrorView(
+                  error: _error!,
+                  onRetry: _loadLocations,
                 )
+              : _locations.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.location_off_outlined, size: 64, color: Colors.grey[400]),
+                          const SizedBox(height: 16),
+                          Text(
+                            'No hay ubicaciones creadas',
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey),
+                          ),
+                        ],
+                      ),
+                    )
               : ListView.separated(
                   padding: const EdgeInsets.all(16),
                   itemCount: _locations.length,

@@ -1,6 +1,7 @@
 // frontend/lib/services/api_service.dart
 
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import '../models/alerta.dart';
 import '../models/ubicacion.dart';
 import '../models/hogar.dart';
 import 'hogar_service.dart';
+import 'app_exceptions.dart';
 
 // --- 2. GESTIÓN DE ENTORNO AUTOMÁTICA ---
 // Usa la IP de tu máquina en la red local para pruebas en dispositivo físico.
@@ -21,12 +23,56 @@ const String apiPrefix = '/api/v1/inventory';
 const String apiUrl = '$baseUrl$apiPrefix';
 const String apiV1Url = '$baseUrl/api/v1'; // Base para otros servicios (ej. notificaciones)
 
-// Función auxiliar para obtener las cabeceras con el token de autenticación
+// Wrapper global para manejar excepciones de red y servidor
+Future<T> safeApiCall<T>(Future<T> Function() apiCall) async {
+  try {
+    return await apiCall();
+  } on SocketException {
+    throw NetworkException('No hay conexión a internet (Socket)');
+  } on http.ClientException catch (e) {
+    // Captura errores de conexión en Web (CORS, servidor caído, sin internet)
+    debugPrint('ClientException caught: $e');
+    throw NetworkException('No hay conexión a internet o servidor inaccesible');
+  } on FormatException catch (_) {
+    throw ServerException('Respuesta inválida del servidor');
+  } catch (e) {
+    // Si ya es una de nuestras excepciones, la dejamos pasar
+    if (e is AppException) rethrow;
+    // Si no, la empaquetamos como desconocida o servidor
+    debugPrint('Unknown exception in safeApiCall: $e');
+    throw ServerException('Error inesperado: $e');
+  }
+}
+
+// Helper para procesar respuestas HTTP y lanzar excepciones personalizadas
+dynamic _processResponse(http.Response response) {
+  switch (response.statusCode) {
+    case 200:
+    case 201:
+      // Si el cuerpo está vacío, devolvemos null o mapa vacío según convenga
+      if (response.body.isEmpty) return {};
+      return json.decode(utf8.decode(response.bodyBytes));
+    case 400:
+      final body = json.decode(utf8.decode(response.bodyBytes));
+      throw ValidationException(body['detail'] ?? 'Datos inválidos');
+    case 401:
+    case 403:
+      throw AuthException('Sesión expirada o sin permisos');
+    case 404:
+      // A veces 404 es un resultado válido (ej. buscar producto), 
+      // pero por defecto lo tratamos como excepción si no se maneja antes.
+      throw ValidationException('Recurso no encontrado'); 
+    case 500:
+    default:
+      throw ServerException('Error del servidor (${response.statusCode})');
+  }
+}
+
 // Función auxiliar para obtener las cabeceras con el token de autenticación
 Future<Map<String, String>> getAuthHeaders() async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
-    throw Exception('Usuario no autenticado. No se puede realizar la petición.');
+    throw AuthException('Usuario no autenticado. No se puede realizar la petición.');
   }
   final idToken = await user.getIdToken();
   
@@ -47,82 +93,72 @@ Future<Map<String, String>> getAuthHeaders() async {
 
 // Función asíncrona para obtener las alertas de caducidad (Future)
 Future<List<AlertaItem>> fetchAlertas() async {
-  final headers = await getAuthHeaders();
-  final response = await http.get(Uri.parse('$apiUrl/alertas/proxima-semana'), headers: headers);
-
-  if (response.statusCode == 200) {
-    final Map<String, dynamic> jsonBody = json.decode(response.body);
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(Uri.parse('$apiUrl/alertas/proxima-semana'), headers: headers);
+    final jsonBody = _processResponse(response);
     final List<dynamic> rawList = jsonBody['productos_proximos_a_caducar'];
     return rawList.map((json) => AlertaItem.fromJson(json)).toList();
-  } else {
-    throw Exception('Error al cargar alertas: Código ${response.statusCode}. Asegúrate que el backend esté corriendo.');
-  }
+  });
 }
 
 // Nueva función: Obtener todas las ubicaciones (GET /ubicaciones/)
 Future<List<Ubicacion>> fetchUbicaciones() async {
-  final headers = await getAuthHeaders();
-  final response = await http.get(Uri.parse('$apiUrl/ubicaciones/'), headers: headers);
-
-  if (response.statusCode == 200) {
-    final List<dynamic> jsonList = json.decode(response.body);
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(Uri.parse('$apiUrl/ubicaciones/'), headers: headers);
+    final List<dynamic> jsonList = _processResponse(response);
     return jsonList.map((json) => Ubicacion.fromJson(json)).toList();
-  } else {
-    throw Exception('Error al cargar ubicaciones. Código de estado: ${response.statusCode}');
-  }
+  });
 }
 
 // Nueva función: Crear una ubicación (POST /ubicaciones/)
 Future<void> createUbicacion(String nombre, {bool esCongelador = false}) async {
-  final headers = await getAuthHeaders();
-  final response = await http.post(
-    Uri.parse('$apiUrl/ubicaciones/'),
-    headers: headers,
-    body: jsonEncode(<String, dynamic>{
-      'nombre': nombre,
-      'es_congelador': esCongelador,
-    }),
-  );
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    final errorBody = json.decode(response.body);
-    throw Exception(errorBody['detail']?? 'Error desconocido al crear ubicación');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/ubicaciones/'),
+      headers: headers,
+      body: jsonEncode(<String, dynamic>{
+        'nombre': nombre,
+        'es_congelador': esCongelador,
+      }),
+    );
+    _processResponse(response);
+  });
 }
 
 // Función para eliminar una ubicación (DELETE /ubicaciones/{id})
 Future<void> deleteUbicacion(int id) async {
-  final headers = await getAuthHeaders();
-  final response = await http.delete(
-    Uri.parse('$apiUrl/ubicaciones/$id'),
-    headers: headers,
-  );
-
-  if (response.statusCode != 200) {
-    final errorBody = json.decode(response.body);
-    throw Exception(errorBody['detail'] ?? 'Error desconocido al eliminar la ubicación.');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.delete(
+      Uri.parse('$apiUrl/ubicaciones/$id'),
+      headers: headers,
+    );
+    if (response.statusCode != 200) {
+       _processResponse(response); // Will throw exception
+    }
+  });
 }
 
 // Función para actualizar una ubicación (PUT /ubicaciones/{id})
 Future<void> updateUbicacion(int id, String newName, {bool? esCongelador}) async {
-  final headers = await getAuthHeaders();
-  
-  final Map<String, dynamic> body = {'nombre': newName};
-  if (esCongelador != null) {
-    body['es_congelador'] = esCongelador;
-  }
-  
-  final response = await http.put(
-    Uri.parse('$apiUrl/ubicaciones/$id'),
-    headers: headers,
-    body: jsonEncode(body),
-  );
-
-  if (response.statusCode != 200) {
-    final errorBody = json.decode(response.body);
-    throw Exception(errorBody['detail'] ?? 'Error desconocido al actualizar la ubicación.');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    
+    final Map<String, dynamic> body = {'nombre': newName};
+    if (esCongelador != null) {
+      body['es_congelador'] = esCongelador;
+    }
+    
+    final response = await http.put(
+      Uri.parse('$apiUrl/ubicaciones/$id'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    _processResponse(response);
+  });
 }
 
 /// Añade un nuevo item de stock al inventario del usuario.
@@ -136,40 +172,35 @@ Future<void> addManualStockItem({
   required int cantidad,
   required DateTime fechaCaducidad,
 }) async {
-  final headers = await getAuthHeaders();
-  final response = await http.post(
-    Uri.parse('$apiUrl/stock/manual'),
-    headers: headers,
-    body: jsonEncode({
-      'product_name': productName,
-      'product_id': productId,
-      'brand': brand,
-      'barcode': barcode,
-      'image_url': imageUrl,
-      'ubicacion_id': ubicacionId,
-      'cantidad': cantidad,
-      'fecha_caducidad': fechaCaducidad.toIso8601String().split('T').first,
-    }),
-  );
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    final errorBody = json.decode(response.body);
-    throw Exception(errorBody['detail'] ?? 'Error desconocido al añadir el producto.');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/stock/manual'),
+      headers: headers,
+      body: jsonEncode({
+        'product_name': productName,
+        'product_id': productId,
+        'brand': brand,
+        'barcode': barcode,
+        'image_url': imageUrl,
+        'ubicacion_id': ubicacionId,
+        'cantidad': cantidad,
+        'fecha_caducidad': fechaCaducidad.toIso8601String().split('T').first,
+      }),
+    );
+    _processResponse(response);
+  });
 }
 
 /// Busca un producto en nuestro catálogo por su código de barras.
 Future<Map<String, dynamic>?> fetchProductFromCatalog(String barcode) async {
-  final headers = await getAuthHeaders();
-  final response = await http.get(Uri.parse('$apiUrl/products/by-barcode/$barcode'), headers: headers);
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(Uri.parse('$apiUrl/products/by-barcode/$barcode'), headers: headers);
 
-  if (response.statusCode == 200) {
-    return json.decode(utf8.decode(response.bodyBytes));
-  }
-  if (response.statusCode == 404) {
-    return null;
-  }
-  throw Exception('Error al buscar producto en el catálogo: ${response.statusCode}');
+    if (response.statusCode == 404) return null;
+    return _processResponse(response);
+  });
 }
 
 /// Actualiza el nombre/marca de un producto en el catálogo maestro.
@@ -178,40 +209,36 @@ Future<void> updateProductInCatalog({
   required String name,
   String? brand,
 }) async {
-  final headers = await getAuthHeaders();
-  final response = await http.put(
-    Uri.parse('$apiUrl/products/by-barcode/$barcode'),
-    headers: headers,
-    body: jsonEncode({
-      'nombre': name,
-      'marca': brand,
-    }),
-  );
-
-  if (response.statusCode != 200) {
-    throw Exception('Error al actualizar el producto en el catálogo: ${response.statusCode}');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.put(
+      Uri.parse('$apiUrl/products/by-barcode/$barcode'),
+      headers: headers,
+      body: jsonEncode({
+        'nombre': name,
+        'marca': brand,
+      }),
+    );
+    _processResponse(response);
+  });
 }
 
 /// Busca productos maestros por nombre (para autocompletado).
 Future<List<Map<String, dynamic>>> fetchMasterProducts(String query) async {
-  final headers = await getAuthHeaders();
-  final response = await http.get(
-    Uri.parse('$apiUrl/products/search?query=$query'),
-    headers: headers,
-  );
-
-  if (response.statusCode == 200) {
-    debugPrint('API Response: ${response.body}'); // DEBUG
-    final List<dynamic> data = json.decode(utf8.decode(response.bodyBytes));
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(
+      Uri.parse('$apiUrl/products/search?query=$query'),
+      headers: headers,
+    );
+    final List<dynamic> data = _processResponse(response);
     return data.cast<Map<String, dynamic>>();
-  } else {
-    throw Exception('Error al buscar productos: ${response.statusCode}');
-  }
+  });
 }
 
 /// Busca un producto en la API de Open Food Facts usando su código de barras.
 Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(String barcode) async {
+  // No usamos safeApiCall aquí porque queremos manejar el error silenciosamente o devolver null
   final uri = Uri.parse('https://world.openfoodfacts.org/api/v2/product/$barcode.json');
   try {
     final response = await http.get(uri);
@@ -238,62 +265,49 @@ Future<void> addScannedStockItem({
   required int cantidad,
   required DateTime fechaCaducidad,
 }) async {
-  final headers = await getAuthHeaders();
-  final response = await http.post(
-    Uri.parse('$apiUrl/stock/from-scan'),
-    headers: headers,
-    body: jsonEncode({
-      'barcode': barcode,
-      'product_name': productName,
-      'brand': brand,
-      'ubicacion_id': ubicacionId,
-      'cantidad': cantidad,
-      'fecha_caducidad': fechaCaducidad.toIso8601String().split('T').first,
-    }),
-  );
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    final errorBody = json.decode(response.body);
-    throw Exception(errorBody['detail'] ?? 'Error desconocido al añadir el producto escaneado.');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/stock/from-scan'),
+      headers: headers,
+      body: jsonEncode({
+        'barcode': barcode,
+        'product_name': productName,
+        'brand': brand,
+        'ubicacion_id': ubicacionId,
+        'cantidad': cantidad,
+        'fecha_caducidad': fechaCaducidad.toIso8601String().split('T').first,
+      }),
+    );
+    _processResponse(response);
+  });
 }
 
 /// Obtiene todos los items de stock para el usuario actual.
 Future<List<dynamic>> fetchStockItems({String? searchTerm}) async {
-  final headers = await getAuthHeaders();
-  var uri = Uri.parse('$apiUrl/stock/');
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    var uri = Uri.parse('$apiUrl/stock/');
 
-  if (searchTerm != null && searchTerm.isNotEmpty) {
-    uri = uri.replace(queryParameters: {'search': searchTerm});
-  }
+    if (searchTerm != null && searchTerm.isNotEmpty) {
+      uri = uri.replace(queryParameters: {'search': searchTerm});
+    }
 
-  final response = await http.get(uri, headers: headers);
-
-  if (response.statusCode == 200) {
-    return json.decode(utf8.decode(response.bodyBytes));
-  } else {
-    throw Exception('Error al cargar el inventario: ${response.statusCode}');
-  }
+    final response = await http.get(uri, headers: headers);
+    return _processResponse(response);
+  });
 }
 
 /// Llama al endpoint para consumir una unidad de un item de stock.
 Future<Map<String, dynamic>> consumeStockItem(int stockId) async {
-  final headers = await getAuthHeaders();
-  final response = await http.patch(
-    Uri.parse('$apiUrl/stock/$stockId/consume'),
-    headers: headers,
-  );
-
-  if (response.statusCode == 200) {
-    return json.decode(utf8.decode(response.bodyBytes));
-  } else {
-    try {
-      final errorBody = json.decode(utf8.decode(response.bodyBytes));
-      throw Exception(errorBody['detail'] ?? 'Error desconocido al consumir el producto.');
-    } catch (e) {
-      throw Exception('Error al consumir el producto. Código: ${response.statusCode}');
-    }
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.patch(
+      Uri.parse('$apiUrl/stock/$stockId/consume'),
+      headers: headers,
+    );
+    return _processResponse(response);
+  });
 }
 
 /// Llama al endpoint para eliminar una cantidad específica de un item de stock.
@@ -301,22 +315,18 @@ Future<Map<String, dynamic>> removeStockItems({
   required int stockId,
   required int cantidad,
 }) async {
-  final headers = await getAuthHeaders();
-  final response = await http.post(
-    Uri.parse('$apiUrl/stock/remove'),
-    headers: headers,
-    body: jsonEncode({
-      'id_stock': stockId,
-      'cantidad': cantidad,
-    }),
-  );
-
-  if (response.statusCode == 200) {
-    return json.decode(utf8.decode(response.bodyBytes));
-  } else {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error desconocido al eliminar el producto.');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/stock/remove'),
+      headers: headers,
+      body: jsonEncode({
+        'id_stock': stockId,
+        'cantidad': cantidad,
+      }),
+    );
+    return _processResponse(response);
+  });
 }
 
 /// Actualiza un item de stock.
@@ -328,36 +338,24 @@ Future<Map<String, dynamic>> updateStockItem({
   int? cantidadActual,
   int? ubicacionId,
 }) async {
-  final headers = await getAuthHeaders();
-  final body = <String, dynamic>{};
-  if (productName != null) body['product_name'] = productName;
-  if (brand != null) body['brand'] = brand;
-  if (fechaCaducidad != null) body['fecha_caducidad'] = fechaCaducidad.toIso8601String().split('T').first;
-  if (cantidadActual != null) body['cantidad_actual'] = cantidadActual;
-  if (ubicacionId != null) body['ubicacion_id'] = ubicacionId;
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = <String, dynamic>{};
+    if (productName != null) body['product_name'] = productName;
+    if (brand != null) body['brand'] = brand;
+    if (fechaCaducidad != null) body['fecha_caducidad'] = fechaCaducidad.toIso8601String().split('T').first;
+    if (cantidadActual != null) body['cantidad_actual'] = cantidadActual;
+    if (ubicacionId != null) body['ubicacion_id'] = ubicacionId;
 
-  final response = await http.patch(
-    Uri.parse('$apiUrl/stock/$stockId'),
-    headers: headers,
-    body: jsonEncode(body),
-  );
-
-  if (response.statusCode == 200) {
-    try {
-      return json.decode(utf8.decode(response.bodyBytes));
-    } catch (_) {
-      return {};
-    }
-  } else if (response.statusCode == 404) {
-    throw Exception('Item no encontrado.');
-  } else {
-    try {
-      final errorBody = json.decode(utf8.decode(response.bodyBytes));
-      throw Exception(errorBody['detail'] ?? 'Error al actualizar el item.');
-    } catch (e) {
-      throw Exception('Error al actualizar el item. Código: ${response.statusCode}');
-    }
-  }
+    final response = await http.patch(
+      Uri.parse('$apiUrl/stock/$stockId'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    
+    if (response.statusCode == 404) throw ValidationException('Item no encontrado');
+    return _processResponse(response);
+  });
 }
 
 // ============================================================================
@@ -372,26 +370,22 @@ Future<Map<String, dynamic>> openProduct({
   bool mantenerFechaCaducidad = true,
   int diasVidaUtil = 4,
 }) async {
-  final headers = await getAuthHeaders();
-  final body = {
-    'cantidad': cantidad,
-    'mantener_fecha_caducidad': mantenerFechaCaducidad,
-    'dias_vida_util': diasVidaUtil,
-    if (nuevaUbicacionId != null) 'nueva_ubicacion_id': nuevaUbicacionId,
-  };
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = {
+      'cantidad': cantidad,
+      'mantener_fecha_caducidad': mantenerFechaCaducidad,
+      'dias_vida_util': diasVidaUtil,
+      if (nuevaUbicacionId != null) 'nueva_ubicacion_id': nuevaUbicacionId,
+    };
 
-  final response = await http.post(
-    Uri.parse('$apiUrl/stock/$stockId/open'),
-    headers: headers,
-    body: jsonEncode(body),
-  );
-
-  if (response.statusCode == 200) {
-    return json.decode(utf8.decode(response.bodyBytes));
-  } else {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al abrir el producto.');
-  }
+    final response = await http.post(
+      Uri.parse('$apiUrl/stock/$stockId/open'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    return _processResponse(response);
+  });
 }
 
 /// Congela unidades de un producto.
@@ -400,24 +394,20 @@ Future<Map<String, dynamic>> freezeProduct({
   required int cantidad,
   required int ubicacionCongeladorId,
 }) async {
-  final headers = await getAuthHeaders();
-  final body = {
-    'cantidad': cantidad,
-    'ubicacion_congelador_id': ubicacionCongeladorId,
-  };
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = {
+      'cantidad': cantidad,
+      'ubicacion_congelador_id': ubicacionCongeladorId,
+    };
 
-  final response = await http.post(
-    Uri.parse('$apiUrl/stock/$stockId/freeze'),
-    headers: headers,
-    body: jsonEncode(body),
-  );
-
-  if (response.statusCode == 200) {
-    return json.decode(utf8.decode(response.bodyBytes));
-  } else {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al congelar el producto.');
-  }
+    final response = await http.post(
+      Uri.parse('$apiUrl/stock/$stockId/freeze'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    return _processResponse(response);
+  });
 }
 
 /// Descongela un producto congelado.
@@ -427,25 +417,21 @@ Future<Map<String, dynamic>> unfreezeProduct({
   required int nuevaUbicacionId,
   int diasVidaUtil = 2,
 }) async {
-  final headers = await getAuthHeaders();
-  final body = {
-    'cantidad': cantidad,
-    'nueva_ubicacion_id': nuevaUbicacionId,
-    'dias_vida_util': diasVidaUtil,
-  };
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = {
+      'cantidad': cantidad,
+      'nueva_ubicacion_id': nuevaUbicacionId,
+      'dias_vida_util': diasVidaUtil,
+    };
 
-  final response = await http.post(
-    Uri.parse('$apiUrl/stock/$stockId/unfreeze'),
-    headers: headers,
-    body: jsonEncode(body),
-  );
-
-  if (response.statusCode == 200) {
-    return json.decode(utf8.decode(response.bodyBytes));
-  } else {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al descongelar el producto.');
-  }
+    final response = await http.post(
+      Uri.parse('$apiUrl/stock/$stockId/unfreeze'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    return _processResponse(response);
+  });
 }
 
 /// Mueve unidades de un producto a una ubicación diferente.
@@ -454,24 +440,20 @@ Future<Map<String, dynamic>> relocateProduct({
   required int cantidad,
   required int nuevaUbicacionId,
 }) async {
-  final headers = await getAuthHeaders();
-  final body = {
-    'cantidad': cantidad,
-    'nueva_ubicacion_id': nuevaUbicacionId,
-  };
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = {
+      'cantidad': cantidad,
+      'nueva_ubicacion_id': nuevaUbicacionId,
+    };
 
-  final response = await http.post(
-    Uri.parse('$apiUrl/stock/$stockId/relocate'),
-    headers: headers,
-    body: jsonEncode(body),
-  );
-
-  if (response.statusCode == 200) {
-    return json.decode(utf8.decode(response.bodyBytes));
-  } else {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al reubicar el producto.');
-  }
+    final response = await http.post(
+      Uri.parse('$apiUrl/stock/$stockId/relocate'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    return _processResponse(response);
+  });
 }
 
 // ============================================================================
@@ -480,166 +462,137 @@ Future<Map<String, dynamic>> relocateProduct({
 
 /// Obtener la lista de hogares del usuario autenticado
 Future<List<Hogar>> fetchHogares() async {
-  final headers = await getAuthHeaders();
-  final response = await http.get(
-    Uri.parse('$apiUrl/hogares'),
-    headers: headers,
-  );
-
-  if (response.statusCode == 200) {
-    final List<dynamic> jsonList = json.decode(utf8.decode(response.bodyBytes));
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(
+      Uri.parse('$apiUrl/hogares'),
+      headers: headers,
+    );
+    final List<dynamic> jsonList = _processResponse(response);
     return jsonList.map((json) => Hogar.fromJson(json)).toList();
-  } else {
-    throw Exception('Error al cargar hogares. Código: ${response.statusCode}');
-  }
+  });
 }
 
 /// Obtener los detalles completos de un hogar (incluyendo miembros)
 Future<HogarDetalle> fetchHogarDetalle(int hogarId) async {
-  final headers = await getAuthHeaders();
-  final response = await http.get(
-    Uri.parse('$apiUrl/hogares/$hogarId'),
-    headers: headers,
-  );
-
-  if (response.statusCode == 200) {
-    return HogarDetalle.fromJson(json.decode(utf8.decode(response.bodyBytes)));
-  } else {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al cargar detalles del hogar');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(
+      Uri.parse('$apiUrl/hogares/$hogarId'),
+      headers: headers,
+    );
+    return HogarDetalle.fromJson(_processResponse(response));
+  });
 }
 
 /// Crear un nuevo hogar
 Future<Hogar> createHogar(String nombre, {String icono = 'home'}) async {
-  final headers = await getAuthHeaders();
-  final response = await http.post(
-    Uri.parse('$apiUrl/hogares'),
-    headers: headers,
-    body: jsonEncode({
-      'nombre': nombre,
-      'icono': icono,
-    }),
-  );
-
-  if (response.statusCode == 200 || response.statusCode == 201) {
-    return Hogar.fromJson(json.decode(utf8.decode(response.bodyBytes)));
-  } else {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al crear hogar');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/hogares'),
+      headers: headers,
+      body: jsonEncode({
+        'nombre': nombre,
+        'icono': icono,
+      }),
+    );
+    return Hogar.fromJson(_processResponse(response));
+  });
 }
 
 /// Unirse a un hogar existente usando un código de invitación
 Future<void> unirseAHogar(String codigoInvitacion) async {
-  final headers = await getAuthHeaders();
-  final response = await http.post(
-    Uri.parse('$apiUrl/hogares/unirse'),
-    headers: headers,
-    body: jsonEncode({
-      'codigo_invitacion': codigoInvitacion.toUpperCase(),
-    }),
-  );
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al unirse al hogar');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/hogares/unirse'),
+      headers: headers,
+      body: jsonEncode({
+        'codigo_invitacion': codigoInvitacion.toUpperCase(),
+      }),
+    );
+    _processResponse(response);
+  });
 }
 
 /// Regenerar el código de invitación de un hogar (solo admin)
 Future<String> regenerarCodigoInvitacion(int hogarId) async {
-  final headers = await getAuthHeaders();
-  final response = await http.post(
-    Uri.parse('$apiUrl/hogares/$hogarId/invitacion/regenerar'),
-    headers: headers,
-  );
-
-  if (response.statusCode == 200) {
-    final body = json.decode(utf8.decode(response.bodyBytes));
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/hogares/$hogarId/invitacion/regenerar'),
+      headers: headers,
+    );
+    final body = _processResponse(response);
     return body['nuevo_codigo'];
-  } else {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al regenerar código');
-  }
+  });
 }
 
 /// Abandonar un hogar
 Future<void> abandonarHogar(int hogarId) async {
-  final headers = await getAuthHeaders();
-  final response = await http.post(
-    Uri.parse('$apiUrl/hogares/$hogarId/abandonar'),
-    headers: headers,
-  );
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al abandonar hogar');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/hogares/$hogarId/abandonar'),
+      headers: headers,
+    );
+    _processResponse(response);
+  });
 }
 
 /// Expulsar a un miembro del hogar (solo admin)
 Future<void> expulsarMiembro(int hogarId, String userId) async {
-  final headers = await getAuthHeaders();
-  final response = await http.delete(
-    Uri.parse('$apiUrl/hogares/$hogarId/miembros/$userId'),
-    headers: headers,
-  );
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al expulsar miembro');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.delete(
+      Uri.parse('$apiUrl/hogares/$hogarId/miembros/$userId'),
+      headers: headers,
+    );
+    _processResponse(response);
+  });
 }
 
 /// Cambiar el rol de un miembro (solo admin)
 Future<void> cambiarRolMiembro(int hogarId, String userId, String nuevoRol) async {
-  final headers = await getAuthHeaders();
-  final response = await http.put(
-    Uri.parse('$apiUrl/hogares/$hogarId/miembros/$userId/rol'),
-    headers: headers,
-    body: jsonEncode({
-      'nuevo_rol': nuevoRol,
-    }),
-  );
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al cambiar rol');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.put(
+      Uri.parse('$apiUrl/hogares/$hogarId/miembros/$userId/rol'),
+      headers: headers,
+      body: jsonEncode({
+        'nuevo_rol': nuevoRol,
+      }),
+    );
+    _processResponse(response);
+  });
 }
 
 /// Actualizar nombre e icono de un hogar (solo admin)
 Future<Hogar> updateHogar(int hogarId, String nombre, String icono) async {
-  final headers = await getAuthHeaders();
-  final response = await http.put(
-    Uri.parse('$apiUrl/hogares/$hogarId'),
-    headers: headers,
-    body: jsonEncode({
-      'nombre': nombre,
-      'icono': icono,
-    }),
-  );
-
-  if (response.statusCode == 200) {
-    return Hogar.fromJson(json.decode(utf8.decode(response.bodyBytes)));
-  } else {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al actualizar hogar');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.put(
+      Uri.parse('$apiUrl/hogares/$hogarId'),
+      headers: headers,
+      body: jsonEncode({
+        'nombre': nombre,
+        'icono': icono,
+      }),
+    );
+    return Hogar.fromJson(_processResponse(response));
+  });
 }
 
 /// Actualizar el apodo del miembro actual dentro de un hogar
 Future<void> updateMyApodo(int hogarId, String apodo) async {
-  final headers = await getAuthHeaders();
-  final response = await http.put(
-    Uri.parse('$apiUrl/hogares/$hogarId/miembros/mi-apodo'),
-    headers: headers,
-    body: jsonEncode({'apodo': apodo}),
-  );
-
-  if (response.statusCode < 200 || response.statusCode >= 300) {
-    final errorBody = json.decode(utf8.decode(response.bodyBytes));
-    throw Exception(errorBody['detail'] ?? 'Error al actualizar apodo');
-  }
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.put(
+      Uri.parse('$apiUrl/hogares/$hogarId/miembros/mi-apodo'),
+      headers: headers,
+      body: jsonEncode({'apodo': apodo}),
+    );
+    _processResponse(response);
+  });
 }
