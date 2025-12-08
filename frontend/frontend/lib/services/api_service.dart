@@ -22,7 +22,8 @@ const String apiUrl = '$baseUrl$apiPrefix';
 const String apiV1Url = '$baseUrl/api/v1'; // Base para otros servicios (ej. notificaciones)
 
 // Función auxiliar para obtener las cabeceras con el token de autenticación
-Future<Map<String, String>> _getAuthHeaders() async {
+// Función auxiliar para obtener las cabeceras con el token de autenticación
+Future<Map<String, String>> getAuthHeaders() async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
     throw Exception('Usuario no autenticado. No se puede realizar la petición.');
@@ -46,7 +47,7 @@ Future<Map<String, String>> _getAuthHeaders() async {
 
 // Función asíncrona para obtener las alertas de caducidad (Future)
 Future<List<AlertaItem>> fetchAlertas() async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.get(Uri.parse('$apiUrl/alertas/proxima-semana'), headers: headers);
 
   if (response.statusCode == 200) {
@@ -60,7 +61,7 @@ Future<List<AlertaItem>> fetchAlertas() async {
 
 // Nueva función: Obtener todas las ubicaciones (GET /ubicaciones/)
 Future<List<Ubicacion>> fetchUbicaciones() async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.get(Uri.parse('$apiUrl/ubicaciones/'), headers: headers);
 
   if (response.statusCode == 200) {
@@ -73,7 +74,7 @@ Future<List<Ubicacion>> fetchUbicaciones() async {
 
 // Nueva función: Crear una ubicación (POST /ubicaciones/)
 Future<void> createUbicacion(String nombre, {bool esCongelador = false}) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.post(
     Uri.parse('$apiUrl/ubicaciones/'),
     headers: headers,
@@ -91,7 +92,7 @@ Future<void> createUbicacion(String nombre, {bool esCongelador = false}) async {
 
 // Función para eliminar una ubicación (DELETE /ubicaciones/{id})
 Future<void> deleteUbicacion(int id) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.delete(
     Uri.parse('$apiUrl/ubicaciones/$id'),
     headers: headers,
@@ -105,7 +106,7 @@ Future<void> deleteUbicacion(int id) async {
 
 // Función para actualizar una ubicación (PUT /ubicaciones/{id})
 Future<void> updateUbicacion(int id, String newName, {bool? esCongelador}) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   
   final Map<String, dynamic> body = {'nombre': newName};
   if (esCongelador != null) {
@@ -135,7 +136,7 @@ Future<void> addManualStockItem({
   required int cantidad,
   required DateTime fechaCaducidad,
 }) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.post(
     Uri.parse('$apiUrl/stock/manual'),
     headers: headers,
@@ -159,7 +160,7 @@ Future<void> addManualStockItem({
 
 /// Busca un producto en nuestro catálogo por su código de barras.
 Future<Map<String, dynamic>?> fetchProductFromCatalog(String barcode) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.get(Uri.parse('$apiUrl/products/by-barcode/$barcode'), headers: headers);
 
   if (response.statusCode == 200) {
@@ -177,7 +178,7 @@ Future<void> updateProductInCatalog({
   required String name,
   String? brand,
 }) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.put(
     Uri.parse('$apiUrl/products/by-barcode/$barcode'),
     headers: headers,
@@ -194,7 +195,7 @@ Future<void> updateProductInCatalog({
 
 /// Busca productos maestros por nombre (para autocompletado).
 Future<List<Map<String, dynamic>>> fetchMasterProducts(String query) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.get(
     Uri.parse('$apiUrl/products/search?query=$query'),
     headers: headers,
@@ -237,7 +238,7 @@ Future<void> addScannedStockItem({
   required int cantidad,
   required DateTime fechaCaducidad,
 }) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.post(
     Uri.parse('$apiUrl/stock/from-scan'),
     headers: headers,
@@ -259,7 +260,7 @@ Future<void> addScannedStockItem({
 
 /// Obtiene todos los items de stock para el usuario actual.
 Future<List<dynamic>> fetchStockItems({String? searchTerm}) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   var uri = Uri.parse('$apiUrl/stock/');
 
   if (searchTerm != null && searchTerm.isNotEmpty) {
@@ -277,7 +278,7 @@ Future<List<dynamic>> fetchStockItems({String? searchTerm}) async {
 
 /// Llama al endpoint para consumir una unidad de un item de stock.
 Future<Map<String, dynamic>> consumeStockItem(int stockId) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.patch(
     Uri.parse('$apiUrl/stock/$stockId/consume'),
     headers: headers,
@@ -300,7 +301,7 @@ Future<Map<String, dynamic>> removeStockItems({
   required int stockId,
   required int cantidad,
 }) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.post(
     Uri.parse('$apiUrl/stock/remove'),
     headers: headers,
@@ -327,7 +328,7 @@ Future<Map<String, dynamic>> updateStockItem({
   int? cantidadActual,
   int? ubicacionId,
 }) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final body = <String, dynamic>{};
   if (productName != null) body['product_name'] = productName;
   if (brand != null) body['brand'] = brand;
@@ -371,7 +372,7 @@ Future<Map<String, dynamic>> openProduct({
   bool mantenerFechaCaducidad = true,
   int diasVidaUtil = 4,
 }) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final body = {
     'cantidad': cantidad,
     'mantener_fecha_caducidad': mantenerFechaCaducidad,
@@ -399,7 +400,7 @@ Future<Map<String, dynamic>> freezeProduct({
   required int cantidad,
   required int ubicacionCongeladorId,
 }) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final body = {
     'cantidad': cantidad,
     'ubicacion_congelador_id': ubicacionCongeladorId,
@@ -426,7 +427,7 @@ Future<Map<String, dynamic>> unfreezeProduct({
   required int nuevaUbicacionId,
   int diasVidaUtil = 2,
 }) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final body = {
     'cantidad': cantidad,
     'nueva_ubicacion_id': nuevaUbicacionId,
@@ -453,7 +454,7 @@ Future<Map<String, dynamic>> relocateProduct({
   required int cantidad,
   required int nuevaUbicacionId,
 }) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final body = {
     'cantidad': cantidad,
     'nueva_ubicacion_id': nuevaUbicacionId,
@@ -479,7 +480,7 @@ Future<Map<String, dynamic>> relocateProduct({
 
 /// Obtener la lista de hogares del usuario autenticado
 Future<List<Hogar>> fetchHogares() async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.get(
     Uri.parse('$apiUrl/hogares'),
     headers: headers,
@@ -495,7 +496,7 @@ Future<List<Hogar>> fetchHogares() async {
 
 /// Obtener los detalles completos de un hogar (incluyendo miembros)
 Future<HogarDetalle> fetchHogarDetalle(int hogarId) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.get(
     Uri.parse('$apiUrl/hogares/$hogarId'),
     headers: headers,
@@ -511,7 +512,7 @@ Future<HogarDetalle> fetchHogarDetalle(int hogarId) async {
 
 /// Crear un nuevo hogar
 Future<Hogar> createHogar(String nombre, {String icono = 'home'}) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.post(
     Uri.parse('$apiUrl/hogares'),
     headers: headers,
@@ -531,7 +532,7 @@ Future<Hogar> createHogar(String nombre, {String icono = 'home'}) async {
 
 /// Unirse a un hogar existente usando un código de invitación
 Future<void> unirseAHogar(String codigoInvitacion) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.post(
     Uri.parse('$apiUrl/hogares/unirse'),
     headers: headers,
@@ -548,7 +549,7 @@ Future<void> unirseAHogar(String codigoInvitacion) async {
 
 /// Regenerar el código de invitación de un hogar (solo admin)
 Future<String> regenerarCodigoInvitacion(int hogarId) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.post(
     Uri.parse('$apiUrl/hogares/$hogarId/invitacion/regenerar'),
     headers: headers,
@@ -565,7 +566,7 @@ Future<String> regenerarCodigoInvitacion(int hogarId) async {
 
 /// Abandonar un hogar
 Future<void> abandonarHogar(int hogarId) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.post(
     Uri.parse('$apiUrl/hogares/$hogarId/abandonar'),
     headers: headers,
@@ -579,7 +580,7 @@ Future<void> abandonarHogar(int hogarId) async {
 
 /// Expulsar a un miembro del hogar (solo admin)
 Future<void> expulsarMiembro(int hogarId, String userId) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.delete(
     Uri.parse('$apiUrl/hogares/$hogarId/miembros/$userId'),
     headers: headers,
@@ -593,7 +594,7 @@ Future<void> expulsarMiembro(int hogarId, String userId) async {
 
 /// Cambiar el rol de un miembro (solo admin)
 Future<void> cambiarRolMiembro(int hogarId, String userId, String nuevoRol) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.put(
     Uri.parse('$apiUrl/hogares/$hogarId/miembros/$userId/rol'),
     headers: headers,
@@ -610,7 +611,7 @@ Future<void> cambiarRolMiembro(int hogarId, String userId, String nuevoRol) asyn
 
 /// Actualizar nombre e icono de un hogar (solo admin)
 Future<Hogar> updateHogar(int hogarId, String nombre, String icono) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.put(
     Uri.parse('$apiUrl/hogares/$hogarId'),
     headers: headers,
@@ -630,7 +631,7 @@ Future<Hogar> updateHogar(int hogarId, String nombre, String icono) async {
 
 /// Actualizar el apodo del miembro actual dentro de un hogar
 Future<void> updateMyApodo(int hogarId, String apodo) async {
-  final headers = await _getAuthHeaders();
+  final headers = await getAuthHeaders();
   final response = await http.put(
     Uri.parse('$apiUrl/hogares/$hogarId/miembros/mi-apodo'),
     headers: headers,
