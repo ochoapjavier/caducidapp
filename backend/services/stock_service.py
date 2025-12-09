@@ -42,7 +42,11 @@ class StockService:
                     image_url=item_data.image_url
                 )
             else:
-                producto_maestro = self.product_repo.get_or_create_by_name(item_data.product_name, hogar_id)
+                producto_maestro = self.product_repo.get_or_create_by_name(
+                    name=item_data.product_name, 
+                    hogar_id=hogar_id,
+                    brand=item_data.brand
+                )
         
         if not producto_maestro:
              raise HTTPException(status_code=500, detail="No se pudo crear o encontrar el producto maestro.")
@@ -131,9 +135,9 @@ class StockService:
         # Return complete response object
         return StockItem.from_orm(new_stock_item)
 
-    def get_stock_for_hogar(self, hogar_id: int, search: str | None) -> List[StockItem]:
+    def get_stock_for_hogar(self, hogar_id: int, search: str | None, status_filter: List[str] | None = None, sort_by: str | None = None) -> List[StockItem]:
         """Get all stock items for a household."""
-        stock_items = self.stock_repo.get_all_stock_for_hogar(hogar_id, search)
+        stock_items = self.stock_repo.get_all_stock_for_hogar(hogar_id, search, status_filter, sort_by)
         return [StockItem.from_orm(item) for item in stock_items]
 
     def consume_stock_item(self, id_stock: int, hogar_id: int) -> dict:

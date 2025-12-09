@@ -137,13 +137,13 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        // Recargar datos
-        _loadInitialData();
+        
         // Limpiar selección
         setState(() {
           _selectedStockItem = null;
           _isLoading = false;
         });
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {

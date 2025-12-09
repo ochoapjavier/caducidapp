@@ -29,44 +29,34 @@ class InventoryView extends StatefulWidget {
 
 class InventoryViewState extends State<InventoryView> {
   late Future<List<dynamic>> _stockItemsFuture;
-  final _nameSearchController = TextEditingController();
-  final _eanSearchController = TextEditingController();
-  Timer? _nameDebounce;
-  // _isSearchPanelVisible eliminado (no se utilizaba)
-  // _processingByItem eliminado (no se usa tras simplificar acciones)
+  final _searchController = TextEditingController();
+  Timer? _debounce;
+  
+  // Filtros y Ordenación
+  final List<String> _selectedFilters = []; // 'congelado', 'abierto', 'por_caducar'
+  String _sortBy = 'expiry_asc'; // Default sort
+  bool _showFilters = true; // Controla la visibilidad de los filtros
 
   @override
   void initState() {
     super.initState();
-    _stockItemsFuture = fetchStockItems();
-    _nameSearchController.addListener(_onNameSearchChanged);
-    _eanSearchController.addListener(_onEanSearchChanged);
+    _stockItemsFuture = fetchStockItems(sortBy: _sortBy);
+    _searchController.addListener(_onSearchChanged);
   }
 
   @override
   void dispose() {
-    _nameSearchController.removeListener(_onNameSearchChanged);
-    _eanSearchController.removeListener(_onEanSearchChanged);
-    _nameSearchController.dispose();
-    _eanSearchController.dispose();
-    _nameDebounce?.cancel();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _debounce?.cancel();
     super.dispose();
   }
 
-  void _onNameSearchChanged() {
-    if (_nameDebounce?.isActive ?? false) _nameDebounce!.cancel();
-    _nameDebounce = Timer(const Duration(milliseconds: 500), () {
-      // Si el campo de EAN está activo, no buscamos por nombre para evitar conflictos.
-      if (_eanSearchController.text.isEmpty) {
-        refreshInventory();
-      }
+  void _onSearchChanged() {
+    if (_debounce?.isActive ?? false) _debounce!.cancel();
+    _debounce = Timer(const Duration(milliseconds: 500), () {
+      refreshInventory();
     });
-  }
-
-  void _onEanSearchChanged() {
-    // La búsqueda por EAN es más rápida y no necesita debounce.
-    // Si el campo EAN se vacía, la búsqueda por nombre tomará el control.
-    refreshInventory();
   }
 
   void _scanBarcode() async {
@@ -74,20 +64,25 @@ class InventoryViewState extends State<InventoryView> {
       MaterialPageRoute(builder: (ctx) => const ScannerScreen()),
     );
     if (barcode != null && barcode.isNotEmpty) {
-      _eanSearchController.text = barcode;
-      refreshInventory();
+      _searchController.text = barcode;
+      // El listener disparará el refresh, pero podemos forzarlo si queremos inmediatez
+      // refreshInventory(); 
     }
   }
 
   // Hacemos el método público para poder llamarlo desde el widget padre
   Future<void> refreshInventory() async {
     setState(() {
-      _stockItemsFuture = fetchStockItems(searchTerm: _eanSearchController.text.isNotEmpty ? _eanSearchController.text : _nameSearchController.text);
+      _stockItemsFuture = fetchStockItems(
+        searchTerm: _searchController.text,
+        statusFilter: _selectedFilters,
+        sortBy: _sortBy,
+      );
     });
     try {
       await _stockItemsFuture;
     } catch (_) {
-      // el FutureBuilder mostrará el error; aquí sólo evitamos que el await lance hacia arriba
+      // el FutureBuilder mostrará el error
     }
   }
   
@@ -883,100 +878,215 @@ class InventoryViewState extends State<InventoryView> {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    // Quitamos el Scaffold interno para integrarlo mejor en la pantalla contenedora.
     return SafeArea(
       child: Column(
-      children: [
-        // Encabezado: Filtros + Acciones Rápidas
-        Material(
-          color: Theme.of(context).cardColor,
-          elevation: 1,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Filtros expandibles
-              Expanded(
-                child: ExpansionTile(
-                  title: Text(
-                    'Filtros',
-                    style: textTheme.titleMedium,
-                  ),
-                  leading: Icon(Icons.filter_list, color: colorScheme.primary),
-                  initiallyExpanded: false, // Empieza contraído
-                  shape: const Border(), // Quitar bordes por defecto
-                  onExpansionChanged: (isExpanded) {
-                    // Si se contrae y hay texto en los buscadores, los limpiamos y refrescamos la lista.
-                    if (!isExpanded && (_nameSearchController.text.isNotEmpty || _eanSearchController.text.isNotEmpty)) {
-                      _nameSearchController.clear();
-                      _eanSearchController.clear();
-                      refreshInventory();
-                    }
-                  },
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                      child: Column(
+        children: [
+          // 1. Buscador Unificado y Botones de Acción
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _searchController,
+                    decoration: InputDecoration(
+                      hintText: 'Buscar por nombre, marca o EAN',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          // Buscador por Nombre
-                          TextField(
-                            controller: _nameSearchController,
-                            decoration: const InputDecoration(
-                              labelText: 'Buscar por nombre',
-                              prefixIcon: Icon(Icons.text_fields),
+                          if (_searchController.text.isNotEmpty)
+                            IconButton(
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                _searchController.clear();
+                                // El listener se encargará de refrescar
+                              },
                             ),
-                            onChanged: (value) {
-                              if (_eanSearchController.text.isNotEmpty) _eanSearchController.clear();
-                            },
-                          ),
-                          const SizedBox(height: 12),
-                          // Buscador por EAN
-                          TextField(
-                            controller: _eanSearchController,
-                            decoration: InputDecoration(
-                              labelText: 'Buscar por EAN',
-                              prefixIcon: const Icon(Icons.qr_code_2_outlined),
-                              suffixIcon: IconButton(
-                                icon: const Icon(Icons.qr_code_scanner),
-                                onPressed: _scanBarcode,
-                                tooltip: 'Escanear código',
-                              ),
-                            ),
-                            keyboardType: TextInputType.number,
-                            onChanged: (value) {
-                              if (_nameSearchController.text.isNotEmpty) _nameSearchController.clear();
-                            },
+                          IconButton(
+                            icon: const Icon(Icons.qr_code_scanner),
+                            onPressed: _scanBarcode,
+                            tooltip: 'Escanear',
                           ),
                         ],
                       ),
-                    )
-                  ],
-                ),
-              ),
-              // Botones de Acción (+ / -)
-              if (widget.onRemoveItem != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, right: 4),
-                  child: IconButton.filledTonal(
-                    onPressed: widget.onRemoveItem,
-                    icon: const Icon(Icons.remove),
-                    tooltip: 'Registrar Salida',
-                    // Eliminados colores explícitos para un look más integrado
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    ),
                   ),
                 ),
-              if (widget.onAddItem != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, right: 12),
-                  child: IconButton.filledTonal( // Cambiado a filledTonal para consistencia
+                const SizedBox(width: 8),
+                // Botón Añadir Rápido
+                if (widget.onAddItem != null)
+                  IconButton.filled(
                     onPressed: widget.onAddItem,
                     icon: const Icon(Icons.add),
                     tooltip: 'Añadir Producto',
                   ),
+                const SizedBox(width: 8),
+                // Botón Eliminar (Restaurado)
+                if (widget.onRemoveItem != null)
+                  IconButton.filledTonal(
+                    onPressed: widget.onRemoveItem,
+                    icon: const Icon(Icons.remove),
+                    tooltip: 'Eliminar Producto',
+                  ),
+                const SizedBox(width: 8),
+                // Botón Colapsar/Expandir Filtros
+                IconButton(
+                  onPressed: () => setState(() => _showFilters = !_showFilters),
+                  icon: Icon(_showFilters ? Icons.filter_list_off : Icons.filter_list),
+                  tooltip: _showFilters ? 'Ocultar filtros' : 'Mostrar filtros',
                 ),
-            ],
+              ],
+            ),
           ),
-        ),
-        // Lista de inventario
-        Expanded(
+
+          // 2. Filtros y Ordenación (Chips + Sort)
+          AnimatedCrossFade(
+            crossFadeState: _showFilters ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 300),
+            firstChild: Container(height: 0),
+            secondChild: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              child: Row(
+                children: [
+                  // Botón de Ordenar
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.sort),
+                    tooltip: 'Ordenar por',
+                    initialValue: _sortBy,
+                    onSelected: (value) {
+                      setState(() {
+                        _sortBy = value;
+                      });
+                      refreshInventory();
+                    },
+                  itemBuilder: (context) => [
+                    CheckedPopupMenuItem(
+                      value: 'expiry_asc',
+                      checked: _sortBy == 'expiry_asc',
+                      child: const Text('📅 Caducidad (Próxima)'),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: 'expiry_desc',
+                      checked: _sortBy == 'expiry_desc',
+                      child: const Text('📅 Caducidad (Lejana)'),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: 'name_asc',
+                      checked: _sortBy == 'name_asc',
+                      child: const Text('🔤 Nombre (A-Z)'),
+                    ),
+                    CheckedPopupMenuItem(
+                      value: 'quantity_desc',
+                      checked: _sortBy == 'quantity_desc',
+                      child: const Text('🔢 Cantidad (Mayor)'),
+                    ),
+                  ],
+                ),
+                const SizedBox(width: 8),
+                // Chips de Filtro
+                // Estilo unificado para los chips
+                FilterChip(
+                  label: Icon(Icons.ac_unit, size: 20, color: _selectedFilters.contains('congelado') ? colorScheme.onPrimary : colorScheme.onSurfaceVariant),
+                  tooltip: 'Congelado',
+                  selected: _selectedFilters.contains('congelado'),
+                  showCheckmark: false,
+                  backgroundColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                  selectedColor: colorScheme.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  onSelected: (selected) {
+                    setState(() {
+                      selected ? _selectedFilters.add('congelado') : _selectedFilters.remove('congelado');
+                    });
+                    refreshInventory();
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: Icon(Icons.lock_open, size: 20, color: _selectedFilters.contains('abierto') ? colorScheme.onPrimary : colorScheme.onSurfaceVariant),
+                  tooltip: 'Abierto',
+                  selected: _selectedFilters.contains('abierto'),
+                  showCheckmark: false,
+                  backgroundColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                  selectedColor: colorScheme.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  onSelected: (selected) {
+                    setState(() {
+                      selected ? _selectedFilters.add('abierto') : _selectedFilters.remove('abierto');
+                    });
+                    refreshInventory();
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: Icon(Icons.warning_amber_rounded, size: 20, color: _selectedFilters.contains('por_caducar') ? colorScheme.onPrimary : colorScheme.onSurfaceVariant),
+                  tooltip: 'Próximo a caducar',
+                  selected: _selectedFilters.contains('por_caducar'),
+                  showCheckmark: false,
+                  backgroundColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                  selectedColor: colorScheme.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  onSelected: (selected) {
+                    setState(() {
+                      selected ? _selectedFilters.add('por_caducar') : _selectedFilters.remove('por_caducar');
+                    });
+                    refreshInventory();
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: Icon(Icons.report_problem, size: 20, color: _selectedFilters.contains('urgente') ? colorScheme.onPrimary : colorScheme.onSurfaceVariant),
+                  tooltip: 'Urgente',
+                  selected: _selectedFilters.contains('urgente'),
+                  showCheckmark: false,
+                  backgroundColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                  selectedColor: colorScheme.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  onSelected: (selected) {
+                    setState(() {
+                      selected ? _selectedFilters.add('urgente') : _selectedFilters.remove('urgente');
+                    });
+                    refreshInventory();
+                  },
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  label: Icon(Icons.dangerous, size: 20, color: _selectedFilters.contains('caducado') ? colorScheme.onPrimary : colorScheme.onSurfaceVariant),
+                  tooltip: 'Caducado',
+                  selected: _selectedFilters.contains('caducado'),
+                  showCheckmark: false,
+                  backgroundColor: colorScheme.surfaceVariant.withOpacity(0.3),
+                  selectedColor: colorScheme.primary,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                  onSelected: (selected) {
+                    setState(() {
+                      selected ? _selectedFilters.add('caducado') : _selectedFilters.remove('caducado');
+                    });
+                    refreshInventory();
+                  },
+                ),
+              ],
+            ),
+          ),
+          ),
+          
+          const Divider(height: 1),
+
+          // 3. Lista de Resultados
+          Expanded(
             child: FutureBuilder<List<dynamic>>(
               future: _stockItemsFuture,
               builder: (context, snapshot) {
@@ -992,7 +1102,30 @@ class InventoryViewState extends State<InventoryView> {
                   );
                 }
                 if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No hay productos en tu inventario.'));
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.inventory_2_outlined, size: 64, color: colorScheme.outline),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No se encontraron productos',
+                          style: textTheme.titleMedium?.copyWith(color: colorScheme.outline),
+                        ),
+                        if (_selectedFilters.isNotEmpty || _searchController.text.isNotEmpty)
+                          TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _searchController.clear();
+                                _selectedFilters.clear();
+                              });
+                              refreshInventory();
+                            },
+                            child: const Text('Limpiar filtros'),
+                          ),
+                      ],
+                    ),
+                  );
                 }
 
                 // --- INICIO DE LA LÓGICA DE AGRUPACIÓN ---
@@ -1004,7 +1137,7 @@ class InventoryViewState extends State<InventoryView> {
                   }
                   groupedItems[locationName]!.add(item);
                 }
-                final locationKeys = groupedItems.keys.toList()..sort(); // Ordenamos las ubicaciones alfabéticamente
+                final locationKeys = groupedItems.keys.toList()..sort();
                 // --- FIN DE LA LÓGICA DE AGRUPACIÓN ---
 
                 return RefreshIndicator(
@@ -1013,12 +1146,11 @@ class InventoryViewState extends State<InventoryView> {
                   },
                   child: ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                    itemCount: locationKeys.length, // Ahora iteramos sobre las ubicaciones
+                    itemCount: locationKeys.length,
                     itemBuilder: (context, index) {
                       final locationName = locationKeys[index];
                       final itemsInLocation = groupedItems[locationName]!;
 
-                      // Usamos ExpansionTile para cada ubicación envuelto en una Card
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 4),
                         child: Card(
@@ -1027,7 +1159,7 @@ class InventoryViewState extends State<InventoryView> {
                               dividerColor: Colors.transparent,
                             ),
                             child: ExpansionTile(
-                              key: PageStorageKey(locationName), // Ayuda a mantener el estado (abierto/cerrado)
+                              key: PageStorageKey(locationName),
                               leading: Icon(
                                 Icons.location_on_outlined,
                                 color: colorScheme.primary,
@@ -1057,7 +1189,6 @@ class InventoryViewState extends State<InventoryView> {
                                 final stockId = item['id_stock'];
                                 final estadoProducto = item['estado_producto'] ?? 'cerrado';
                                 
-                                // Usando utilidades centralizadas para mantener consistencia
                                 final expiryColor = ExpiryUtils.getExpiryColor(expiryDate, colorScheme);
                                 final statusLabel = ExpiryUtils.getStatusLabel(expiryDate);
                                 final daysUntilExpiry = ExpiryUtils.daysUntilExpiry(expiryDate);
@@ -1070,8 +1201,6 @@ class InventoryViewState extends State<InventoryView> {
                                     bottom: i == itemsInLocation.length - 1 ? 8 : 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    // Fondo ligeramente tintado para todos los items, independientemente de la franja,
-                                    // de forma que la única diferencia visual sea la franja de la izquierda.
                                     color: colorScheme.surfaceVariant.withAlpha((255 * 0.65).round()),
                                     borderRadius: BorderRadius.circular(16),
                                     border: Border.all(
@@ -1106,7 +1235,6 @@ class InventoryViewState extends State<InventoryView> {
                                           child: Column(
                                             crossAxisAlignment: CrossAxisAlignment.stretch,
                                             children: [
-                                              // FILA PRINCIPAL: Imagen + Información + Badges
                                               Row(
                                                 crossAxisAlignment: CrossAxisAlignment.start,
                                                 children: [
@@ -1141,11 +1269,6 @@ class InventoryViewState extends State<InventoryView> {
                                                     child: Column(
                                                       crossAxisAlignment: CrossAxisAlignment.start,
                                                       children: [
-                                                        // ═══════════════════════════════════════════════════
-                                                        // 📱 DISEÑO UX/UI DE CLASE MUNDIAL
-                                                        // ═══════════════════════════════════════════════════
-                                                        
-                                                        // 1️⃣ NOMBRE + MARCA (en una sola línea, jerarquía visual clara)
                                                         Padding(
                                                           padding: const EdgeInsets.only(right: 48),
                                                           child: RichText(
@@ -1183,8 +1306,6 @@ class InventoryViewState extends State<InventoryView> {
                                                           ),
                                                         ),
                                                         const SizedBox(height: 8),
-                                                        
-                                                        // 2️⃣ ALERTA PRIORITARIA + FECHA DE CADUCIDAD (destacada con color e icono)
                                                         Container(
                                                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                                                           decoration: BoxDecoration(
@@ -1199,74 +1320,65 @@ class InventoryViewState extends State<InventoryView> {
                                                               width: 1,
                                                             ),
                                                           ),
-                                                          child: IntrinsicHeight(
-                                                            child: Row(
-                                                              mainAxisSize: MainAxisSize.min,
-                                                              children: [
-                                                                Icon(
-                                                                  daysUntilExpiry < 0 
-                                                                      ? Icons.dangerous_rounded
-                                                                      : daysUntilExpiry <= 3
-                                                                          ? Icons.warning_amber_rounded
-                                                                          : daysUntilExpiry <= 7
-                                                                              ? Icons.schedule_rounded
-                                                                              : Icons.check_circle_outline_rounded,
-                                                                  size: 16,
-                                                                  color: expiryColor != Colors.transparent
-                                                                      ? expiryColor
-                                                                      : colorScheme.onSurfaceVariant,
-                                                                ),
-                                                                const SizedBox(width: 6),
-                                                                // Badge de urgencia (si aplica)
-                                                                if (expiryColor != Colors.transparent) ...[
-                                                                  Container(
-                                                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                                                    decoration: BoxDecoration(
-                                                                      color: expiryColor,
-                                                                      borderRadius: BorderRadius.circular(4),
-                                                                    ),
-                                                                    child: Text(
-                                                                      statusLabel.toUpperCase(),
-                                                                      style: textTheme.labelSmall?.copyWith(
-                                                                        color: Colors.white,
-                                                                        fontSize: 9,
-                                                                        fontWeight: FontWeight.w800,
-                                                                        letterSpacing: 0.5,
-                                                                      ),
-                                                                    ),
+                                                          child: Wrap(
+                                                            crossAxisAlignment: WrapCrossAlignment.center,
+                                                            spacing: 6,
+                                                            runSpacing: 4,
+                                                            children: [
+                                                              Icon(
+                                                                daysUntilExpiry < 0 
+                                                                    ? Icons.dangerous_rounded
+                                                                    : daysUntilExpiry <= 5
+                                                                        ? Icons.warning_amber_rounded
+                                                                        : daysUntilExpiry <= 10
+                                                                            ? Icons.schedule_rounded
+                                                                            : Icons.check_circle_outline_rounded,
+                                                                size: 16,
+                                                                color: expiryColor != Colors.transparent
+                                                                    ? expiryColor
+                                                                    : colorScheme.onSurfaceVariant,
+                                                              ),
+                                                              if (expiryColor != Colors.transparent) ...[
+                                                                Container(
+                                                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                                                  decoration: BoxDecoration(
+                                                                    color: expiryColor,
+                                                                    borderRadius: BorderRadius.circular(4),
                                                                   ),
-                                                                  const SizedBox(width: 5),
-                                                                  Text(
-                                                                    '·',
-                                                                    style: TextStyle(
-                                                                      color: expiryColor.withAlpha((255 * 0.5).round()),
-                                                                      fontWeight: FontWeight.w300,
-                                                                    ),
-                                                                  ),
-                                                                  const SizedBox(width: 5),
-                                                                ],
-                                                                Flexible(
                                                                   child: Text(
-                                                                    '${expiryDate.day.toString().padLeft(2, '0')}/${expiryDate.month.toString().padLeft(2, '0')}/${expiryDate.year}',
-                                                                    style: textTheme.bodySmall?.copyWith(
-                                                                      color: expiryColor != Colors.transparent
-                                                                          ? expiryColor
-                                                                          : colorScheme.onSurfaceVariant,
-                                                                      fontSize: 11,
-                                                                      fontWeight: FontWeight.w700,
-                                                                      decoration: daysUntilExpiry < 0 
-                                                                          ? TextDecoration.lineThrough 
-                                                                          : null,
+                                                                    statusLabel.toUpperCase(),
+                                                                    style: textTheme.labelSmall?.copyWith(
+                                                                      color: Colors.white,
+                                                                      fontSize: 9,
+                                                                      fontWeight: FontWeight.w800,
+                                                                      letterSpacing: 0.5,
                                                                     ),
-                                                                    overflow: TextOverflow.ellipsis,
+                                                                  ),
+                                                                ),
+                                                                Text(
+                                                                  '·',
+                                                                  style: TextStyle(
+                                                                    color: expiryColor.withAlpha((255 * 0.5).round()),
+                                                                    fontWeight: FontWeight.w300,
                                                                   ),
                                                                 ),
                                                               ],
-                                                            ),
+                                                              Text(
+                                                                '${expiryDate.day.toString().padLeft(2, '0')}/${expiryDate.month.toString().padLeft(2, '0')}/${expiryDate.year}',
+                                                                style: textTheme.bodySmall?.copyWith(
+                                                                  color: expiryColor != Colors.transparent
+                                                                      ? expiryColor
+                                                                      : colorScheme.onSurfaceVariant,
+                                                                  fontSize: 11,
+                                                                  fontWeight: FontWeight.w700,
+                                                                  decoration: daysUntilExpiry < 0 
+                                                                      ? TextDecoration.lineThrough 
+                                                                      : null,
+                                                                ),
+                                                              ),
+                                                            ],
                                                           ),
                                                         ),
-                                                        
-                                                        // 3️⃣ ESTADO DEL PRODUCTO (Abierto/Congelado) con fecha contextual
                                                         if (ExpiryUtils.shouldShowStateBadge(estadoProducto)) ...[
                                                           const SizedBox(height: 6),
                                                           Container(
@@ -1298,7 +1410,6 @@ class InventoryViewState extends State<InventoryView> {
                                                                       letterSpacing: 0.6,
                                                                     ),
                                                                   ),
-                                                                  // Fecha de apertura, congelación o descongelación
                                                                   if ((estadoProducto == 'abierto' && item['fecha_apertura'] != null) ||
                                                                       (estadoProducto == 'congelado' && item['fecha_congelacion'] != null) ||
                                                                       (estadoProducto == 'descongelado' && item['fecha_descongelacion'] != null)) ...[
@@ -1330,7 +1441,6 @@ class InventoryViewState extends State<InventoryView> {
                                                                       ),
                                                                     ),
                                                                   ],
-                                                                  // Ícono de info para mostrar historial (solo para descongelados)
                                                                   if (estadoProducto == 'descongelado' && 
                                                                       item['fecha_congelacion'] != null &&
                                                                       item['fecha_descongelacion'] != null) ...[
@@ -1403,7 +1513,6 @@ class InventoryViewState extends State<InventoryView> {
                                                       ],
                                                     ),
                                                   ),
-                                                  // Badge de cantidad + botón editar (columna derecha)
                                                   Column(
                                                     crossAxisAlignment: CrossAxisAlignment.end,
                                                     children: [
@@ -1422,7 +1531,6 @@ class InventoryViewState extends State<InventoryView> {
                                                         ),
                                                       ),
                                                       const SizedBox(height: 8),
-                                                      // Botón Editar
                                                       IconButton(
                                                         constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                                         padding: const EdgeInsets.all(6),
@@ -1438,8 +1546,6 @@ class InventoryViewState extends State<InventoryView> {
                                                   ),
                                                 ],
                                               ),
-                                              
-                                              // Separador visual entre información y acciones
                                               const SizedBox(height: 12),
                                               Divider(
                                                 color: colorScheme.outlineVariant.withOpacity(0.3),
@@ -1447,104 +1553,97 @@ class InventoryViewState extends State<InventoryView> {
                                                 height: 1,
                                               ),
                                               const SizedBox(height: 12),
-                                              
-                                              // 4️⃣ BOTONES DE ACCIÓN (centrados en todo el ancho)
                                               Center(
                                                 child: Wrap(
                                                   spacing: 6,
                                                   runSpacing: 6,
                                                   alignment: WrapAlignment.center,
                                                   children: [
-                                                          // Botón Abrir (solo si cerrado)
-                                                          if (availableActions['abrir'] == true)
-                                                            IconButton(
-                                                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                                              padding: const EdgeInsets.all(6),
-                                                              tooltip: 'Abrir',
-                                                              icon: const Icon(Icons.open_in_new_rounded, size: 18),
-                                                              onPressed: () => _showOpenProductDialog(item),
-                                                              style: IconButton.styleFrom(
-                                                                backgroundColor: Colors.orange.shade100,
-                                                                foregroundColor: Colors.orange.shade800,
-                                                              ),
-                                                            ),
-                                                          // Botón Congelar (si no está congelado)
-                                                          if (availableActions['congelar'] == true)
-                                                            IconButton(
-                                                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                                              padding: const EdgeInsets.all(6),
-                                                              tooltip: 'Congelar',
-                                                              icon: const Icon(Icons.ac_unit_rounded, size: 18),
-                                                              onPressed: () => _showFreezeProductDialog(item),
-                                                              style: IconButton.styleFrom(
-                                                                backgroundColor: Colors.blue.shade100,
-                                                                foregroundColor: Colors.blue.shade800,
-                                                              ),
-                                                            ),
-                                                          // Botón Descongelar (solo si congelado)
-                                                          if (availableActions['descongelar'] == true)
-                                                            IconButton(
-                                                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                                              padding: const EdgeInsets.all(6),
-                                                              tooltip: 'Descongelar',
-                                                              icon: const Icon(Icons.wb_sunny_rounded, size: 18),
-                                                              onPressed: () => _showUnfreezeProductDialog(item),
-                                                              style: IconButton.styleFrom(
-                                                                backgroundColor: Colors.amber.shade100,
-                                                                foregroundColor: Colors.amber.shade800,
-                                                              ),
-                                                            ),
-                                                          // Botón Reubicar (siempre disponible)
-                                                          if (availableActions['reubicar'] == true)
-                                                            IconButton(
-                                                              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                                              padding: const EdgeInsets.all(6),
-                                                              tooltip: 'Reubicar',
-                                                              icon: const Icon(Icons.move_up_rounded, size: 18),
-                                                              onPressed: () => _showRelocateProductDialog(item),
-                                                              style: IconButton.styleFrom(
-                                                                backgroundColor: Colors.purple.shade100,
-                                                                foregroundColor: Colors.purple.shade800,
-                                                              ),
-                                                            ),
-                                                          // Botón Usar
-                                                          IconButton(
-                                                            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                                                            padding: const EdgeInsets.all(6),
-                                                            tooltip: 'Usar',
-                                                            icon: const Icon(Icons.remove_circle_outline, size: 18),
-                                                            onPressed: () => showRemoveQuantityDialog(
-                                                              stockId, 
-                                                              quantity, 
-                                                              productName,
-                                                              item['producto_maestro']['id_producto'],
-                                                            ),
-                                                            style: IconButton.styleFrom(
-                                                              backgroundColor: colorScheme.secondaryContainer,
-                                                              foregroundColor: colorScheme.onSecondaryContainer,
-                                                            ),
-                                                          ),
-                                                        ],
+                                                    if (availableActions['abrir'] == true)
+                                                      IconButton(
+                                                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                        padding: const EdgeInsets.all(6),
+                                                        tooltip: 'Abrir',
+                                                        icon: const Icon(Icons.open_in_new_rounded, size: 18),
+                                                        onPressed: () => _showOpenProductDialog(item),
+                                                        style: IconButton.styleFrom(
+                                                          backgroundColor: Colors.orange.shade100,
+                                                          foregroundColor: Colors.orange.shade800,
+                                                        ),
+                                                      ),
+                                                    if (availableActions['congelar'] == true)
+                                                      IconButton(
+                                                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                        padding: const EdgeInsets.all(6),
+                                                        tooltip: 'Congelar',
+                                                        icon: const Icon(Icons.ac_unit_rounded, size: 18),
+                                                        onPressed: () => _showFreezeProductDialog(item),
+                                                        style: IconButton.styleFrom(
+                                                          backgroundColor: Colors.blue.shade100,
+                                                          foregroundColor: Colors.blue.shade800,
+                                                        ),
+                                                      ),
+                                                    if (availableActions['descongelar'] == true)
+                                                      IconButton(
+                                                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                        padding: const EdgeInsets.all(6),
+                                                        tooltip: 'Descongelar',
+                                                        icon: const Icon(Icons.wb_sunny_rounded, size: 18),
+                                                        onPressed: () => _showUnfreezeProductDialog(item),
+                                                        style: IconButton.styleFrom(
+                                                          backgroundColor: Colors.amber.shade100,
+                                                          foregroundColor: Colors.amber.shade800,
+                                                        ),
+                                                      ),
+                                                    if (availableActions['reubicar'] == true)
+                                                      IconButton(
+                                                        constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                        padding: const EdgeInsets.all(6),
+                                                        tooltip: 'Reubicar',
+                                                        icon: const Icon(Icons.move_up_rounded, size: 18),
+                                                        onPressed: () => _showRelocateProductDialog(item),
+                                                        style: IconButton.styleFrom(
+                                                          backgroundColor: Colors.purple.shade100,
+                                                          foregroundColor: Colors.purple.shade800,
+                                                        ),
+                                                      ),
+                                                    IconButton(
+                                                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                      padding: const EdgeInsets.all(6),
+                                                      tooltip: 'Usar',
+                                                      icon: const Icon(Icons.remove_circle_outline, size: 18),
+                                                      onPressed: () => showRemoveQuantityDialog(
+                                                        stockId, 
+                                                        quantity, 
+                                                        productName,
+                                                        item['producto_maestro']['id_producto'],
+                                                      ),
+                                                      style: IconButton.styleFrom(
+                                                        backgroundColor: colorScheme.secondaryContainer,
+                                                        foregroundColor: colorScheme.onSecondaryContainer,
                                                       ),
                                                     ),
+                                                  ],
+                                                ),
+                                              ),
                                             ],
                                           ),
                                         ),
                                       ],
                                     ),
                                   ),
-                                    );
-                                }).toList(),
-                              ),
+                                );
+                              }).toList(),
                             ),
-                          ), // Card
-                        ); // return Padding
-                      }, // itemBuilder
-                    ), // ListView.builder
-                  ); // end RefreshIndicator return
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
               },
-            ), // FutureBuilder
-          ), // Expanded
+            ),
+          ),
         ],
       ),
     );

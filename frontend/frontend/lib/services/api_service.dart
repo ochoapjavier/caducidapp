@@ -284,13 +284,30 @@ Future<void> addScannedStockItem({
 }
 
 /// Obtiene todos los items de stock para el usuario actual.
-Future<List<dynamic>> fetchStockItems({String? searchTerm}) async {
+Future<List<dynamic>> fetchStockItems({
+  String? searchTerm,
+  List<String>? statusFilter,
+  String? sortBy,
+}) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
     var uri = Uri.parse('$apiUrl/stock/');
 
+    final queryParams = <String, dynamic>{};
     if (searchTerm != null && searchTerm.isNotEmpty) {
-      uri = uri.replace(queryParameters: {'search': searchTerm});
+      queryParams['search'] = searchTerm;
+    }
+    if (statusFilter != null && statusFilter.isNotEmpty) {
+      // FastAPI expects repeated keys for list: ?status=congelado&status=abierto
+      // Dart's Uri.replace(queryParameters) handles List<String> correctly by repeating keys
+      queryParams['status'] = statusFilter;
+    }
+    if (sortBy != null && sortBy.isNotEmpty) {
+      queryParams['sort'] = sortBy;
+    }
+
+    if (queryParams.isNotEmpty) {
+      uri = uri.replace(queryParameters: queryParams);
     }
 
     final response = await http.get(uri, headers: headers);
@@ -345,6 +362,7 @@ Future<Map<String, dynamic>> updateStockItem({
     if (brand != null) body['brand'] = brand;
     if (fechaCaducidad != null) body['fecha_caducidad'] = fechaCaducidad.toIso8601String().split('T').first;
     if (cantidadActual != null) body['cantidad_actual'] = cantidadActual;
+    if (ubicacionId != null) body['ubicacion_id'] = ubicacionId;
     if (ubicacionId != null) body['ubicacion_id'] = ubicacionId;
 
     final response = await http.patch(

@@ -191,7 +191,7 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
               backgroundColor: Colors.green),
         );
         // Cierra la pantalla de confirmación y la del escáner, volviendo a la principal.
-        Navigator.of(context).popUntil((route) => route.isFirst);
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {

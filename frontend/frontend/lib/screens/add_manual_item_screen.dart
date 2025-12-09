@@ -233,7 +233,7 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
             backgroundColor: Colors.green,
           ),
         );
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
