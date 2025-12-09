@@ -1,6 +1,6 @@
 # backend/repositories/stock_repository.py
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import and_
+from sqlalchemy import and_, or_
 from datetime import date, timedelta
 from models import InventoryStock, Product, Location
 
@@ -103,8 +103,10 @@ class StockRepository:
             InventoryStock.hogar_id == hogar_id
         ).first()
 
-    def get_all_stock_for_hogar(self, hogar_id: int, search_term: str | None = None) -> list[InventoryStock]:
-        """Get all stock items for a household, with optional search."""
+    def get_all_stock_for_hogar(self, hogar_id: int, search_term: str | None = None, status_filter: list[str] | None = None, sort_by: str | None = None) -> list[InventoryStock]:
+        """
+        Get all stock items for a household, with optional search, status filtering, and sorting.
+        """
         query = (
             self.db.query(InventoryStock)
             .options(
@@ -114,15 +116,76 @@ class StockRepository:
             .filter(InventoryStock.hogar_id == hogar_id)
         )
 
+        # 1. Unified Search (Name, Brand, Barcode)
         if search_term:
-            # Search in product name or barcode
             search = f"%{search_term.lower()}%"
             query = query.filter(
                 (Product.nombre.ilike(search)) |
+                (Product.marca.ilike(search)) |
                 (Product.barcode.ilike(search))
             )
 
-        return query.order_by(Product.nombre, InventoryStock.fecha_caducidad).all()
+        # 2. Status Filtering (AND Logic)
+        if status_filter and len(status_filter) > 0:
+            today = date.today()
+            
+            for status in status_filter:
+                if status == 'congelado':
+                    query = query.filter(InventoryStock.estado_producto == 'congelado')
+                elif status == 'abierto':
+                    query = query.filter(InventoryStock.estado_producto == 'abierto')
+                elif status == 'urgente':
+                    # Red: 0 <= days <= 5. Exclude frozen.
+                    limit_date = today + timedelta(days=5)
+                    query = query.filter(
+                        and_(
+                            InventoryStock.estado_producto != 'congelado',
+                            InventoryStock.fecha_caducidad >= today,
+                            InventoryStock.fecha_caducidad <= limit_date
+                        )
+                    )
+                elif status == 'por_caducar':
+                    # Yellow: 5 < days <= 10. Exclude frozen.
+                    start_date = today + timedelta(days=5)
+                    end_date = today + timedelta(days=10)
+                    query = query.filter(
+                        and_(
+                            InventoryStock.estado_producto != 'congelado',
+                            InventoryStock.fecha_caducidad > start_date,
+                            InventoryStock.fecha_caducidad <= end_date
+                        )
+                    )
+                elif status == 'caducado':
+                    # Expired: date < today. Exclude frozen.
+                    query = query.filter(
+                        and_(
+                            InventoryStock.estado_producto != 'congelado',
+                            InventoryStock.fecha_caducidad < today
+                        )
+                    )
+
+        # 3. Sorting
+        if sort_by:
+            if sort_by == 'expiry_asc':
+                query = query.order_by(InventoryStock.fecha_caducidad.asc())
+            elif sort_by == 'expiry_desc':
+                query = query.order_by(InventoryStock.fecha_caducidad.desc())
+            elif sort_by == 'name_asc':
+                query = query.order_by(Product.nombre.asc())
+            elif sort_by == 'name_desc':
+                query = query.order_by(Product.nombre.desc())
+            elif sort_by == 'quantity_asc':
+                query = query.order_by(InventoryStock.cantidad_actual.asc())
+            elif sort_by == 'quantity_desc':
+                query = query.order_by(InventoryStock.cantidad_actual.desc())
+            else:
+                # Default sort
+                query = query.order_by(Product.nombre, InventoryStock.fecha_caducidad)
+        else:
+            # Default sort
+            query = query.order_by(Product.nombre, InventoryStock.fecha_caducidad)
+
+        return query.all()
 
     def delete_stock_item(self, item: InventoryStock):
         """Delete a stock item."""

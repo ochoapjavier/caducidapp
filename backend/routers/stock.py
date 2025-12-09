@@ -1,5 +1,5 @@
 # backend/routers/stock.py
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
@@ -38,14 +38,18 @@ def add_scan_stock_endpoint(
 @router.get("/", response_model=List[StockItem])
 def get_household_stock(
     search: str | None = None,
+    status: List[str] | None = Query(None),
+    sort: str | None = None,
     service: StockService = Depends(get_stock_service),
     hogar_id: int = Depends(get_active_hogar_id)
 ):
     """
     Get all inventory for the household.
     Allows filtering by product name or barcode with the 'search' parameter.
+    Allows filtering by status with 'status' parameter (cumulative).
+    Allows sorting with 'sort' parameter.
     """
-    return service.get_stock_for_hogar(hogar_id, search)
+    return service.get_stock_for_hogar(hogar_id, search, status, sort)
 
 @router.patch("/{id_stock}/consume", status_code=200)
 def consume_one_item(

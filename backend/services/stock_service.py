@@ -135,9 +135,9 @@ class StockService:
         # Return complete response object
         return StockItem.from_orm(new_stock_item)
 
-    def get_stock_for_hogar(self, hogar_id: int, search: str | None) -> List[StockItem]:
+    def get_stock_for_hogar(self, hogar_id: int, search: str | None, status_filter: List[str] | None = None, sort_by: str | None = None) -> List[StockItem]:
         """Get all stock items for a household."""
-        stock_items = self.stock_repo.get_all_stock_for_hogar(hogar_id, search)
+        stock_items = self.stock_repo.get_all_stock_for_hogar(hogar_id, search, status_filter, sort_by)
         return [StockItem.from_orm(item) for item in stock_items]
 
     def consume_stock_item(self, id_stock: int, hogar_id: int) -> dict:
