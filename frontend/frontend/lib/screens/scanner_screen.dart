@@ -20,14 +20,22 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
     // WEB: Restringir formatos ayuda al rendimiento de JS
     // NATIVO: Dejamos 'all' o una lista amplia porque el procesador nativo puede con ello
     formats: kIsWeb 
-      ? const [BarcodeFormat.ean13, BarcodeFormat.ean8, BarcodeFormat.upcA, BarcodeFormat.upcE]
+      ? const [
+          BarcodeFormat.ean13, 
+          BarcodeFormat.ean8, 
+          BarcodeFormat.upcA, 
+          BarcodeFormat.upcE, 
+          BarcodeFormat.code128, 
+          BarcodeFormat.code39,
+          BarcodeFormat.code93,  // Variantes industriales
+          BarcodeFormat.itf,     // Cajas de cartón (multipacks)
+          BarcodeFormat.codabar, // Menos común, pero lineal
+        ]
       : const [BarcodeFormat.all],
 
-    // WEB: 720p es más rápido de procesar
-    // NATIVO: 1080p da mejor nitidez para el enfoque instantáneo que te gusta en Android
-    cameraResolution: kIsWeb 
-      ? const Size(1280, 720) 
-      : const Size(1920, 1080),
+    // WEB: Subimos a 1080p para captar mejor los códigos anchos/densos
+    // NATIVO: 1080p da mejor nitidez
+    cameraResolution: const Size(1920, 1080),
       
     autoStart: false, 
     detectionTimeoutMs: 500,
