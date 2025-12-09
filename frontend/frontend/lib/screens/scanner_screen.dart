@@ -12,14 +12,25 @@ class ScannerScreen extends StatefulWidget {
 }
 
 class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserver {
-  // Configuración optimizada para mejor detección
+  // Configuración híbrida: Optimizada para Web, Potente para Nativo
   final MobileScannerController _scannerController = MobileScannerController(
     facing: CameraFacing.back,
     detectionSpeed: DetectionSpeed.noDuplicates,
-    formats: const [BarcodeFormat.all],
-    // Intentar forzar alta resolución (útil en Android, y en Web si el navegador lo respeta)
-    cameraResolution: const Size(1920, 1080), 
-    autoStart: false, // Control manual del inicio para mejor gestión de ciclo de vida
+    
+    // WEB: Restringir formatos ayuda al rendimiento de JS
+    // NATIVO: Dejamos 'all' o una lista amplia porque el procesador nativo puede con ello
+    formats: kIsWeb 
+      ? const [BarcodeFormat.ean13, BarcodeFormat.ean8, BarcodeFormat.upcA, BarcodeFormat.upcE]
+      : const [BarcodeFormat.all],
+
+    // WEB: 720p es más rápido de procesar
+    // NATIVO: 1080p da mejor nitidez para el enfoque instantáneo que te gusta en Android
+    cameraResolution: kIsWeb 
+      ? const Size(1280, 720) 
+      : const Size(1920, 1080),
+      
+    autoStart: false, 
+    detectionTimeoutMs: 500,
   );
   
   bool _isProcessing = false;
