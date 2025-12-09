@@ -11,9 +11,11 @@ class ProductRepository:
         """Get a product by its ID."""
         return self.db.query(Product).filter(Product.id_producto == product_id).first()
 
-    def get_or_create_by_name(self, name: str, hogar_id: int) -> Product:
+    def get_or_create_by_name(self, name: str, hogar_id: int, brand: str | None = None) -> Product:
         """Get or create a product by name within a household (for products without barcode)."""
         # Case-insensitive search for household products without a barcode
+        # Note: We don't filter by brand on search to avoid duplicates if brand is missing/different
+        # We assume name is the primary identifier for manual products.
         product = (
             self.db.query(Product)
             .filter(
@@ -25,10 +27,16 @@ class ProductRepository:
         )
 
         if not product:
-            product = Product(nombre=name, hogar_id=hogar_id)
+            product = Product(nombre=name, marca=brand, hogar_id=hogar_id)
             self.db.add(product)
             self.db.commit()
             self.db.refresh(product)
+        elif brand and not product.marca:
+            # If product exists but has no brand, and we provided one, update it
+            product.marca = brand
+            self.db.commit()
+            self.db.refresh(product)
+            
         return product
 
     def get_by_barcode_and_hogar(self, barcode: str, hogar_id: int) -> Product | None:

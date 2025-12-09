@@ -42,7 +42,11 @@ class StockService:
                     image_url=item_data.image_url
                 )
             else:
-                producto_maestro = self.product_repo.get_or_create_by_name(item_data.product_name, hogar_id)
+                producto_maestro = self.product_repo.get_or_create_by_name(
+                    name=item_data.product_name, 
+                    hogar_id=hogar_id,
+                    brand=item_data.brand
+                )
         
         if not producto_maestro:
              raise HTTPException(status_code=500, detail="No se pudo crear o encontrar el producto maestro.")

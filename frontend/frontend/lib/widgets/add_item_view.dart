@@ -21,127 +21,151 @@ class AddItemView extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
 
-    return Center(
-      child: SingleChildScrollView(
-        controller: scrollController,
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            ElevatedButton.icon(
-              icon: const Icon(Icons.qr_code_scanner),
-              label: const Text('Añadir producto escaneado'),
-              style: primaryActionStyle,
-              onPressed: () async {
-                // Navega a la pantalla del escáner y espera un resultado (el código de barras)
-                final barcode = await Navigator.of(context).push<String>(
-                  MaterialPageRoute(builder: (ctx) => const ScannerScreen()),
-                );
-
-                if (barcode != null && context.mounted) {
-                  // Mostramos un spinner mientras buscamos el producto
-                  showDialog(
-                    context: context, 
-                    builder: (ctx) => const Center(child: CircularProgressIndicator()), 
-                    barrierDismissible: false
-                  );
-
-                  // --- INICIO DE LA NUEVA LÓGICA DE BÚSQUEDA ---
-                  Map<String, dynamic>? productData;
-                  bool foundInLocalDB = false;
-
-                  // 1. Buscar primero en nuestro catálogo
-                  try {
-                    productData = await fetchProductFromCatalog(barcode);
-                  } catch (e) {
-                    debugPrint('Error fetching from catalog: $e');
-                  }
-
-                  if (productData != null) {
-                    foundInLocalDB = true;
-                  } else {
-                    // 2. Si no, buscar en OpenFoodFacts
-                    try {
-                      final offData = await fetchProductFromOpenFoodFacts(barcode);
-                      if (offData != null) {
-                        // Adaptamos la respuesta de OFF a un mapa más simple
-                        final nameEs = offData['product_name_es'] as String?;
-                        final nameEn = offData['product_name_en'] as String?;
-                        final nameGeneric = offData['product_name'] as String?;
-
-                        productData = {
-                          'nombre': (nameEs != null && nameEs.isNotEmpty) ? nameEs
-                                  : (nameEn != null && nameEn.isNotEmpty) ? nameEn
-                                  : (nameGeneric != null && nameGeneric.isNotEmpty) ? nameGeneric
-                                  : 'Nombre no encontrado',
-                          'marca': offData['brands'],
-                          'image_url': offData['image_front_thumb_url'],
-                        };
-                      }
-                    } catch (e) {
-                       debugPrint('Error fetching from OFF: $e');
-                    }
-                  }
-                  // --- FIN DE LA NUEVA LÓGICA DE BÚSQUEDA ---
-
-                  if (context.mounted) {
-                    Navigator.of(context).pop(); // Cierra el spinner
-                  }
-
-                  if (productData != null && context.mounted) {
-                    // Producto encontrado, navegamos a la pantalla de confirmación
-                    Navigator.of(context).push(MaterialPageRoute(
-                      builder: (ctx) => AddScannedItemScreen(
-                        barcode: barcode,
-                        initialProductName: productData!['nombre'] as String,
-                        initialBrand: productData['marca'] as String?,
-                        initialImageUrl: productData['image_url'] as String?,
-                        isFromLocalDB: foundInLocalDB,
-                      ),
-                    ));
-                  } else if (context.mounted) {
-                    // Producto no encontrado
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Producto no encontrado en la base de datos online. Intenta añadirlo manualmente.'), 
-                        backgroundColor: Colors.orange
-                      ),
-                    );
-                  }
-                }
-              },
-            ),
-            const SizedBox(height: 24),
-            Row(
+    return Stack(
+      children: [
+        Center(
+          child: SingleChildScrollView(
+            controller: scrollController,
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Expanded(child: Divider()),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                  child: Text(
-                    'O',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: colorScheme.onSurface.withOpacity(0.6),
-                    ),
-                  ),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.qr_code_scanner),
+                  label: const Text('Añadir producto escaneado'),
+                  style: primaryActionStyle,
+                  onPressed: () async {
+                    // Navega a la pantalla del escáner y espera un resultado (el código de barras)
+                    final barcode = await Navigator.of(context).push<String>(
+                      MaterialPageRoute(builder: (ctx) => const ScannerScreen()),
+                    );
+
+                    if (barcode != null && context.mounted) {
+                      // Mostramos un spinner mientras buscamos el producto
+                      showDialog(
+                        context: context, 
+                        builder: (ctx) => const Center(child: CircularProgressIndicator()), 
+                        barrierDismissible: false
+                      );
+
+                      // --- INICIO DE LA NUEVA LÓGICA DE BÚSQUEDA ---
+                      Map<String, dynamic>? productData;
+                      bool foundInLocalDB = false;
+
+                      // 1. Buscar primero en nuestro catálogo
+                      try {
+                        productData = await fetchProductFromCatalog(barcode);
+                      } catch (e) {
+                        debugPrint('Error fetching from catalog: $e');
+                      }
+
+                      if (productData != null) {
+                        foundInLocalDB = true;
+                      } else {
+                        // 2. Si no, buscar en OpenFoodFacts
+                        try {
+                          final offData = await fetchProductFromOpenFoodFacts(barcode);
+                          if (offData != null) {
+                            // Adaptamos la respuesta de OFF a un mapa más simple
+                            final nameEs = offData['product_name_es'] as String?;
+                            final nameEn = offData['product_name_en'] as String?;
+                            final nameGeneric = offData['product_name'] as String?;
+
+                            productData = {
+                              'nombre': (nameEs != null && nameEs.isNotEmpty) ? nameEs
+                                      : (nameEn != null && nameEn.isNotEmpty) ? nameEn
+                                      : (nameGeneric != null && nameGeneric.isNotEmpty) ? nameGeneric
+                                      : 'Nombre no encontrado',
+                              'marca': offData['brands'],
+                              'image_url': offData['image_front_thumb_url'],
+                            };
+                          }
+                        } catch (e) {
+                           debugPrint('Error fetching from OFF: $e');
+                        }
+                      }
+                      // --- FIN DE LA NUEVA LÓGICA DE BÚSQUEDA ---
+
+                      if (context.mounted) {
+                        Navigator.of(context).pop(); // Cierra el spinner
+                      }
+
+                      if (productData != null && context.mounted) {
+                        // Producto encontrado, navegamos a la pantalla de confirmación
+                        final result = await Navigator.of(context).push(MaterialPageRoute(
+                          builder: (ctx) => AddScannedItemScreen(
+                            barcode: barcode,
+                            initialProductName: productData!['nombre'] as String,
+                            initialBrand: productData['marca'] as String?,
+                            initialImageUrl: productData['image_url'] as String?,
+                            isFromLocalDB: foundInLocalDB,
+                          ),
+                        ));
+                        
+                        // Si se añadió correctamente, cerramos el diálogo
+                        if (result == true && context.mounted) {
+                          Navigator.of(context).pop();
+                        }
+                      } else if (context.mounted) {
+                        // Producto no encontrado
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Producto no encontrado en la base de datos online. Intenta añadirlo manualmente.'), 
+                            backgroundColor: Colors.orange
+                          ),
+                        );
+                      }
+                    }
+                  },
                 ),
-                const Expanded(child: Divider()),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    const Expanded(child: Divider()),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                      child: Text(
+                        'O',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurface.withOpacity(0.6),
+                        ),
+                      ),
+                    ),
+                    const Expanded(child: Divider()),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                ElevatedButton.icon(
+                  icon: const Icon(Icons.edit),
+                  label: const Text('Añadir producto manualmente'),
+                  style: primaryActionStyle,
+                  onPressed: () async {
+                     final result = await Navigator.of(context).push(MaterialPageRoute(
+                       builder: (ctx) => const AddManualItemScreen(),
+                     ));
+                     
+                     // Si se añadió correctamente, cerramos el diálogo
+                     if (result == true && context.mounted) {
+                       Navigator.of(context).pop();
+                     }
+                  },
+                ),
               ],
             ),
-            const SizedBox(height: 24),
-            ElevatedButton.icon(
-              icon: const Icon(Icons.edit),
-              label: const Text('Añadir producto manualmente'),
-              style: primaryActionStyle,
-              onPressed: () {
-                 Navigator.of(context).push(MaterialPageRoute(
-                   builder: (ctx) => const AddManualItemScreen(),
-                 ));
-              },
-            ),
-          ],
+          ),
         ),
-      ),
+        // Botón de cerrar en la esquina superior derecha
+        Positioned(
+          top: 8,
+          right: 8,
+          child: IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () => Navigator.of(context).pop(),
+            tooltip: 'Cerrar',
+          ),
+        ),
+      ],
     );
   }
 }

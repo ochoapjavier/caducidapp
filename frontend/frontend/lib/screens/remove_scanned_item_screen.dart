@@ -187,10 +187,55 @@ class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
   Widget build(BuildContext context) {
     if (_isScanning) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Escanear para Salida')),
-        body: MobileScanner(
-          controller: _scannerController,
-          onDetect: _onDetect,
+        appBar: AppBar(
+          title: const Text('Escanear para Salida'),
+          backgroundColor: Colors.black,
+          foregroundColor: Colors.white,
+        ),
+        backgroundColor: Colors.black,
+        body: Stack(
+          children: [
+            MobileScanner(
+              controller: _scannerController,
+              onDetect: _onDetect,
+            ),
+            // Overlay de escaneo (cuadro)
+            Center(
+              child: Container(
+                width: 250,
+                height: 250,
+                decoration: BoxDecoration(
+                  border: Border.all(color: Theme.of(context).colorScheme.primary, width: 4),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.5),
+                      spreadRadius: 1000,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // Mensaje de instrucción
+            Positioned(
+              bottom: 80,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(24),
+                  ),
+                  child: const Text(
+                    'Apunta al código de barras',
+                    style: TextStyle(color: Colors.white, fontSize: 16),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       );
     }
