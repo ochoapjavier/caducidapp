@@ -23,6 +23,8 @@ import 'widgets/quantity_selection_dialog.dart';
 import 'services/shopping_service.dart';
 import 'services/theme_service.dart';
 import 'widgets/error_view.dart';
+import 'screens/batch_scanner_screen.dart';
+import 'screens/batch_organizer_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -527,6 +529,11 @@ class MyApp extends StatelessWidget {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
           return HogarDetalleScreen(hogarId: hogarId);
+        },
+        '/batch_scanner': (context) => const BatchScannerScreen(),
+        '/batch_organizer': (context) {
+          final items = ModalRoute.of(context)?.settings.arguments as List<ScannedItem>?;
+          return BatchOrganizerScreen(scannedItems: items ?? []);
         },
       },
       initialRoute: '/',

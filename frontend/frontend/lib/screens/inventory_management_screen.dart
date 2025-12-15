@@ -62,6 +62,13 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
         onAddItem: _showAddItemModal,
         onRemoveItem: _showRemoveItemModal,
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          Navigator.pushNamed(context, '/batch_scanner').then((_) => refresh());
+        },
+        icon: const Icon(Icons.qr_code_scanner),
+        label: const Text('Batch Scan'),
+      ),
     );
   }
 }

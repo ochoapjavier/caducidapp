@@ -236,6 +236,21 @@ Future<List<Map<String, dynamic>>> fetchMasterProducts(String query) async {
   });
 }
 
+/// Obtiene sugerencias de ubicación para una lista de productos (Smart Grouping).
+Future<Map<int, int>> getProductSuggestions(List<int> productIds) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/products/suggestions'),
+      headers: headers,
+      body: jsonEncode(productIds),
+    );
+    final Map<String, dynamic> data = _processResponse(response);
+    // Convert String keys to Int keys
+    return data.map((key, value) => MapEntry(int.parse(key), value as int));
+  });
+}
+
 /// Busca un producto en la API de Open Food Facts usando su código de barras.
 Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(String barcode) async {
   // No usamos safeApiCall aquí porque queremos manejar el error silenciosamente o devolver null

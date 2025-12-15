@@ -96,6 +96,7 @@ class Product(Base):
     image_url = Column(String(512), nullable=True)
     dias_consumo_abierto = Column(Integer, nullable=True)  # Default days to consume after opening
     hogar_id = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
+    last_location_id = Column(Integer, ForeignKey('ubicacion.id_ubicacion', ondelete='SET NULL'), nullable=True)  # Smart Grouping Memory
     __table_args__ = (
         UniqueConstraint('barcode', 'hogar_id', name='producto_barcode_hogar_unique'),
         Index('ix_producto_hogar_nombre', 'hogar_id', 'nombre'),

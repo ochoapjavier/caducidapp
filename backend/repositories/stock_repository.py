@@ -20,6 +20,13 @@ class StockRepository:
             fecha_congelacion=fecha_congelacion
         )
         self.db.add(new_item)
+        
+        # Smart Grouping: Update product's last known location
+        product = self.db.query(Product).filter(Product.id_producto == fk_producto_maestro).first()
+        if product:
+            product.last_location_id = fk_ubicacion
+            self.db.add(product)
+
         self.db.commit()
         self.db.refresh(new_item)
         return new_item
@@ -197,3 +204,46 @@ class StockRepository:
         self.db.commit()
         self.db.refresh(item)
         return item
+
+    def get_product_suggestions(self, hogar_id: int, product_ids: list[int]) -> dict[int, int]:
+        """
+        Get suggested locations for a list of products.
+        Returns: {product_id: location_id}
+        Logic:
+        1. Check active stock (where is it now?).
+        2. If no stock, check last_location_id (where was it last?).
+        """
+        suggestions = {}
+        
+        # 1. Check active stock
+        active_stock = (
+            self.db.query(InventoryStock)
+            .filter(
+                InventoryStock.hogar_id == hogar_id,
+                InventoryStock.fk_producto_maestro.in_(product_ids),
+                InventoryStock.cantidad_actual > 0
+            )
+            .all()
+        )
+        
+        for item in active_stock:
+            # If multiple locations, just pick the first one found (simplification)
+            if item.fk_producto_maestro not in suggestions:
+                suggestions[item.fk_producto_maestro] = item.fk_ubicacion
+        
+        # 2. Check memory (last_location_id) for items not yet found
+        remaining_ids = [pid for pid in product_ids if pid not in suggestions]
+        if remaining_ids:
+            products = (
+                self.db.query(Product)
+                .filter(
+                    Product.id_producto.in_(remaining_ids),
+                    Product.hogar_id == hogar_id,
+                    Product.last_location_id.isnot(None)
+                )
+                .all()
+            )
+            for prod in products:
+                suggestions[prod.id_producto] = prod.last_location_id
+                
+        return suggestions

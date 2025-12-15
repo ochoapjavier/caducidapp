@@ -56,3 +56,17 @@ def search_products(
     # pero lo ideal es usar el repo.
     # Vamos a verificar el repo primero.
     return repo.search_by_name(query, hogar_id)
+
+@router.post("/suggestions", response_model=dict[int, int])
+def get_product_suggestions(
+    product_ids: list[int],
+    db: Session = Depends(get_db),
+    hogar_id: int = Depends(get_active_hogar_id)
+):
+    """
+    Get suggested locations for a list of products (Smart Grouping).
+    Returns: {product_id: location_id}
+    """
+    from repositories.stock_repository import StockRepository
+    repo = StockRepository(db)
+    return repo.get_product_suggestions(hogar_id, product_ids)
