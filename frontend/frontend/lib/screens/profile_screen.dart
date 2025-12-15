@@ -5,6 +5,7 @@ import '../theme/app_theme.dart';
 import '../services/notification_service.dart';
 import '../services/hogar_service.dart';
 import 'hogar_selector_screen.dart';
+import 'hogar_detalle_screen.dart';
 import 'settings_screen.dart'; // Para reutilizar lógica o migrarla
 import 'locations_management_screen.dart';
 import '../services/theme_service.dart';
@@ -213,6 +214,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) => LocationsManagementScreen(hogarId: widget.hogarId),
+                    ),
+                  ),
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.settings_applications_outlined),
+                  title: const Text('Gestionar Hogar'),
+                  subtitle: const Text('Ver miembros, código de invitación...'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => HogarDetalleScreen(hogarId: widget.hogarId),
                     ),
                   ),
                 ),
