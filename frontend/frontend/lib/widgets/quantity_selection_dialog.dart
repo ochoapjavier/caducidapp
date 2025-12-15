@@ -56,7 +56,7 @@ class _QuantitySelectionDialogState extends State<QuantitySelectionDialog> {
   Widget build(BuildContext context) {
     return Padding(
       padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom,
+        bottom: MediaQuery.of(context).viewInsets.bottom + MediaQuery.of(context).padding.bottom + 16,
         left: 16,
         right: 16,
         top: 24,
