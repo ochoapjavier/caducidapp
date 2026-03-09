@@ -10,6 +10,8 @@ import 'package:frontend/widgets/quantity_selection_dialog.dart';
 import 'package:frontend/services/shopping_service.dart';
 import 'package:frontend/services/hogar_service.dart';
 import 'package:frontend/widgets/error_view.dart';
+import 'package:frontend/models/hogar.dart';
+import 'package:frontend/models/ubicacion.dart';
 
 // Eliminado _isLoading (no se usaba)
 
@@ -873,6 +875,214 @@ class InventoryViewState extends State<InventoryView> {
     }
   }
 
+  /// Diálogo para transferir un producto a otro hogar
+  Future<void> _showTransferHouseholdDialog(dynamic item) async {
+    final stockId = item['id_stock'] as int;
+    final productName = item['producto_maestro']['nombre'] as String;
+    final currentQuantity = item['cantidad_actual'] as int;
+    
+    int quantity = 1;
+    Hogar? selectedHogar;
+    Ubicacion? selectedUbicacion;
+    bool loadingLocations = false;
+    List<Ubicacion> targetLocations = [];
+    
+    final colorScheme = Theme.of(context).colorScheme;
+    
+    // Obtener los hogares a los que pertenece el usuario
+    final currentHogarId = await HogarService().getHogarActivo();
+    List<Hogar> allHogares = [];
+    try {
+      allHogares = await fetchHogares();
+      // Filtrar el hogar actual para no transferir a donde ya estamos
+      allHogares.removeWhere((h) => h.idHogar == currentHogarId);
+    } catch (e) {
+      if (!mounted) return;
+      ErrorHandler.showError(context, Exception('No se pudieron cargar tus hogares: $e'));
+      return;
+    }
+    
+    if (!mounted) return;
+    
+    if (allHogares.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('No perteneces a ningún otro hogar al que transferir.'),
+          backgroundColor: colorScheme.error,
+        ),
+      );
+      return;
+    }
+    
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setStateDialog) => AlertDialog(
+          title: Text('Transferir "$productName"'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Mover a otra casa',
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                Text(
+                  'Unidades disponibles: $currentQuantity',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // Spinner para cantidad
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Cantidad',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity > 1
+                          ? () => setStateDialog(() => quantity--)
+                          : null,
+                      icon: const Icon(Icons.remove_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: colorScheme.outline),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        '$quantity',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: quantity < currentQuantity
+                          ? () => setStateDialog(() => quantity++)
+                          : null,
+                      icon: const Icon(Icons.add_circle_outline),
+                      color: colorScheme.primary,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // Primer Dropdown: Elegir Hogar
+                DropdownButtonFormField<Hogar>(
+                  decoration: const InputDecoration(
+                    labelText: 'Hogar destino *',
+                    border: OutlineInputBorder(),
+                  ),
+                  value: selectedHogar,
+                  items: allHogares.map((h) => DropdownMenuItem<Hogar>(
+                    value: h,
+                    child: Text(h.nombre),
+                  )).toList(),
+                  onChanged: (hogar) async {
+                    if (hogar == null) return;
+                    setStateDialog(() {
+                      selectedHogar = hogar;
+                      selectedUbicacion = null;
+                      loadingLocations = true;
+                    });
+                    
+                    try {
+                      final locs = await fetchUbicacionesDeHogar(hogar.idHogar);
+                      setStateDialog(() {
+                        targetLocations = locs;
+                        loadingLocations = false;
+                      });
+                    } catch (e) {
+                      setStateDialog(() {
+                        targetLocations = [];
+                        loadingLocations = false;
+                      });
+                      if (context.mounted) {
+                        ErrorHandler.showError(context, e);
+                      }
+                    }
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Segundo Dropdown: Elegir Ubicación en el Hogar
+                if (loadingLocations)
+                  const Center(child: CircularProgressIndicator())
+                else if (selectedHogar != null)
+                  DropdownButtonFormField<Ubicacion>(
+                    decoration: const InputDecoration(
+                      labelText: 'Ubicación destino *',
+                      border: OutlineInputBorder(),
+                    ),
+                    value: selectedUbicacion,
+                    items: targetLocations.map((loc) => DropdownMenuItem<Ubicacion>(
+                      value: loc,
+                      child: Text(loc.nombre),
+                    )).toList(),
+                    onChanged: targetLocations.isEmpty ? null : (value) => setStateDialog(() => selectedUbicacion = value),
+                    validator: (v) => v == null ? 'Selecciona una ubicación' : null,
+                  ),
+                if (selectedHogar != null && targetLocations.isEmpty && !loadingLocations)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8.0),
+                    child: Text(
+                      'Este hogar no tiene ubicaciones configuradas.',
+                      style: TextStyle(color: colorScheme.error, fontSize: 12),
+                    ),
+                  )
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: (selectedHogar == null || selectedUbicacion == null) 
+                  ? null 
+                  : () => Navigator.of(ctx).pop(true),
+              child: const Text('Transferir'),
+            ),
+          ],
+        ),
+      ),
+    );
+    
+    if (confirmed == true && selectedHogar != null && selectedUbicacion != null) {
+      try {
+        await transferProductBetweenHouseholds(
+          stockId: stockId,
+          targetHogarId: selectedHogar!.idHogar,
+          targetLocationId: selectedUbicacion!.id,
+          cantidad: quantity,
+        );
+        
+        await refreshInventory();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Producto transferido correctamente al otro hogar.'),
+              backgroundColor: colorScheme.primary,
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ErrorHandler.showError(context, e);
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -1599,7 +1809,7 @@ class InventoryViewState extends State<InventoryView> {
                                                       IconButton(
                                                         constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                                         padding: const EdgeInsets.all(6),
-                                                        tooltip: 'Reubicar',
+                                                        tooltip: 'Reubicar en casa',
                                                         icon: const Icon(Icons.move_up_rounded, size: 18),
                                                         onPressed: () => _showRelocateProductDialog(item),
                                                         style: IconButton.styleFrom(
@@ -1607,6 +1817,17 @@ class InventoryViewState extends State<InventoryView> {
                                                           foregroundColor: Colors.purple.shade800,
                                                         ),
                                                       ),
+                                                    IconButton(
+                                                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                                      padding: const EdgeInsets.all(6),
+                                                      tooltip: 'Transferir a otra casa',
+                                                      icon: const Icon(Icons.flight_takeoff_rounded, size: 18),
+                                                      onPressed: () => _showTransferHouseholdDialog(item),
+                                                      style: IconButton.styleFrom(
+                                                        backgroundColor: Colors.indigo.shade100,
+                                                        foregroundColor: Colors.indigo.shade800,
+                                                      ),
+                                                    ),
                                                     IconButton(
                                                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                                                       padding: const EdgeInsets.all(6),

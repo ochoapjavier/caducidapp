@@ -228,3 +228,76 @@ class StockService:
         self.db.refresh(item)
         self.db.refresh(producto_maestro)
         return StockItem.from_orm(item)
+
+    def transfer_stock_between_households(self, id_stock: int, current_hogar_id: int, target_hogar_id: int, target_ubicacion_id: int, cantidad_transferir: int) -> dict:
+        """Transfer stock from one household to another."""
+        # 1. Validate quantity
+        if cantidad_transferir <= 0:
+            raise HTTPException(status_code=400, detail="La cantidad a transferir debe ser mayor a cero.")
+            
+        # 2. Get original stock item and validate ownership
+        stock_actual = self.stock_repo.get_stock_item_by_id_and_hogar(id_stock, current_hogar_id)
+        if not stock_actual:
+            raise HTTPException(status_code=404, detail="Item de stock no encontrado en el hogar de origen.")
+            
+        if stock_actual.cantidad_actual < cantidad_transferir:
+            raise HTTPException(status_code=400, detail="No hay suficiente stock para transferir esa cantidad.")
+            
+        # 3. Validate target location belongs to target household
+        target_ubicacion = self.location_repo.get_location_by_id_and_hogar(target_ubicacion_id, target_hogar_id)
+        if not target_ubicacion:
+            raise HTTPException(status_code=404, detail="La ubicación destino no existe o no pertenece al hogar seleccionado.")
+            
+        # 4. Handle Master Product in Target Household
+        producto_origen = stock_actual.producto_maestro
+        producto_destino = None
+        
+        # Try to find existing product in target household by barcode or name
+        if producto_origen.barcode:
+            producto_destino = self.product_repo.get_or_create_by_barcode(
+                barcode=producto_origen.barcode,
+                name=producto_origen.nombre,
+                brand=producto_origen.marca,
+                hogar_id=target_hogar_id,
+                image_url=producto_origen.image_url
+            )
+        else:
+            producto_destino = self.product_repo.get_or_create_by_name(
+                name=producto_origen.nombre,
+                brand=producto_origen.marca,
+                hogar_id=target_hogar_id
+            )
+            
+        if not producto_destino:
+            raise HTTPException(status_code=500, detail="Error al buscar o crear el producto en el hogar de destino.")
+
+        estado_destino = 'congelado' if target_ubicacion.es_congelador else ('cerrado' if stock_actual.estado_producto == 'congelado' else stock_actual.estado_producto)
+
+        # 5. Process Transfer (Partial or Total)
+        if cantidad_transferir == stock_actual.cantidad_actual:
+            # Transferencia Total
+            stock_actual.hogar_id = target_hogar_id
+            stock_actual.fk_ubicacion = target_ubicacion.id_ubicacion
+            stock_actual.fk_producto_maestro = producto_destino.id_producto
+            stock_actual.estado_producto = estado_destino
+            if stock_actual.estado_producto == 'congelado' and target_ubicacion.es_congelador:
+                stock_actual.fecha_congelacion = datetime.utcnow().date()
+            self.stock_repo.update_stock_item(stock_actual)
+            message = "Transferencia total completada con éxito."
+        else:
+            # Transferencia Parcial
+            stock_actual.cantidad_actual -= cantidad_transferir
+            self.stock_repo.update_stock_item(stock_actual)
+            
+            self.stock_repo.create_stock_item(
+                hogar_id=target_hogar_id,
+                fk_producto_maestro=producto_destino.id_producto,
+                fk_ubicacion=target_ubicacion.id_ubicacion,
+                cantidad_actual=cantidad_transferir,
+                fecha_caducidad=stock_actual.fecha_caducidad,
+                estado_producto=estado_destino,
+                fecha_congelacion=datetime.utcnow().date() if target_ubicacion.es_congelador else stock_actual.fecha_congelacion
+            )
+            message = "Transferencia parcial completada con éxito."
+            
+        return {"status": "success", "message": message, "cantidad_transferida": cantidad_transferir}
