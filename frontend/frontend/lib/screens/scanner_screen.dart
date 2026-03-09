@@ -254,7 +254,7 @@ class _ScannerScreenState extends State<ScannerScreen> with WidgetsBindingObserv
 
           // Mensaje de estado y guía
           Positioned(
-            bottom: 32,
+            bottom: 32 + MediaQuery.of(context).padding.bottom,
             left: 16,
             right: 16,
             child: Column(

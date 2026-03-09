@@ -1691,7 +1691,7 @@ class InventoryViewState extends State<InventoryView> {
           builder: (ctx, setStateModal) {
             return Padding(
               padding: EdgeInsets.only(
-                bottom: MediaQuery.of(ctx).viewInsets.bottom,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + MediaQuery.of(ctx).padding.bottom + 16,
                 left: 24,
                 right: 24,
                 top: 24,
