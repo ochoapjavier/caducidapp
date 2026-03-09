@@ -161,7 +161,7 @@ Future<void> updateUbicacion(int id, String newName, {bool? esCongelador}) async
   });
 }
 
-/// Añade un nuevo item de stock al inventario del usuario.
+// Añade un nuevo item de stock al inventario del usuario.
 Future<void> addManualStockItem({
   required String productName,
   int? productId,
@@ -192,7 +192,7 @@ Future<void> addManualStockItem({
   });
 }
 
-/// Busca un producto en nuestro catálogo por su código de barras.
+// Busca un producto en nuestro catálogo por su código de barras.
 Future<Map<String, dynamic>?> fetchProductFromCatalog(String barcode) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -203,7 +203,7 @@ Future<Map<String, dynamic>?> fetchProductFromCatalog(String barcode) async {
   });
 }
 
-/// Actualiza el nombre/marca de un producto en el catálogo maestro.
+// Actualiza el nombre/marca de un producto en el catálogo maestro.
 Future<void> updateProductInCatalog({
   required String barcode,
   required String name,
@@ -223,7 +223,7 @@ Future<void> updateProductInCatalog({
   });
 }
 
-/// Busca productos maestros por nombre (para autocompletado).
+// Busca productos maestros por nombre (para autocompletado).
 Future<List<Map<String, dynamic>>> fetchMasterProducts(String query) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -236,7 +236,7 @@ Future<List<Map<String, dynamic>>> fetchMasterProducts(String query) async {
   });
 }
 
-/// Obtiene sugerencias de ubicación para una lista de productos (Smart Grouping).
+// Obtiene sugerencias de ubicación para una lista de productos (Smart Grouping).
 Future<Map<int, int>> getProductSuggestions(List<int> productIds) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -245,13 +245,16 @@ Future<Map<int, int>> getProductSuggestions(List<int> productIds) async {
       headers: headers,
       body: jsonEncode(productIds),
     );
+
+    if (response.statusCode == 404) return {};
+
     final Map<String, dynamic> data = _processResponse(response);
     // Convert String keys to Int keys
     return data.map((key, value) => MapEntry(int.parse(key), value as int));
   });
 }
 
-/// Busca un producto en la API de Open Food Facts usando su código de barras.
+// Busca un producto en la API de Open Food Facts usando su código de barras.
 Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(String barcode) async {
   // No usamos safeApiCall aquí porque queremos manejar el error silenciosamente o devolver null
   final uri = Uri.parse('https://world.openfoodfacts.org/api/v2/product/$barcode.json');
@@ -271,7 +274,7 @@ Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(String barcode) asyn
   }
 }
 
-/// Añade un nuevo item de stock desde un escaneo.
+// Añade un nuevo item de stock desde un escaneo.
 Future<void> addScannedStockItem({
   required String barcode,
   required String productName,
@@ -298,7 +301,7 @@ Future<void> addScannedStockItem({
   });
 }
 
-/// Obtiene todos los items de stock para el usuario actual.
+// Obtiene todos los items de stock para el usuario actual.
 Future<List<dynamic>> fetchStockItems({
   String? searchTerm,
   List<String>? statusFilter,
@@ -330,7 +333,7 @@ Future<List<dynamic>> fetchStockItems({
   });
 }
 
-/// Llama al endpoint para consumir una unidad de un item de stock.
+// Llama al endpoint para consumir una unidad de un item de stock.
 Future<Map<String, dynamic>> consumeStockItem(int stockId) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -342,7 +345,7 @@ Future<Map<String, dynamic>> consumeStockItem(int stockId) async {
   });
 }
 
-/// Llama al endpoint para eliminar una cantidad específica de un item de stock.
+// Llama al endpoint para eliminar una cantidad específica de un item de stock.
 Future<Map<String, dynamic>> removeStockItems({
   required int stockId,
   required int cantidad,
@@ -361,7 +364,7 @@ Future<Map<String, dynamic>> removeStockItems({
   });
 }
 
-/// Actualiza un item de stock.
+// Actualiza un item de stock.
 Future<Map<String, dynamic>> updateStockItem({
   required int stockId,
   String? productName,
@@ -395,7 +398,7 @@ Future<Map<String, dynamic>> updateStockItem({
 // PRODUCT STATE MANAGEMENT ACTIONS
 // ============================================================================
 
-/// Abre unidades selladas de un producto.
+// Abre unidades selladas de un producto.
 Future<Map<String, dynamic>> openProduct({
   required int stockId,
   required int cantidad,
@@ -421,7 +424,7 @@ Future<Map<String, dynamic>> openProduct({
   });
 }
 
-/// Congela unidades de un producto.
+// Congela unidades de un producto.
 Future<Map<String, dynamic>> freezeProduct({
   required int stockId,
   required int cantidad,
@@ -443,7 +446,7 @@ Future<Map<String, dynamic>> freezeProduct({
   });
 }
 
-/// Descongela un producto congelado.
+// Descongela un producto congelado.
 Future<Map<String, dynamic>> unfreezeProduct({
   required int stockId,
   required int cantidad,
@@ -467,7 +470,7 @@ Future<Map<String, dynamic>> unfreezeProduct({
   });
 }
 
-/// Mueve unidades de un producto a una ubicación diferente.
+// Mueve unidades de un producto a una ubicación diferente.
 Future<Map<String, dynamic>> relocateProduct({
   required int stockId,
   required int cantidad,
@@ -493,7 +496,7 @@ Future<Map<String, dynamic>> relocateProduct({
 // GESTIÓN DE HOGARES - Sistema Multihogar
 // ============================================================================
 
-/// Obtener la lista de hogares del usuario autenticado
+// Obtener la lista de hogares del usuario autenticado
 Future<List<Hogar>> fetchHogares() async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -506,7 +509,7 @@ Future<List<Hogar>> fetchHogares() async {
   });
 }
 
-/// Obtener los detalles completos de un hogar (incluyendo miembros)
+// Obtener los detalles completos de un hogar (incluyendo miembros)
 Future<HogarDetalle> fetchHogarDetalle(int hogarId) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -518,7 +521,7 @@ Future<HogarDetalle> fetchHogarDetalle(int hogarId) async {
   });
 }
 
-/// Crear un nuevo hogar
+// Crear un nuevo hogar
 Future<Hogar> createHogar(String nombre, {String icono = 'home'}) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -534,7 +537,7 @@ Future<Hogar> createHogar(String nombre, {String icono = 'home'}) async {
   });
 }
 
-/// Unirse a un hogar existente usando un código de invitación
+// Unirse a un hogar existente usando un código de invitación
 Future<void> unirseAHogar(String codigoInvitacion) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -549,7 +552,7 @@ Future<void> unirseAHogar(String codigoInvitacion) async {
   });
 }
 
-/// Regenerar el código de invitación de un hogar (solo admin)
+// Regenerar el código de invitación de un hogar (solo admin)
 Future<String> regenerarCodigoInvitacion(int hogarId) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -562,7 +565,7 @@ Future<String> regenerarCodigoInvitacion(int hogarId) async {
   });
 }
 
-/// Abandonar un hogar
+// Abandonar un hogar
 Future<void> abandonarHogar(int hogarId) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -574,7 +577,7 @@ Future<void> abandonarHogar(int hogarId) async {
   });
 }
 
-/// Expulsar a un miembro del hogar (solo admin)
+// Expulsar a un miembro del hogar (solo admin)
 Future<void> expulsarMiembro(int hogarId, String userId) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -586,7 +589,7 @@ Future<void> expulsarMiembro(int hogarId, String userId) async {
   });
 }
 
-/// Cambiar el rol de un miembro (solo admin)
+// Cambiar el rol de un miembro (solo admin)
 Future<void> cambiarRolMiembro(int hogarId, String userId, String nuevoRol) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -601,7 +604,7 @@ Future<void> cambiarRolMiembro(int hogarId, String userId, String nuevoRol) asyn
   });
 }
 
-/// Actualizar nombre e icono de un hogar (solo admin)
+// Actualizar nombre e icono de un hogar (solo admin)
 Future<Hogar> updateHogar(int hogarId, String nombre, String icono) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
@@ -617,7 +620,7 @@ Future<Hogar> updateHogar(int hogarId, String nombre, String icono) async {
   });
 }
 
-/// Actualizar el apodo del miembro actual dentro de un hogar
+// Actualizar el apodo del miembro actual dentro de un hogar
 Future<void> updateMyApodo(int hogarId, String apodo) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
