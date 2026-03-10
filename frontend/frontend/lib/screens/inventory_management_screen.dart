@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:frontend/widgets/add_item_view.dart';
 import 'package:frontend/widgets/inventory_view.dart';
 import 'package:frontend/widgets/remove_item_view.dart';
+import 'package:frontend/screens/ticket_scanner_screen.dart';
+import 'package:frontend/screens/matchmaker_screen.dart';
+import 'package:frontend/models/ticket_item.dart';
+import 'package:frontend/services/ticket_parser_service.dart';
+import 'package:frontend/services/api_service.dart' as api;
 
 class InventoryManagementScreen extends StatefulWidget {
   const InventoryManagementScreen({super.key});
@@ -51,11 +56,69 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
     ).then((_) => _inventoryViewKey.currentState?.refreshInventory());
   }
 
+  void _startSmartReceiptFlow() async {
+    // 1. Abrimos el escáner
+    final ParsedTicketResult? parsedResult = await Navigator.of(context).push(
+      MaterialPageRoute(builder: (context) => const TicketScannerScreen()),
+    );
+
+    if (parsedResult != null && parsedResult.items.isNotEmpty) {
+      if (!mounted) return;
+      // 2. Abrimos el Matchmaker para confirmar
+      final MatchmakerResult? matchedResult = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => MatchmakerScreen(
+            initialItems: parsedResult.items,
+            guessedSupermercado: parsedResult.supermercado,
+          ),
+        ),
+      );
+
+      if (matchedResult != null && matchedResult.items.isNotEmpty) {
+        try {
+          // Mostrar indicador de carga
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Guardando aprendizaje del ticket...')),
+          );
+          
+          await api.saveTicketMatches(
+            matchedResult.items,
+            supermercadoId: matchedResult.supermercadoId,
+            supermercadoNombre: matchedResult.supermercadoNombre,
+          );
+          
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('¡Ticket procesado y aprendido con éxito!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error guardando ticket: $e'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inventario'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.receipt_long),
+            tooltip: 'Escanear Ticket',
+            onPressed: _startSmartReceiptFlow,
+          ),
+        ],
       ),
       body: InventoryView(
         key: _inventoryViewKey,

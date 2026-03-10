@@ -8,13 +8,15 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/alerta.dart';
 import '../models/ubicacion.dart';
 import '../models/hogar.dart';
+import '../models/ticket_item.dart';
+import '../models/supermercado.dart';
 import 'hogar_service.dart';
 import 'app_exceptions.dart';
 
 // --- 2. GESTIÓN DE ENTORNO AUTOMÁTICA ---
 // Usa la IP de tu máquina en la red local para pruebas en dispositivo físico.
 // Si usas el emulador de Android, la IP para referirte al localhost de tu PC es 10.0.2.2.
-const String _localBaseUrl = 'http://192.168.1.145:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
+const String _localBaseUrl = 'http://192.168.1.150:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
 const String _productionBaseUrl = 'https://caducidapp-api.onrender.com';
 
 // kDebugMode es `true` en `flutter run` y `false` en `flutter build --release`.
@@ -612,5 +614,64 @@ Future<void> updateMyApodo(int hogarId, String apodo) async {
       body: jsonEncode({'apodo': apodo}),
     );
     _processResponse(response);
+  });
+}
+
+
+Future<List<Supermercado>> getSupermercados() async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(
+      Uri.parse('$apiUrl/supermercados/'),
+      headers: headers,
+    );
+    final List<dynamic> jsonList = _processResponse(response);
+    return jsonList.map((json) => Supermercado.fromJson(json)).toList();
+  });
+}
+
+Future<Supermercado> createSupermercado(String nombre) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = json.encode({'nombre': nombre});
+    final response = await http.post(
+      Uri.parse('$apiUrl/supermercados/'),
+      headers: headers,
+      body: body,
+    );
+    return Supermercado.fromJson(_processResponse(response));
+  });
+}
+
+Future<void> saveTicketMatches(List<TicketItem> items, {int? supermercadoId, required String supermercadoNombre}) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    
+    final body = json.encode({
+      'items': items.map((item) => item.toJson()).toList(),
+      'ubicacion_id': null, // Para futuras versiones
+      'supermercado_id': supermercadoId,
+      'supermercado_nombre': supermercadoNombre,
+    });
+
+    final response = await http.post(
+      Uri.parse('$apiUrl/receipts/match'),
+      headers: headers,
+      body: body,
+    );
+    
+    _processResponse(response); // Lanzará excepción si falla
+  });
+}
+
+Future<List<Map<String, dynamic>>> getDictionaryMemory() async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(
+      Uri.parse('$apiUrl/receipts/dictionary'),
+      headers: headers,
+    );
+    final List<dynamic> jsonList = _processResponse(response);
+    return jsonList.cast<Map<String, dynamic>>();
   });
 }
