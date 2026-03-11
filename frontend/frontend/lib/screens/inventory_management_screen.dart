@@ -4,7 +4,7 @@ import 'package:frontend/widgets/inventory_view.dart';
 import 'package:frontend/widgets/remove_item_view.dart';
 import 'package:frontend/screens/ticket_scanner_screen.dart';
 import 'package:frontend/screens/matchmaker_screen.dart';
-import 'package:frontend/models/ticket_item.dart';
+import 'package:frontend/models/ticket_review_submission.dart';
 import 'package:frontend/services/ticket_parser_service.dart';
 import 'package:frontend/services/api_service.dart' as api;
 
@@ -12,11 +12,13 @@ class InventoryManagementScreen extends StatefulWidget {
   const InventoryManagementScreen({super.key});
 
   @override
-  State<InventoryManagementScreen> createState() => _InventoryManagementScreenState();
+  State<InventoryManagementScreen> createState() =>
+      _InventoryManagementScreenState();
 }
 
 class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
-  final GlobalKey<InventoryViewState> _inventoryViewKey = GlobalKey<InventoryViewState>();
+  final GlobalKey<InventoryViewState> _inventoryViewKey =
+      GlobalKey<InventoryViewState>();
 
   Future<void> refresh() async {
     await _inventoryViewKey.currentState?.refreshInventory();
@@ -32,7 +34,7 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
           constraints: const BoxConstraints(maxWidth: 500, maxHeight: 600),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(20),
-            child: const AddItemView(), 
+            child: const AddItemView(),
           ),
         ),
       ),
@@ -65,32 +67,29 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
     if (parsedResult != null && parsedResult.items.isNotEmpty) {
       if (!mounted) return;
       // 2. Abrimos el Matchmaker para confirmar
-      final MatchmakerResult? matchedResult = await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => MatchmakerScreen(
-            initialItems: parsedResult.items,
-            guessedSupermercado: parsedResult.supermercado,
-          ),
-        ),
-      );
+      final TicketReviewSubmission? matchedResult = await Navigator.of(context)
+          .push(
+            MaterialPageRoute(
+              builder: (context) => MatchmakerScreen(
+                initialItems: parsedResult.items,
+                guessedSupermercado: parsedResult.supermercado,
+              ),
+            ),
+          );
 
-      if (matchedResult != null && matchedResult.items.isNotEmpty) {
+      if (matchedResult != null && matchedResult.lineas.isNotEmpty) {
         try {
-          // Mostrar indicador de carga
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Guardando aprendizaje del ticket...')),
+            const SnackBar(content: Text('Guardando ticket e inventario...')),
           );
-          
-          await api.saveTicketMatches(
-            matchedResult.items,
-            supermercadoId: matchedResult.supermercadoId,
-            supermercadoNombre: matchedResult.supermercadoNombre,
-          );
-          
+
+          await api.saveTicketMatches(matchedResult);
+          await _inventoryViewKey.currentState?.refreshInventory();
+
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('¡Ticket procesado y aprendido con éxito!'),
+              content: Text('¡Ticket guardado y stock actualizado con éxito!'),
               backgroundColor: Colors.green,
             ),
           );

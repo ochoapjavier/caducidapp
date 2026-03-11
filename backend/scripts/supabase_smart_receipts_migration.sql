@@ -11,16 +11,16 @@ CREATE TABLE IF NOT EXISTS supermercados (
 
 -- 2. Insertar los principales supermercados semilla
 INSERT INTO supermercados (nombre, logo_url, color_hex) VALUES 
-('Mercadona', 'https://cdn.brandfetch.io/ideNsmUt1m/w/331/h/47/theme/dark/logo.png?c=1bxid64Mup7aczewSAYMX&t=1771954454417', '#009A63'),
-('Lidl', 'https://cdn.brandfetch.io/idw-qC2UFC/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1755376654291', '#FFF000'),
-('Dia', 'https://cdn.brandfetch.io/idrcO3pEzj/w/103/h/103/theme/dark/logo.png?c=1bxid64Mup7aczewSAYMX&t=1765243714689', '#FF0000'),
-('Carrefour', 'https://cdn.brandfetch.io/id-u6HlO7m/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1668162012478', '#005CA9'),
-('Aldi', 'https://cdn.brandfetch.io/idoanWWg6q/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1667578903622', '#2490D7'),
-('Consum', 'https://cdn.brandfetch.io/id8JPC4xkR/w/400/h/400/theme/dark/icon.png?c=1bxid64Mup7aczewSAYMX&t=1772630584843', '#F39400'),
-('Covirán', 'https://cdn.brandfetch.io/idE9wmZwpZ/w/205/h/46/theme/dark/logo.png?c=1bxid64Mup7aczewSAYMX&t=1772702788685', '#01973E'),
-('Eroski', 'https://cdn.brandfetch.io/idDAeeq8LP/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1765278120399', '#D31E17'),
-('Alcampo', 'https://cdn.brandfetch.io/id1bUJVxjB/theme/dark/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1719241108122', '#E60410'),
-('Ahorramas', 'https://cdn.brandfetch.io/idCV7nurb4/w/150/h/30/theme/dark/logo.png?c=1bxid64Mup7aczewSAYMX&t=1669112740557', '#CB3A35'),
+('Mercadona', 'https://cdn.brandfetch.io/ideNsmUt1m/w/331/h/47/theme/light/logo.png?c=1bxid64Mup7aczewSAYMX&t=1771954454417', '#009A63'),
+('Lidl', 'https://cdn.brandfetch.io/idw-qC2UFC/theme/light/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1755376654291', '#FFF000'),
+('Dia', 'https://cdn.brandfetch.io/idrcO3pEzj/w/103/h/103/theme/light/logo.png?c=1bxid64Mup7aczewSAYMX&t=1765243714689', '#FF0000'),
+('Carrefour', 'https://cdn.brandfetch.io/id-u6HlO7m/theme/light/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1668162012478', '#005CA9'),
+('Aldi', 'https://cdn.brandfetch.io/idoanWWg6q/theme/light/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1667578903622', '#2490D7'),
+('Consum', 'https://cdn.brandfetch.io/id8JPC4xkR/w/400/h/400/theme/light/icon.png?c=1bxid64Mup7aczewSAYMX&t=1772630584843', '#F39400'),
+('Covirán', 'https://cdn.brandfetch.io/idE9wmZwpZ/w/205/h/46/theme/light/logo.png?c=1bxid64Mup7aczewSAYMX&t=1772702788685', '#01973E'),
+('Eroski', 'https://cdn.brandfetch.io/idDAeeq8LP/theme/light/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1765278120399', '#D31E17'),
+('Alcampo', 'https://cdn.brandfetch.io/id1bUJVxjB/theme/light/logo.svg?c=1bxid64Mup7aczewSAYMX&t=1719241108122', '#E60410'),
+('Ahorramas', 'https://cdn.brandfetch.io/idCV7nurb4/w/150/h/30/theme/light/logo.png?c=1bxid64Mup7aczewSAYMX&t=1669112740557', '#CB3A35'),
 ('Desconocido', NULL, '#808080')
 ON CONFLICT (nombre) DO UPDATE SET 
     logo_url = EXCLUDED.logo_url, 

@@ -7,12 +7,29 @@ class ProductRepository:
     def __init__(self, db: Session):
         self.db = db
 
+    @staticmethod
+    def _normalize_optional_text(value: str | None) -> str | None:
+        if value is None:
+            return None
+
+        normalized_value = value.strip()
+        return normalized_value or None
+
     def get_by_id(self, product_id: int) -> Product | None:
         """Get a product by its ID."""
         return self.db.query(Product).filter(Product.id_producto == product_id).first()
 
-    def get_or_create_by_name(self, name: str, hogar_id: int, brand: str | None = None) -> Product:
+    def get_or_create_by_name(
+        self,
+        name: str,
+        hogar_id: int,
+        brand: str | None = None,
+        image_url: str | None = None,
+    ) -> Product:
         """Get or create a product by name within a household (for products without barcode)."""
+        normalized_brand = self._normalize_optional_text(brand)
+        normalized_image_url = self._normalize_optional_text(image_url)
+
         # Case-insensitive search for household products without a barcode
         # Note: We don't filter by brand on search to avoid duplicates if brand is missing/different
         # We assume name is the primary identifier for manual products.
@@ -27,16 +44,30 @@ class ProductRepository:
         )
 
         if not product:
-            product = Product(nombre=name, marca=brand, hogar_id=hogar_id)
+            product = Product(
+                nombre=name,
+                marca=normalized_brand,
+                image_url=normalized_image_url,
+                hogar_id=hogar_id,
+            )
             self.db.add(product)
             self.db.commit()
             self.db.refresh(product)
-        elif brand and not product.marca:
-            # If product exists but has no brand, and we provided one, update it
-            product.marca = brand
-            self.db.commit()
-            self.db.refresh(product)
-            
+        else:
+            changed = False
+
+            if normalized_brand and not product.marca:
+                product.marca = normalized_brand
+                changed = True
+
+            if normalized_image_url and not product.image_url:
+                product.image_url = normalized_image_url
+                changed = True
+
+            if changed:
+                self.db.commit()
+                self.db.refresh(product)
+
         return product
 
     def get_by_barcode_and_hogar(self, barcode: str, hogar_id: int) -> Product | None:
@@ -56,18 +87,35 @@ class ProductRepository:
         image_url: str | None = None,
     ) -> Product:
         """Get or create a product by barcode within a household."""
+        normalized_brand = self._normalize_optional_text(brand)
+        normalized_image_url = self._normalize_optional_text(image_url)
         product = self.get_by_barcode_and_hogar(barcode, hogar_id)
         if not product:
             product = Product(
                 barcode=barcode,
                 nombre=name,
-                marca=brand,
+                marca=normalized_brand,
                 hogar_id=hogar_id,
-                image_url=image_url,
+                image_url=normalized_image_url,
             )
             self.db.add(product)
             self.db.commit()
             self.db.refresh(product)
+        else:
+            changed = False
+
+            if normalized_brand and not product.marca:
+                product.marca = normalized_brand
+                changed = True
+
+            if normalized_image_url and not product.image_url:
+                product.image_url = normalized_image_url
+                changed = True
+
+            if changed:
+                self.db.commit()
+                self.db.refresh(product)
+
         return product
 
     def update_product_by_barcode(

@@ -654,11 +654,22 @@ class TicketParserService {
   // Fallback a _parseGeneric si no se encuentra la sección o no hay triggers.
   // ─────────────────────────────────────────────────────────────────────────
   static List<TicketItem> _parseDia(List<TextLine> lines) {
+    final diaProductsSectionRegex = RegExp(
+      r'PRODUCTOS\s+VENDIDOS\s+POR\s+D[1IÍL]A',
+      caseSensitive: false,
+    );
+    final diaSectionEndRegexes = [
+      RegExp(r'TOTAL\s+VENTA\s+D[1IÍL]A', caseSensitive: false),
+      RegExp(r'DESGLOSE\s+DE\s+IVA', caseSensitive: false),
+      RegExp(r'FORMA\s+DE\s+PAGO', caseSensitive: false),
+      RegExp(r'IVA\s+INCLUIDO', caseSensitive: false),
+      RegExp(r'DATOS\s+DE\s+LA\s+OPERACI[ÓO]N', caseSensitive: false),
+      RegExp(r'OPERACI[ÓO]N\s+CONTACTLESS', caseSensitive: false),
+      RegExp(r'COMERCIAL\s+POSIPAR', caseSensitive: false),
+    ];
+
     final hasProductsSection = lines.any(
-      (l) => RegExp(
-        r'productos\s+vendidos\s+por\s+dia',
-        caseSensitive: false,
-      ).hasMatch(l.text),
+      (l) => diaProductsSectionRegex.hasMatch(l.text),
     );
 
     if (!hasProductsSection) return _parseGeneric(lines);
@@ -668,15 +679,11 @@ class TicketParserService {
     int endIndex = lines.length;
     for (int i = 0; i < lines.length; i++) {
       final u = lines[i].text.trim().toUpperCase();
-      if (startIndex == -1 &&
-          RegExp(
-            r'PRODUCTOS\s+VENDIDOS\s+POR\s+DIA',
-            caseSensitive: false,
-          ).hasMatch(u)) {
+      if (startIndex == -1 && diaProductsSectionRegex.hasMatch(u)) {
         startIndex = i + 1;
       }
       if (startIndex != -1 &&
-          RegExp(r'TOTAL\s+VENTA\s+DIA', caseSensitive: false).hasMatch(u)) {
+          diaSectionEndRegexes.any((pattern) => pattern.hasMatch(u))) {
         endIndex = i;
         break;
       }
@@ -697,6 +704,11 @@ class TicketParserService {
     final dataLines = zone
         .where((l) => l.boundingBox.left >= nameColMaxX)
         .toList();
+    final zoneBottomY = zone.isEmpty
+        ? double.maxFinite
+        : zone
+              .map((l) => l.boundingBox.bottom.toDouble())
+              .reduce((a, b) => a > b ? a : b);
 
     // ── 3. Identificar triggers de la columna cantidad ────────────────────
     final qtyRegex = RegExp(r'^(\d+)\s*uds?$', caseSensitive: false);
@@ -726,6 +738,15 @@ class TicketParserService {
       ).hasMatch(upper)) {
         return true;
       }
+      if (RegExp(
+        r'^\d+[,\.]?\d*\s*(KG|KGS|G|GR|GRS|L|ML)\b',
+        caseSensitive: false,
+      ).hasMatch(upper)) {
+        return true;
+      }
+      if (diaSectionEndRegexes.any((pattern) => pattern.hasMatch(upper))) {
+        return true;
+      }
       return false;
     }
 
@@ -735,6 +756,8 @@ class TicketParserService {
         .toList();
 
     final items = <TicketItem>[];
+    const maxNameDistanceAboveTrigger = 180.0;
+    const maxNameDistanceBelowTrigger = 80.0;
 
     for (int t = 0; t < triggers.length; t++) {
       final trig = triggers[t];
@@ -792,7 +815,7 @@ class TicketParserService {
 
       final double nameUpperBound;
       if (t == triggers.length - 1) {
-        nameUpperBound = double.maxFinite;
+        nameUpperBound = zoneBottomY;
       } else {
         final nextTrigY = triggerYs[t + 1];
         nameUpperBound = trigY + (nextTrigY - trigY) / 2;
@@ -802,7 +825,10 @@ class TicketParserService {
           nameLines
               .where((l) {
                 final y = l.boundingBox.top.toDouble();
-                return y >= nameLowerBound && y < nameUpperBound;
+                return y >= nameLowerBound &&
+                    y < nameUpperBound &&
+                    y >= trigY - maxNameDistanceAboveTrigger &&
+                    y <= trigY + maxNameDistanceBelowTrigger;
               })
               .where((l) => !shouldSkipDiaNameLine(l.text))
               .toList()

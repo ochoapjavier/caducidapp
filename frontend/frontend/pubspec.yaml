@@ -41,6 +41,7 @@ dependencies:
 
   # MÓDULO PARA HACER LLAMADAS HTTP (similar a HttpClient en Angular)
   http: ^1.2.0
+  flutter_svg: ^2.2.1
 
   # Plugin para escanear códigos de barras usando la cámara
   mobile_scanner: ^7.2.0

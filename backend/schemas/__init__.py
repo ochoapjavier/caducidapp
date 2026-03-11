@@ -18,7 +18,15 @@ from .hogar import (
     InvitacionResponse
 )
 
-from .receipt import TicketMatchRequest, TicketParsedItem, SupermercadoSchema, SupermercadoCreate
+from .receipt import (
+    TicketMatchRequest,
+    TicketParsedItem,
+    TicketAllocation,
+    ReceiptDictionaryEntry,
+    ReceiptDictionaryProductMatch,
+    SupermercadoSchema,
+    SupermercadoCreate,
+)
 
 __all__ = [
     "Location",
@@ -49,6 +57,9 @@ __all__ = [
     "InvitacionResponse",
     "TicketMatchRequest",
     "TicketParsedItem",
+    "TicketAllocation",
+    "ReceiptDictionaryEntry",
+    "ReceiptDictionaryProductMatch",
     "SupermercadoSchema",
     "SupermercadoCreate",
 ]
