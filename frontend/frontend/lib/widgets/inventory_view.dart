@@ -250,6 +250,7 @@ class _InventoryToolbarButton extends StatelessWidget {
     this.trailing,
     this.badgeCount,
     this.isActive = false,
+    this.iconOnly = false,
   });
 
   final IconData icon;
@@ -258,13 +259,15 @@ class _InventoryToolbarButton extends StatelessWidget {
   final IconData? trailing;
   final int? badgeCount;
   final bool isActive;
+  final bool iconOnly;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final hasBadge = badgeCount != null && badgeCount! > 0;
 
-    return SizedBox(
+    final button = SizedBox(
       height: 42,
       child: Material(
         color: isActive
@@ -275,7 +278,7 @@ class _InventoryToolbarButton extends StatelessWidget {
           onTap: onPressed,
           borderRadius: BorderRadius.circular(16),
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
+            padding: EdgeInsets.symmetric(horizontal: iconOnly ? 8 : 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -284,56 +287,103 @@ class _InventoryToolbarButton extends StatelessWidget {
                     : colorScheme.outlineVariant,
               ),
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 18, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
-                    style: textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (badgeCount != null && badgeCount! > 0) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '$badgeCount',
-                      style: textTheme.labelSmall?.copyWith(
-                        color: colorScheme.onPrimary,
-                        fontWeight: FontWeight.w700,
+            child: iconOnly
+                ? Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Center(
+                        child: Icon(
+                          icon,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
+                      if (hasBadge)
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: Container(
+                            constraints: const BoxConstraints(
+                              minWidth: 14,
+                              minHeight: 14,
+                            ),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 1,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '$badgeCount',
+                              textAlign: TextAlign.center,
+                              style: textTheme.labelSmall?.copyWith(
+                                color: colorScheme.onPrimary,
+                                fontWeight: FontWeight.w700,
+                                height: 1,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  )
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(icon, size: 18, color: colorScheme.onSurfaceVariant),
+                      const SizedBox(width: 8),
+                      Flexible(
+                        child: Text(
+                          label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                          style: textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                      if (hasBadge) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '$badgeCount',
+                            style: textTheme.labelSmall?.copyWith(
+                              color: colorScheme.onPrimary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                      if (trailing != null) ...[
+                        const SizedBox(width: 6),
+                        Icon(
+                          trailing,
+                          size: 18,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-                if (trailing != null) ...[
-                  const SizedBox(width: 6),
-                  Icon(
-                    trailing,
-                    size: 18,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                ],
-              ],
-            ),
           ),
         ),
       ),
     );
+
+    if (!iconOnly) {
+      return button;
+    }
+
+    return Tooltip(message: label, child: button);
   }
 }
 
@@ -361,8 +411,8 @@ class _InventoryMetaPill extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final content = Container(
-      constraints: const BoxConstraints(minHeight: 32),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      constraints: const BoxConstraints(minHeight: 30),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(999),
@@ -425,7 +475,7 @@ class _InventoryMetaGroup extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: accentColor.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
@@ -451,10 +501,10 @@ class _InventoryMetaGroup extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           ...[
             for (var index = 0; index < children.length; index++) ...[
-              if (index > 0) const SizedBox(height: 8),
+              if (index > 0) const SizedBox(height: 6),
               children[index],
             ],
           ],
@@ -480,239 +530,6 @@ class _InventoryItemAction {
   final VoidCallback onPressed;
   final Color backgroundColor;
   final Color foregroundColor;
-}
-
-class _InventoryItemActionButton extends StatelessWidget {
-  const _InventoryItemActionButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-    required this.backgroundColor,
-    required this.foregroundColor,
-    this.expand = false,
-    this.isPrimary = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-  final Color backgroundColor;
-  final Color foregroundColor;
-  final bool expand;
-  final bool isPrimary;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return SizedBox(
-      width: expand ? double.infinity : null,
-      height: isPrimary ? 48 : 44,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          borderRadius: BorderRadius.circular(16),
-          child: Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isPrimary ? 16 : 14,
-              vertical: isPrimary ? 12 : 10,
-            ),
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: foregroundColor.withValues(alpha: isPrimary ? 0.16 : 0.10),
-              ),
-              boxShadow: isPrimary
-                  ? [
-                      BoxShadow(
-                        color: foregroundColor.withValues(alpha: 0.10),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-              children: [
-                Icon(icon, size: isPrimary ? 18 : 17, color: foregroundColor),
-                const SizedBox(width: 8),
-                if (expand)
-                  Flexible(
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: textTheme.labelLarge?.copyWith(
-                        color: foregroundColor,
-                        fontWeight: FontWeight.w800,
-                        height: 1,
-                        letterSpacing: 0.1,
-                      ),
-                    ),
-                  )
-                else
-                  Text(
-                    label,
-                    style: textTheme.labelLarge?.copyWith(
-                      color: foregroundColor,
-                      fontWeight: FontWeight.w800,
-                      height: 1,
-                      letterSpacing: 0.1,
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _InventoryItemActionBar extends StatelessWidget {
-  const _InventoryItemActionBar({
-    required this.primaryAction,
-    this.secondaryAction,
-    this.onMorePressed,
-    this.compact = false,
-  });
-
-  final _InventoryItemAction primaryAction;
-  final _InventoryItemAction? secondaryAction;
-  final VoidCallback? onMorePressed;
-  final bool compact;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    Widget buildMoreButton({required bool expand}) {
-      return _InventoryItemActionButton(
-        icon: Icons.more_horiz_rounded,
-        label: expand ? 'Más acciones' : 'Más',
-        onPressed: onMorePressed!,
-        backgroundColor: colorScheme.surface,
-        foregroundColor: colorScheme.onSurfaceVariant,
-        expand: expand,
-      );
-    }
-
-    if (compact) {
-      final footerRowChildren = <Widget>[];
-
-      if (secondaryAction != null) {
-        footerRowChildren.add(
-          Expanded(
-            child: _InventoryItemActionButton(
-              icon: secondaryAction!.icon,
-              label: secondaryAction!.label,
-              onPressed: secondaryAction!.onPressed,
-              backgroundColor: secondaryAction!.backgroundColor,
-              foregroundColor: secondaryAction!.foregroundColor,
-              expand: true,
-            ),
-          ),
-        );
-      }
-
-      if (onMorePressed != null) {
-        if (footerRowChildren.isNotEmpty) {
-          footerRowChildren.add(const SizedBox(width: 8));
-        }
-        footerRowChildren.add(
-          Expanded(
-            child: buildMoreButton(expand: true),
-          ),
-        );
-      }
-
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.72),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _InventoryItemActionButton(
-              icon: primaryAction.icon,
-              label: primaryAction.label,
-              onPressed: primaryAction.onPressed,
-              backgroundColor: primaryAction.backgroundColor,
-              foregroundColor: primaryAction.foregroundColor,
-              expand: true,
-              isPrimary: true,
-            ),
-            if (footerRowChildren.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Row(children: footerRowChildren),
-            ],
-          ],
-        ),
-      );
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.72),
-        ),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: secondaryAction == null && onMorePressed == null ? 1 : 3,
-            child: _InventoryItemActionButton(
-              icon: primaryAction.icon,
-              label: primaryAction.label,
-              onPressed: primaryAction.onPressed,
-              backgroundColor: primaryAction.backgroundColor,
-              foregroundColor: primaryAction.foregroundColor,
-              expand: true,
-              isPrimary: true,
-            ),
-          ),
-          if (secondaryAction != null) ...[
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: _InventoryItemActionButton(
-                icon: secondaryAction!.icon,
-                label: secondaryAction!.label,
-                onPressed: secondaryAction!.onPressed,
-                backgroundColor: secondaryAction!.backgroundColor,
-                foregroundColor: secondaryAction!.foregroundColor,
-                expand: true,
-              ),
-            ),
-          ],
-          if (onMorePressed != null) ...[
-            const SizedBox(width: 8),
-            Expanded(
-              flex: 2,
-              child: buildMoreButton(
-                expand: true,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 }
 
 class InventoryViewState extends State<InventoryView> {
@@ -1977,6 +1794,20 @@ class InventoryViewState extends State<InventoryView> {
           widget.onTicketAction != null ||
           widget.onAddItem != null ||
           widget.onRemoveItem != null;
+      final actionCount = [
+        widget.onTicketAction,
+        widget.onAddItem,
+        widget.onRemoveItem,
+      ].where((action) => action != null).length;
+      final estimatedActionClusterWidth = actionCount == 0
+          ? 0.0
+          : (actionCount * 38) + ((actionCount - 1) * 4) + 6;
+      final reservedWidth =
+          48.0 +
+          8.0 +
+          (hasActions ? 8.0 + estimatedActionClusterWidth : 0.0);
+      final controlsWidth = constraints.maxWidth - reservedWidth;
+      final useIconOnlyToolbar = controlsWidth < 248;
       final compactActionCluster = _InventoryActionCluster(
         onTicketAction: widget.onTicketAction == null
             ? null
@@ -2058,7 +1889,8 @@ class InventoryViewState extends State<InventoryView> {
         child: _InventoryToolbarButton(
           icon: Icons.sort_rounded,
           label: 'Ordenar',
-          trailing: isCompact ? null : Icons.expand_more,
+          trailing: useIconOnlyToolbar || isCompact ? null : Icons.expand_more,
+          iconOnly: useIconOnlyToolbar,
           onPressed: null,
         ),
       );
@@ -2071,9 +1903,10 @@ class InventoryViewState extends State<InventoryView> {
         label: 'Filtros',
         badgeCount: _selectedFilters.isEmpty ? null : _selectedFilters.length,
         isActive: effectiveShowFilters || _selectedFilters.isNotEmpty,
-        trailing: !isCompact && effectiveShowFilters
+        trailing: !useIconOnlyToolbar && !isCompact && effectiveShowFilters
             ? Icons.expand_less_rounded
             : null,
+        iconOnly: useIconOnlyToolbar,
       );
 
       return Column(
@@ -2594,6 +2427,13 @@ class InventoryViewState extends State<InventoryView> {
                               final stateBadgeLabel =
                                   stateDateLabel ??
                                   ExpiryUtils.getStateLabel(estadoProducto);
+                                final formattedExpiryDate =
+                                  _formatInventoryDate(expiryDate);
+                                final expirySummaryLabel = showExpiryStatusPill
+                                  ? '$statusLabel - $formattedExpiryDate'
+                                  : 'Caduca - $formattedExpiryDate';
+                                final stateSummaryLabel =
+                                  '$stateBadgeLabel${stateDate != null ? ' - ${_formatInventoryDate(stateDate)}' : ''}';
                               return Container(
                                 key: _getItemKey(stockId),
                                 margin: EdgeInsets.only(
@@ -2650,6 +2490,40 @@ class InventoryViewState extends State<InventoryView> {
                                           builder: (context, constraints) {
                                             final compactCard =
                                                 constraints.maxWidth < 430;
+                                            final ultraCompact =
+                                              constraints.maxWidth < 360;
+                                            final actionControlSize =
+                                              ultraCompact ? 32.0 : 34.0;
+                                            final actionRailGap =
+                                              ultraCompact ? 4.0 : 6.0;
+                                            final sectionSpacing =
+                                              ultraCompact ? 10.0 : 12.0;
+                                            final quantityHorizontalPadding =
+                                              ultraCompact ? 10.0 : 12.0;
+                                            final railTint =
+                                              colorScheme.primary.withValues(
+                                                alpha: ultraCompact ? 0.04 : 0.05,
+                                              );
+                                            final railBackgroundColor =
+                                              Color.alphaBlend(
+                                                railTint,
+                                                colorScheme.surfaceContainerLow,
+                                              );
+                                            final railBorderColor =
+                                              Color.alphaBlend(
+                                                colorScheme.primary.withValues(
+                                                  alpha: 0.12,
+                                                ),
+                                                colorScheme.outlineVariant
+                                                    .withValues(alpha: 0.62),
+                                              );
+                                            final secondaryControlBackground =
+                                              Color.alphaBlend(
+                                                colorScheme.primary.withValues(
+                                                  alpha: 0.04,
+                                                ),
+                                                colorScheme.surface,
+                                              );
 
                                             final productArtwork = Container(
                                               width: 52,
@@ -2712,19 +2586,21 @@ class InventoryViewState extends State<InventoryView> {
                                             );
 
                                             final quantityBadge = Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 12,
-                                                    vertical: 8,
-                                                  ),
+                                              padding: EdgeInsets.symmetric(
+                                                horizontal:
+                                                    quantityHorizontalPadding,
+                                                vertical: ultraCompact ? 7 : 8,
+                                              ),
                                               decoration: BoxDecoration(
-                                                color:
-                                                    colorScheme.primaryContainer,
-                                                borderRadius:
-                                                    BorderRadius.circular(16),
+                                                color: colorScheme.primary
+                                                    .withValues(alpha: 0.12),
+                                                borderRadius: BorderRadius
+                                                    .circular(
+                                                      ultraCompact ? 12 : 14,
+                                                    ),
                                                 border: Border.all(
                                                   color: colorScheme.primary
-                                                      .withValues(alpha: 0.10),
+                                                      .withValues(alpha: 0.24),
                                                 ),
                                               ),
                                               child: Row(
@@ -2732,9 +2608,9 @@ class InventoryViewState extends State<InventoryView> {
                                                 children: [
                                                   Icon(
                                                     Icons.layers_rounded,
-                                                    size: 13,
-                                                    color: colorScheme
-                                                        .onPrimaryContainer,
+                                                    size:
+                                                        ultraCompact ? 12 : 13,
+                                                    color: colorScheme.primary,
                                                   ),
                                                   const SizedBox(width: 6),
                                                   Text(
@@ -2746,32 +2622,52 @@ class InventoryViewState extends State<InventoryView> {
                                                           fontWeight:
                                                               FontWeight.w700,
                                                           color: colorScheme
-                                                              .onPrimaryContainer,
+                                                              .primary,
                                                         ),
                                                   ),
                                                 ],
                                               ),
                                             );
 
-                                            final editButton = IconButton(
-                                              constraints:
-                                                  const BoxConstraints.tightFor(
-                                                    width: 34,
-                                                    height: 34,
+                                            final editButton = Tooltip(
+                                              message: 'Editar',
+                                              child: IconButton(
+                                                constraints: BoxConstraints
+                                                    .tightFor(
+                                                      width:
+                                                          actionControlSize,
+                                                      height:
+                                                          actionControlSize,
+                                                    ),
+                                                padding:
+                                                    const EdgeInsets.all(6),
+                                                icon: Icon(
+                                                  Icons.edit_outlined,
+                                                  size:
+                                                      ultraCompact ? 17 : 18,
+                                                ),
+                                                onPressed: () =>
+                                                    _showEditStockItemDialog(
+                                                      item,
+                                                    ),
+                                                style: IconButton.styleFrom(
+                                                  backgroundColor:
+                                                      secondaryControlBackground,
+                                                  foregroundColor: colorScheme
+                                                      .onSurfaceVariant,
+                                                  side: BorderSide(
+                                                    color: colorScheme
+                                                        .outlineVariant
+                                                        .withValues(alpha: 0.5),
+                                                    width: 1,
                                                   ),
-                                              padding: const EdgeInsets.all(6),
-                                              tooltip: 'Editar',
-                                              icon: const Icon(
-                                                Icons.edit_outlined,
-                                                size: 18,
-                                              ),
-                                              onPressed: () =>
-                                                  _showEditStockItemDialog(item),
-                                              style: IconButton.styleFrom(
-                                                backgroundColor: colorScheme
-                                                    .surfaceContainerHigh,
-                                                foregroundColor: colorScheme
-                                                    .onSurfaceVariant,
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                  ),
+                                                ),
                                               ),
                                             );
 
@@ -2787,15 +2683,21 @@ class InventoryViewState extends State<InventoryView> {
                                                       ?.copyWith(
                                                         fontWeight:
                                                             FontWeight.w700,
-                                                      fontSize: 16,
+                                                        fontSize:
+                                                            compactCard
+                                                            ? 15.5
+                                                            : 16,
                                                         color: colorScheme
                                                             .onSurface,
-                                                      height: 1.14,
+                                                        height: 1.12,
                                                       ),
                                                 ),
-                                                const SizedBox(height: 4),
                                                 if (brand != null &&
-                                                    brand.isNotEmpty)
+                                                    brand.isNotEmpty) ...[
+                                                  SizedBox(
+                                                    height:
+                                                        ultraCompact ? 3 : 4,
+                                                  ),
                                                   Text(
                                                     brand,
                                                     maxLines: 1,
@@ -2813,6 +2715,7 @@ class InventoryViewState extends State<InventoryView> {
                                                           letterSpacing: 0.1,
                                                         ),
                                                   ),
+                                                ],
                                               ],
                                             );
 
@@ -2825,31 +2728,14 @@ class InventoryViewState extends State<InventoryView> {
                                                       ? expiryColor
                                                       : colorScheme.primary,
                                                   children: [
-                                                    if (showExpiryStatusPill)
-                                                      _InventoryMetaPill(
-                                                        icon:
-                                                            ExpiryUtils.getStatusIcon(
-                                                              expiryDate,
-                                                            ),
-                                                        label: statusLabel,
-                                                        textColor: expiryColor,
-                                                        backgroundColor:
-                                                            expiryColor
-                                                                .withValues(
-                                                                  alpha: 0.12,
-                                                                ),
-                                                        borderColor:
-                                                            expiryColor
-                                                                .withValues(
-                                                                  alpha: 0.24,
-                                                                ),
-                                                      ),
                                                     _InventoryMetaPill(
-                                                      icon: Icons.event_outlined,
-                                                      label:
-                                                          _formatInventoryDate(
-                                                            expiryDate,
-                                                          ),
+                                                      icon:
+                                                          showExpiryStatusPill
+                                                          ? ExpiryUtils.getStatusIcon(
+                                                              expiryDate,
+                                                            )
+                                                          : Icons.event_outlined,
+                                                      label: expirySummaryLabel,
                                                       textColor:
                                                           showExpiryStatusPill
                                                           ? expiryColor
@@ -2882,8 +2768,7 @@ class InventoryViewState extends State<InventoryView> {
                                                 ExpiryUtils.shouldShowStateBadge(
                                                   estadoProducto,
                                                 ) ||
-                                                (stateDate != null &&
-                                                    stateDateLabel != null);
+                                                stateDate != null;
 
                                             final stateMetaGroup =
                                                 shouldShowStateGroup
@@ -2894,168 +2779,138 @@ class InventoryViewState extends State<InventoryView> {
                                                     ),
                                                     accentColor: stateColor,
                                                     children: [
-                                                      if (ExpiryUtils.shouldShowStateBadge(
-                                                        estadoProducto,
-                                                      ))
-                                                        _InventoryMetaPill(
-                                                          icon: ExpiryUtils.getStateIcon(
-                                                            estadoProducto,
-                                                          ),
-                                                          label:
-                                                              stateBadgeLabel,
-                                                          textColor: stateColor,
-                                                          backgroundColor:
-                                                              stateColor
-                                                                  .withValues(
-                                                                    alpha:
-                                                                        0.12,
-                                                                  ),
-                                                          borderColor:
-                                                              stateColor
-                                                                  .withValues(
-                                                                    alpha:
-                                                                        0.24,
-                                                                  ),
+                                                      _InventoryMetaPill(
+                                                        icon: ExpiryUtils.getStateIcon(
+                                                          estadoProducto,
                                                         ),
-                                                      if (stateDate != null &&
-                                                          stateDateLabel !=
-                                                              null)
-                                                        _InventoryMetaPill(
-                                                          icon: Icons
-                                                              .history_toggle_off_rounded,
-                                                          label:
-                                                              _formatInventoryDate(
-                                                                stateDate,
-                                                              ),
-                                                          textColor: stateColor,
-                                                          backgroundColor:
-                                                              stateColor
-                                                                  .withValues(
-                                                                    alpha:
-                                                                        0.08,
-                                                                  ),
-                                                          borderColor:
-                                                              stateColor
-                                                                  .withValues(
-                                                                    alpha:
-                                                                        0.18,
-                                                                  ),
-                                                          trailing: estadoProducto ==
-                                                                      'descongelado' &&
-                                                                  item['fecha_congelacion'] !=
-                                                                      null &&
-                                                                  item['fecha_descongelacion'] !=
-                                                                      null
-                                                              ? Icon(
-                                                                  Icons
-                                                                      .info_outline_rounded,
-                                                                  size: 15,
-                                                                  color: stateColor
-                                                                      .withValues(
-                                                                        alpha:
-                                                                            0.78,
-                                                                      ),
-                                                                )
-                                                              : null,
-                                                          onTap: estadoProducto ==
-                                                                      'descongelado' &&
-                                                                  item['fecha_congelacion'] !=
-                                                                      null &&
-                                                                  item['fecha_descongelacion'] !=
-                                                                      null
-                                                              ? () {
-                                                                  final fechaCongelacion =
-                                                                      DateTime.parse(
-                                                                        item['fecha_congelacion'],
-                                                                      );
-                                                                  final fechaDescongelacion =
-                                                                      DateTime.parse(
-                                                                        item['fecha_descongelacion'],
-                                                                      );
-                                                                  showDialog(
-                                                                    context:
-                                                                        context,
-                                                                    builder: (ctx) =>
-                                                                        AlertDialog(
-                                                                          title: const Text(
-                                                                            'Historial de Congelación',
-                                                                          ),
-                                                                          content: Column(
-                                                                            mainAxisSize:
-                                                                                MainAxisSize.min,
-                                                                            crossAxisAlignment:
-                                                                                CrossAxisAlignment.start,
-                                                                            children: [
-                                                                              Row(
-                                                                                children: [
-                                                                                  Icon(
-                                                                                    Icons.ac_unit_rounded,
-                                                                                    color: Colors.blue.shade700,
-                                                                                    size: 20,
-                                                                                  ),
-                                                                                  const SizedBox(
-                                                                                    width: 8,
-                                                                                  ),
-                                                                                  Text(
-                                                                                    'Congelado: ${_formatInventoryDate(fechaCongelacion)}',
-                                                                                    style: const TextStyle(
-                                                                                      fontSize: 14,
-                                                                                    ),
-                                                                                  ),
-                                                                                ],
-                                                                              ),
-                                                                              const SizedBox(
-                                                                                height: 8,
-                                                                              ),
-                                                                              Row(
-                                                                                children: [
-                                                                                  Icon(
-                                                                                    Icons.severe_cold_rounded,
-                                                                                    color: Colors.teal.shade700,
-                                                                                    size: 20,
-                                                                                  ),
-                                                                                  const SizedBox(
-                                                                                    width: 8,
-                                                                                  ),
-                                                                                  Text(
-                                                                                    'Descongelado: ${_formatInventoryDate(fechaDescongelacion)}',
-                                                                                    style: const TextStyle(
-                                                                                      fontSize: 14,
-                                                                                    ),
-                                                                                  ),
-                                                                                ],
-                                                                              ),
-                                                                              const SizedBox(
-                                                                                height: 12,
-                                                                              ),
-                                                                              Text(
-                                                                                '${fechaDescongelacion.difference(fechaCongelacion).inDays} días congelado',
-                                                                                style: TextStyle(
-                                                                                  fontSize: 12,
-                                                                                  fontStyle: FontStyle.italic,
-                                                                                  color: colorScheme.onSurface.withValues(
-                                                                                    alpha: 0.6,
+                                                        label:
+                                                            stateSummaryLabel,
+                                                        textColor: stateColor,
+                                                        backgroundColor:
+                                                            stateColor
+                                                                .withValues(
+                                                                  alpha: 0.12,
+                                                                ),
+                                                        borderColor: stateColor
+                                                            .withValues(
+                                                              alpha: 0.24,
+                                                            ),
+                                                        trailing: estadoProducto ==
+                                                                    'descongelado' &&
+                                                                item['fecha_congelacion'] !=
+                                                                    null &&
+                                                                item['fecha_descongelacion'] !=
+                                                                    null
+                                                            ? Icon(
+                                                                Icons
+                                                                    .info_outline_rounded,
+                                                                size: 15,
+                                                                color: stateColor
+                                                                    .withValues(
+                                                                      alpha:
+                                                                          0.78,
+                                                                    ),
+                                                              )
+                                                            : null,
+                                                        onTap: estadoProducto ==
+                                                                    'descongelado' &&
+                                                                item['fecha_congelacion'] !=
+                                                                    null &&
+                                                                item['fecha_descongelacion'] !=
+                                                                    null
+                                                            ? () {
+                                                                final fechaCongelacion =
+                                                                    DateTime.parse(
+                                                                      item['fecha_congelacion'],
+                                                                    );
+                                                                final fechaDescongelacion =
+                                                                    DateTime.parse(
+                                                                      item['fecha_descongelacion'],
+                                                                    );
+                                                                showDialog(
+                                                                  context:
+                                                                      context,
+                                                                  builder: (ctx) =>
+                                                                      AlertDialog(
+                                                                        title: const Text(
+                                                                          'Historial de Congelación',
+                                                                        ),
+                                                                        content: Column(
+                                                                          mainAxisSize:
+                                                                              MainAxisSize.min,
+                                                                          crossAxisAlignment:
+                                                                              CrossAxisAlignment.start,
+                                                                          children: [
+                                                                            Row(
+                                                                              children: [
+                                                                                Icon(
+                                                                                  Icons.ac_unit_rounded,
+                                                                                  color: Colors.blue.shade700,
+                                                                                  size: 20,
+                                                                                ),
+                                                                                const SizedBox(
+                                                                                  width: 8,
+                                                                                ),
+                                                                                Text(
+                                                                                  'Congelado: ${_formatInventoryDate(fechaCongelacion)}',
+                                                                                  style: const TextStyle(
+                                                                                    fontSize: 14,
                                                                                   ),
                                                                                 ),
-                                                                              ),
-                                                                            ],
-                                                                          ),
-                                                                          actions: [
-                                                                            TextButton(
-                                                                              onPressed: () =>
-                                                                                  Navigator.of(
-                                                                                    ctx,
-                                                                                  ).pop(),
-                                                                              child: const Text(
-                                                                                'Cerrar',
+                                                                              ],
+                                                                            ),
+                                                                            const SizedBox(
+                                                                              height: 8,
+                                                                            ),
+                                                                            Row(
+                                                                              children: [
+                                                                                Icon(
+                                                                                  Icons.severe_cold_rounded,
+                                                                                  color: Colors.teal.shade700,
+                                                                                  size: 20,
+                                                                                ),
+                                                                                const SizedBox(
+                                                                                  width: 8,
+                                                                                ),
+                                                                                Text(
+                                                                                  'Descongelado: ${_formatInventoryDate(fechaDescongelacion)}',
+                                                                                  style: const TextStyle(
+                                                                                    fontSize: 14,
+                                                                                  ),
+                                                                                ),
+                                                                              ],
+                                                                            ),
+                                                                            const SizedBox(
+                                                                              height: 12,
+                                                                            ),
+                                                                            Text(
+                                                                              '${fechaDescongelacion.difference(fechaCongelacion).inDays} días congelado',
+                                                                              style: TextStyle(
+                                                                                fontSize: 12,
+                                                                                fontStyle: FontStyle.italic,
+                                                                                color: colorScheme.onSurface.withValues(
+                                                                                  alpha: 0.6,
+                                                                                ),
                                                                               ),
                                                                             ),
                                                                           ],
                                                                         ),
-                                                                  );
-                                                                }
-                                                              : null,
-                                                        ),
+                                                                        actions: [
+                                                                          TextButton(
+                                                                            onPressed: () =>
+                                                                                Navigator.of(
+                                                                                  ctx,
+                                                                                ).pop(),
+                                                                            child: const Text(
+                                                                              'Cerrar',
+                                                                            ),
+                                                                          ),
+                                                                        ],
+                                                                      ),
+                                                                );
+                                                              }
+                                                            : null,
+                                                      ),
                                                     ],
                                                   )
                                                 : null;
@@ -3090,28 +2945,44 @@ class InventoryViewState extends State<InventoryView> {
                                                     children: metadataGroups,
                                                   );
 
-                                            final useAction =
-                                                _InventoryItemAction(
-                                                  icon: Icons
-                                                      .remove_circle_outline,
-                                                  label: 'Usar',
-                                                  description:
-                                                      'Descontar unidades del inventario',
-                                                  onPressed: () =>
-                                                      showRemoveQuantityDialog(
-                                                        stockId,
-                                                        quantity,
-                                                        productName,
-                                                        item['producto_maestro']
-                                                            ['id_producto'],
-                                                      ),
-                                                  backgroundColor:
-                                                      colorScheme
-                                                          .secondaryContainer,
-                                                  foregroundColor:
-                                                      colorScheme
-                                                          .onSecondaryContainer,
-                                                );
+                                            final useButton = SizedBox(
+                                              height: ultraCompact ? 32 : 34,
+                                              child: FilledButton.icon(
+                                                onPressed: () =>
+                                                    showRemoveQuantityDialog(
+                                                      stockId,
+                                                      quantity,
+                                                      productName,
+                                                      item['producto_maestro']
+                                                          ['id_producto'],
+                                                    ),
+                                                icon: Icon(
+                                                  Icons.remove_circle_outline,
+                                                  size:
+                                                      ultraCompact ? 15 : 16,
+                                                ),
+                                                label: const Text('Usar'),
+                                                style: FilledButton.styleFrom(
+                                                  backgroundColor: colorScheme
+                                                      .primaryContainer,
+                                                  foregroundColor: colorScheme
+                                                      .onPrimaryContainer,
+                                                  elevation: 0,
+                                                  padding: EdgeInsets.symmetric(
+                                                    horizontal:
+                                                        ultraCompact ? 10 : 12,
+                                                  ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius: BorderRadius
+                                                        .circular(
+                                                          ultraCompact
+                                                              ? 10
+                                                              : 11,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
 
                                             final secondaryActions =
                                                 <_InventoryItemAction>[];
@@ -3197,14 +3068,103 @@ class InventoryViewState extends State<InventoryView> {
                                               );
                                             }
 
-                                            final promotedSecondaryAction =
-                                                secondaryActions.isNotEmpty
-                                                ? secondaryActions.first
-                                                : null;
-                                            final overflowActions =
-                                                secondaryActions.length > 1
-                                                ? secondaryActions.sublist(1)
-                                                : const <_InventoryItemAction>[];
+                                            final moreActionsButton = Tooltip(
+                                              message: 'Más acciones',
+                                              child: IconButton(
+                                                constraints: BoxConstraints
+                                                    .tightFor(
+                                                      width:
+                                                          actionControlSize,
+                                                      height:
+                                                          actionControlSize,
+                                                    ),
+                                                padding:
+                                                    const EdgeInsets.all(6),
+                                                onPressed: secondaryActions
+                                                        .isNotEmpty
+                                                    ? () =>
+                                                        _showItemActionsSheet(
+                                                          productName:
+                                                              productName,
+                                                          actions:
+                                                              secondaryActions,
+                                                        )
+                                                    : null,
+                                                icon: Icon(
+                                                  Icons.more_horiz_rounded,
+                                                  size:
+                                                      ultraCompact ? 17 : 18,
+                                                ),
+                                                style: IconButton.styleFrom(
+                                                  backgroundColor:
+                                                      secondaryControlBackground,
+                                                  foregroundColor: colorScheme
+                                                      .onSurfaceVariant,
+                                                  side: BorderSide(
+                                                    color: colorScheme
+                                                        .outlineVariant
+                                                        .withValues(alpha: 0.5),
+                                                    width: 1,
+                                                  ),
+                                                  shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          10,
+                                                        ),
+                                                  ),
+                                                ),
+                                              ),
+                                            );
+
+                                            final actionRail = Container(
+                                              padding: EdgeInsets.all(
+                                                ultraCompact ? 3 : 4,
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: railBackgroundColor,
+                                                borderRadius: BorderRadius
+                                                    .circular(
+                                                      ultraCompact ? 14 : 16,
+                                                    ),
+                                                border: Border.all(
+                                                  color: railBorderColor,
+                                                ),
+                                                boxShadow: [
+                                                  BoxShadow(
+                                                    color: colorScheme.shadow
+                                                        .withValues(alpha: 0.05),
+                                                    blurRadius:
+                                                        ultraCompact ? 8 : 10,
+                                                    offset: const Offset(0, 2),
+                                                  ),
+                                                  BoxShadow(
+                                                    color: colorScheme.shadow
+                                                        .withValues(alpha: 0.03),
+                                                    blurRadius:
+                                                        ultraCompact ? 14 : 18,
+                                                    offset: const Offset(0, 6),
+                                                  ),
+                                                ],
+                                              ),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.max,
+                                                children: [
+                                                  quantityBadge,
+                                                  SizedBox(
+                                                    width: actionRailGap,
+                                                  ),
+                                                  Expanded(child: useButton),
+                                                  SizedBox(
+                                                    width: actionRailGap,
+                                                  ),
+                                                  moreActionsButton,
+                                                  SizedBox(
+                                                    width: actionRailGap,
+                                                  ),
+                                                  editButton,
+                                                ],
+                                              ),
+                                            );
 
                                             return Column(
                                               crossAxisAlignment:
@@ -3222,76 +3182,45 @@ class InventoryViewState extends State<InventoryView> {
                                                       ),
                                                     ],
                                                   ),
-                                                  const SizedBox(height: 12),
-                                                  Row(
-                                                    children: [
-                                                      quantityBadge,
-                                                      const Spacer(),
-                                                      editButton,
-                                                    ],
+                                                  SizedBox(
+                                                    height: sectionSpacing,
                                                   ),
-                                                  const SizedBox(height: 12),
+                                                  actionRail,
+                                                  SizedBox(
+                                                    height: sectionSpacing,
+                                                  ),
                                                   metadataSection,
                                                 ] else
-                                                  Row(
+                                                  Column(
                                                     crossAxisAlignment:
                                                         CrossAxisAlignment.start,
                                                     children: [
-                                                      productArtwork,
-                                                      const SizedBox(width: 12),
-                                                      Expanded(
-                                                        child: Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .start,
-                                                          children: [
-                                                            titleBlock,
-                                                            const SizedBox(
-                                                              height: 10,
-                                                            ),
-                                                            metadataSection,
-                                                          ],
-                                                        ),
-                                                      ),
-                                                      const SizedBox(width: 10),
-                                                      Column(
+                                                      Row(
                                                         crossAxisAlignment:
                                                             CrossAxisAlignment
-                                                                .end,
+                                                                .start,
                                                         children: [
-                                                          quantityBadge,
+                                                          productArtwork,
                                                           const SizedBox(
-                                                            height: 8,
+                                                            width: 12,
                                                           ),
-                                                          editButton,
+                                                          Expanded(
+                                                            child: titleBlock,
+                                                          ),
                                                         ],
                                                       ),
+                                                      SizedBox(
+                                                        height:
+                                                            sectionSpacing,
+                                                      ),
+                                                      actionRail,
+                                                      SizedBox(
+                                                        height:
+                                                            sectionSpacing,
+                                                      ),
+                                                      metadataSection,
                                                     ],
                                                   ),
-                                            const SizedBox(height: 12),
-                                            Divider(
-                                              color: colorScheme.outlineVariant
-                                                  .withValues(alpha: 0.3),
-                                              thickness: 1,
-                                              height: 1,
-                                            ),
-                                            const SizedBox(height: 12),
-                                            _InventoryItemActionBar(
-                                              primaryAction: useAction,
-                                              secondaryAction:
-                                                  promotedSecondaryAction,
-                                              onMorePressed:
-                                                  overflowActions.isNotEmpty
-                                                  ? () =>
-                                                        _showItemActionsSheet(
-                                                          productName:
-                                                              productName,
-                                                          actions:
-                                                              overflowActions,
-                                                        )
-                                                  : null,
-                                              compact: compactCard,
-                                            ),
                                           ],
                                         );
                                           },
