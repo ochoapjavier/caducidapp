@@ -59,27 +59,35 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
   }
 
   void _startSmartReceiptFlow() async {
+    final navigator = Navigator.of(context);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final hadKeyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (hadKeyboardVisible) {
+      await Future<void>.delayed(const Duration(milliseconds: 180));
+      if (!mounted) return;
+    }
+
     // 1. Abrimos el escáner
-    final ParsedTicketResult? parsedResult = await Navigator.of(context).push(
+    final ParsedTicketResult? parsedResult = await navigator.push(
       MaterialPageRoute(builder: (context) => const TicketScannerScreen()),
     );
 
     if (parsedResult != null && parsedResult.items.isNotEmpty) {
       if (!mounted) return;
       // 2. Abrimos el Matchmaker para confirmar
-      final TicketReviewSubmission? matchedResult = await Navigator.of(context)
-          .push(
-            MaterialPageRoute(
-              builder: (context) => MatchmakerScreen(
-                initialItems: parsedResult.items,
-                guessedSupermercado: parsedResult.supermercado,
-              ),
-            ),
-          );
+      final TicketReviewSubmission? matchedResult = await navigator.push(
+        MaterialPageRoute(
+          builder: (context) => MatchmakerScreen(
+            initialItems: parsedResult.items,
+            guessedSupermercado: parsedResult.supermercado,
+          ),
+        ),
+      );
 
       if (matchedResult != null && matchedResult.lineas.isNotEmpty) {
         try {
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             const SnackBar(content: Text('Guardando ticket e inventario...')),
           );
 
@@ -87,7 +95,7 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
           await _inventoryViewKey.currentState?.refreshInventory();
 
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             const SnackBar(
               content: Text('¡Ticket guardado y stock actualizado con éxito!'),
               backgroundColor: Colors.green,
@@ -95,7 +103,7 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
           );
         } catch (e) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
+          scaffoldMessenger.showSnackBar(
             SnackBar(
               content: Text('Error guardando ticket: $e'),
               backgroundColor: Colors.red,
@@ -109,20 +117,15 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Inventario'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.receipt_long),
-            tooltip: 'Escanear Ticket',
-            onPressed: _startSmartReceiptFlow,
-          ),
-        ],
-      ),
-      body: InventoryView(
-        key: _inventoryViewKey,
-        onAddItem: _showAddItemModal,
-        onRemoveItem: _showRemoveItemModal,
+      appBar: AppBar(title: const Text('Inventario')),
+      body: SafeArea(
+        top: false,
+        child: InventoryView(
+          key: _inventoryViewKey,
+          onTicketAction: _startSmartReceiptFlow,
+          onAddItem: _showAddItemModal,
+          onRemoveItem: _showRemoveItemModal,
+        ),
       ),
     );
   }

@@ -1362,6 +1362,7 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
       selectedSupermercado?.colorHex,
       colorScheme.primary,
     );
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
       appBar: AppBar(
@@ -1375,394 +1376,399 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
           ),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () {
-                  setState(() {
-                    _isHelpExpanded = !_isHelpExpanded;
-                  });
-                },
-                icon: Icon(
-                  _isHelpExpanded ? Icons.expand_less : Icons.info_outline,
-                  size: 18,
-                ),
-                label: Text(
-                  _isHelpExpanded
-                      ? 'Ocultar ayuda rápida'
-                      : 'Mostrar ayuda rápida',
+      body: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _isHelpExpanded = !_isHelpExpanded;
+                    });
+                  },
+                  icon: Icon(
+                    _isHelpExpanded ? Icons.expand_less : Icons.info_outline,
+                    size: 18,
+                  ),
+                  label: Text(
+                    _isHelpExpanded
+                        ? 'Ocultar ayuda rápida'
+                        : 'Mostrar ayuda rápida',
+                  ),
                 ),
               ),
             ),
-          ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer.withAlpha(
-                  (255 * 0.3).round(),
+            AnimatedCrossFade(
+              firstChild: const SizedBox.shrink(),
+              secondChild: Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer.withAlpha(
+                    (255 * 0.3).round(),
+                  ),
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.auto_awesome, color: colorScheme.primary),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'Escanea una vez por partición. Si toda la línea es el mismo producto, no repitas el EAN; si hay sabores o ubicaciones distintas, divide la línea y reparte cantidades.',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.auto_awesome, color: colorScheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Escanea una vez por partición. Si toda la línea es el mismo producto, no repitas el EAN; si hay sabores o ubicaciones distintas, divide la línea y reparte cantidades.',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              crossFadeState: _isHelpExpanded
+                  ? CrossFadeState.showSecond
+                  : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 180),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 6,
+                    child: isLoadingContext
+                        ? const SizedBox(
+                            height: 48,
+                            child: Center(child: LinearProgressIndicator()),
+                          )
+                        : DropdownButtonFormField<int?>(
+                            initialValue: selectedSupermercadoId,
+                            isExpanded: true,
+                            decoration: InputDecoration(
+                              labelText: 'Supermercado',
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                            ),
+                            items: [
+                              ...supermercados.map(
+                                (supermercado) => DropdownMenuItem<int?>(
+                                  value: supermercado.id,
+                                  child: Text(
+                                    supermercado.nombre,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ),
+                              const DropdownMenuItem<int?>(
+                                value: -1,
+                                child: Text(
+                                  '+ Crear Nuevo...',
+                                  style: TextStyle(color: Colors.blue),
+                                ),
+                              ),
+                            ],
+                            onChanged: (value) {
+                              _handleSupermercadoChange(value);
+                            },
+                          ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 4,
+                    child: _buildSupermercadoIdentityBadge(
+                      supermercadoNombre: customSupermercadoNombre,
+                      logoUrl: selectedSupermercado?.logoUrl,
+                      accentColor: accentColor,
+                      textTheme: textTheme,
                     ),
                   ),
                 ],
               ),
             ),
-            crossFadeState: _isHelpExpanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 180),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 6,
-                  child: isLoadingContext
-                      ? const SizedBox(
-                          height: 48,
-                          child: Center(child: LinearProgressIndicator()),
-                        )
-                      : DropdownButtonFormField<int?>(
-                          initialValue: selectedSupermercadoId,
-                          isExpanded: true,
-                          decoration: InputDecoration(
-                            labelText: 'Supermercado',
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 8,
-                            ),
-                          ),
-                          items: [
-                            ...supermercados.map(
-                              (supermercado) => DropdownMenuItem<int?>(
-                                value: supermercado.id,
-                                child: Text(
-                                  supermercado.nombre,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
-                            const DropdownMenuItem<int?>(
-                              value: -1,
-                              child: Text(
-                                '+ Crear Nuevo...',
-                                style: TextStyle(color: Colors.blue),
-                              ),
+            const Divider(height: 1),
+            Expanded(
+              child: Scrollbar(
+                child: ListView.separated(
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 20 + bottomInset),
+                  itemCount: reviewLines.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    final line = reviewLines[index];
+                    final item = line.item;
+                    final requiresQuantityReview =
+                        item.requiereRevisionCantidad;
+                    final isReady = _isReadyToPersist(line);
+                    final readyAllocationCount = _countReadyAllocations(line);
+                    final showSplitUi = _usesSplitUi(line);
+                    final suggestions =
+                        _suggestedMatchesByName[item.nombre] ??
+                        const <_DictionaryProductMatch>[];
+
+                    return Dismissible(
+                      key: ValueKey(
+                        'ticket-item-$index-${item.nombre}-${item.precioUnitario}',
+                      ),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade600,
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                        alignment: Alignment.centerRight,
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: const Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.delete_outline, color: Colors.white),
+                            SizedBox(height: 4),
+                            Text(
+                              'Quitar',
+                              style: TextStyle(color: Colors.white),
                             ),
                           ],
-                          onChanged: (value) {
-                            _handleSupermercadoChange(value);
-                          },
-                        ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 4,
-                  child: _buildSupermercadoIdentityBadge(
-                    supermercadoNombre: customSupermercadoNombre,
-                    logoUrl: selectedSupermercado?.logoUrl,
-                    accentColor: accentColor,
-                    textTheme: textTheme,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          Expanded(
-            child: Scrollbar(
-              child: ListView.separated(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 96),
-                itemCount: reviewLines.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final line = reviewLines[index];
-                  final item = line.item;
-                  final requiresQuantityReview = item.requiereRevisionCantidad;
-                  final isReady = _isReadyToPersist(line);
-                  final readyAllocationCount = _countReadyAllocations(line);
-                  final showSplitUi = _usesSplitUi(line);
-                  final suggestions =
-                      _suggestedMatchesByName[item.nombre] ??
-                      const <_DictionaryProductMatch>[];
-
-                  return Dismissible(
-                    key: ValueKey(
-                      'ticket-item-$index-${item.nombre}-${item.precioUnitario}',
-                    ),
-                    direction: DismissDirection.endToStart,
-                    background: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade600,
-                        borderRadius: BorderRadius.circular(18),
-                      ),
-                      alignment: Alignment.centerRight,
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: const Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.delete_outline, color: Colors.white),
-                          SizedBox(height: 4),
-                          Text('Quitar', style: TextStyle(color: Colors.white)),
-                        ],
-                      ),
-                    ),
-                    onDismissed: (_) => _removeItem(index),
-                    child: Card(
-                      elevation: 0,
-                      margin: EdgeInsets.zero,
-                      color: isReady
-                          ? Colors.green.withValues(alpha: 0.05)
-                          : null,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18),
-                        side: BorderSide(
-                          color: isReady
-                              ? Colors.green.withValues(alpha: 0.25)
-                              : colorScheme.outlineVariant,
                         ),
                       ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                CircleAvatar(
-                                  backgroundColor: isReady
-                                      ? Colors.green.withValues(alpha: 0.18)
-                                      : requiresQuantityReview
-                                      ? Colors.orange.withValues(alpha: 0.18)
-                                      : colorScheme.surfaceContainerHighest,
-                                  child: Icon(
-                                    isReady
-                                        ? Icons.inventory_2_outlined
+                      onDismissed: (_) => _removeItem(index),
+                      child: Card(
+                        elevation: 0,
+                        margin: EdgeInsets.zero,
+                        color: isReady
+                            ? Colors.green.withValues(alpha: 0.05)
+                            : null,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                          side: BorderSide(
+                            color: isReady
+                                ? Colors.green.withValues(alpha: 0.25)
+                                : colorScheme.outlineVariant,
+                          ),
+                        ),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  CircleAvatar(
+                                    backgroundColor: isReady
+                                        ? Colors.green.withValues(alpha: 0.18)
                                         : requiresQuantityReview
-                                        ? Icons.warning_amber_rounded
-                                        : Icons.receipt_long,
-                                    color: isReady
-                                        ? Colors.green.shade700
-                                        : requiresQuantityReview
-                                        ? Colors.orange.shade700
-                                        : colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        item.nombre,
-                                        style: textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.w700,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Cantidad ${item.cantidad} · ${item.precioUnitario.toStringAsFixed(2)} € / ud · ${item.precioTotal.toStringAsFixed(2)} € total',
-                                        style: textTheme.bodySmall?.copyWith(
-                                          color: colorScheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                IconButton(
-                                  onPressed: () => _editItem(index),
-                                  icon: const Icon(Icons.edit_outlined),
-                                  tooltip: 'Editar línea',
-                                ),
-                              ],
-                            ),
-                            if (requiresQuantityReview)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange.withValues(
-                                      alpha: 0.12,
-                                    ),
-                                    borderRadius: BorderRadius.circular(999),
-                                    border: Border.all(
-                                      color: Colors.orange.withValues(
-                                        alpha: 0.35,
-                                      ),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    'Producto vendido por peso: revisa la cantidad final antes de guardar',
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: Colors.orange.shade800,
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            const SizedBox(height: 12),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 8,
-                              children: [
-                                if (showSplitUi)
-                                  Chip(
-                                    avatar: Icon(
-                                      _hasBalancedAllocations(line)
-                                          ? Icons.rule_folder_outlined
-                                          : Icons.warning_amber_rounded,
-                                      size: 18,
-                                      color: _hasBalancedAllocations(line)
+                                        ? Colors.orange.withValues(alpha: 0.18)
+                                        : colorScheme.surfaceContainerHighest,
+                                    child: Icon(
+                                      isReady
+                                          ? Icons.inventory_2_outlined
+                                          : requiresQuantityReview
+                                          ? Icons.warning_amber_rounded
+                                          : Icons.receipt_long,
+                                      color: isReady
                                           ? Colors.green.shade700
-                                          : Colors.orange.shade800,
-                                    ),
-                                    label: Text(_formatAllocationStatus(line)),
-                                  ),
-                                if (suggestions.isNotEmpty)
-                                  Chip(
-                                    avatar: Icon(
-                                      Icons.auto_awesome,
-                                      size: 18,
-                                      color: accentColor,
-                                    ),
-                                    label: Text(
-                                      '${suggestions.length} coincidencia(s) guardada(s)',
-                                    ),
-                                  ),
-                                if (showSplitUi)
-                                  Chip(
-                                    avatar: Icon(
-                                      readyAllocationCount ==
-                                              line.allocations.length
-                                          ? Icons.check_circle_outline
-                                          : Icons.inventory_outlined,
-                                      size: 18,
-                                      color:
-                                          readyAllocationCount ==
-                                              line.allocations.length
-                                          ? Colors.green.shade700
+                                          : requiresQuantityReview
+                                          ? Colors.orange.shade700
                                           : colorScheme.onSurfaceVariant,
                                     ),
-                                    label: Text(
-                                      '$readyAllocationCount/${line.allocations.length} particiones listas',
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          item.nombre,
+                                          style: textTheme.titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Cantidad ${item.cantidad} · ${item.precioUnitario.toStringAsFixed(2)} € / ud · ${item.precioTotal.toStringAsFixed(2)} € total',
+                                          style: textTheme.bodySmall?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            Column(
-                              children: line.allocations.asMap().entries.map((
-                                entry,
-                              ) {
-                                final allocationIndex = entry.key;
-                                final allocation = entry.value;
-                                final allocationReady = _isAllocationComplete(
-                                  allocation,
-                                );
+                                  IconButton(
+                                    onPressed: () => _editItem(index),
+                                    icon: const Icon(Icons.edit_outlined),
+                                    tooltip: 'Editar línea',
+                                  ),
+                                ],
+                              ),
+                              if (requiresQuantityReview)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.orange.withValues(
+                                        alpha: 0.12,
+                                      ),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: Colors.orange.withValues(
+                                          alpha: 0.35,
+                                        ),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      'Producto vendido por peso: revisa la cantidad final antes de guardar',
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: Colors.orange.shade800,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              const SizedBox(height: 12),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  if (showSplitUi)
+                                    Chip(
+                                      avatar: Icon(
+                                        _hasBalancedAllocations(line)
+                                            ? Icons.rule_folder_outlined
+                                            : Icons.warning_amber_rounded,
+                                        size: 18,
+                                        color: _hasBalancedAllocations(line)
+                                            ? Colors.green.shade700
+                                            : Colors.orange.shade800,
+                                      ),
+                                      label: Text(
+                                        _formatAllocationStatus(line),
+                                      ),
+                                    ),
+                                  if (suggestions.isNotEmpty)
+                                    Chip(
+                                      avatar: Icon(
+                                        Icons.auto_awesome,
+                                        size: 18,
+                                        color: accentColor,
+                                      ),
+                                      label: Text(
+                                        '${suggestions.length} coincidencia(s) guardada(s)',
+                                      ),
+                                    ),
+                                  if (showSplitUi)
+                                    Chip(
+                                      avatar: Icon(
+                                        readyAllocationCount ==
+                                                line.allocations.length
+                                            ? Icons.check_circle_outline
+                                            : Icons.inventory_outlined,
+                                        size: 18,
+                                        color:
+                                            readyAllocationCount ==
+                                                line.allocations.length
+                                            ? Colors.green.shade700
+                                            : colorScheme.onSurfaceVariant,
+                                      ),
+                                      label: Text(
+                                        '$readyAllocationCount/${line.allocations.length} particiones listas',
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 14),
+                              Column(
+                                children: line.allocations.asMap().entries.map((
+                                  entry,
+                                ) {
+                                  final allocationIndex = entry.key;
+                                  final allocation = entry.value;
+                                  final allocationReady = _isAllocationComplete(
+                                    allocation,
+                                  );
 
-                                return Container(
-                                  margin: EdgeInsets.only(
-                                    bottom:
-                                        allocationIndex ==
-                                            line.allocations.length - 1
-                                        ? 0
-                                        : 12,
-                                  ),
-                                  padding: const EdgeInsets.all(14),
-                                  decoration: BoxDecoration(
-                                    color: allocationReady
-                                        ? Colors.green.withValues(alpha: 0.08)
-                                        : colorScheme.surfaceContainerHighest
-                                              .withValues(alpha: 0.35),
-                                    borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(
-                                      color: allocationReady
-                                          ? Colors.green.withValues(alpha: 0.25)
-                                          : colorScheme.outlineVariant,
+                                  return Container(
+                                    margin: EdgeInsets.only(
+                                      bottom:
+                                          allocationIndex ==
+                                              line.allocations.length - 1
+                                          ? 0
+                                          : 12,
                                     ),
-                                  ),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              showSplitUi
-                                                  ? 'Partición ${allocationIndex + 1}'
-                                                  : 'Asignación principal',
-                                              style: textTheme.titleSmall
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w700,
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: allocationReady
+                                          ? Colors.green.withValues(alpha: 0.08)
+                                          : colorScheme.surfaceContainerHighest
+                                                .withValues(alpha: 0.35),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: allocationReady
+                                            ? Colors.green.withValues(
+                                                alpha: 0.25,
+                                              )
+                                            : colorScheme.outlineVariant,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        LayoutBuilder(
+                                          builder: (context, constraints) {
+                                            final useStackedHeader =
+                                                showSplitUi &&
+                                                constraints.maxWidth < 430;
+                                            final allocationLabel = showSplitUi
+                                                ? 'Partición ${allocationIndex + 1}'
+                                                : 'Asignación principal';
+                                            final statusBadge = Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 8,
+                                                    vertical: 4,
                                                   ),
-                                            ),
-                                          ),
-                                          if (showSplitUi)
-                                            const SizedBox(width: 8),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 8,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color: allocationReady
-                                                  ? Colors.green.withValues(
-                                                      alpha: 0.14,
-                                                    )
-                                                  : colorScheme.surface,
-                                              borderRadius:
-                                                  BorderRadius.circular(999),
-                                            ),
-                                            child: Text(
-                                              allocationReady
-                                                  ? 'Lista'
-                                                  : 'Pendiente',
-                                              style: textTheme.labelSmall
-                                                  ?.copyWith(
-                                                    color: allocationReady
-                                                        ? Colors.green.shade700
-                                                        : colorScheme
-                                                              .onSurfaceVariant,
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                            ),
-                                          ),
-                                          if (showSplitUi)
-                                            const SizedBox(width: 8),
-                                          if (showSplitUi)
-                                            ActionChip(
+                                              decoration: BoxDecoration(
+                                                color: allocationReady
+                                                    ? Colors.green.withValues(
+                                                        alpha: 0.14,
+                                                      )
+                                                    : colorScheme.surface,
+                                                borderRadius:
+                                                    BorderRadius.circular(999),
+                                              ),
+                                              child: Text(
+                                                allocationReady
+                                                    ? 'Lista'
+                                                    : 'Pendiente',
+                                                style: textTheme.labelSmall
+                                                    ?.copyWith(
+                                                      color: allocationReady
+                                                          ? Colors
+                                                                .green
+                                                                .shade700
+                                                          : colorScheme
+                                                                .onSurfaceVariant,
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                              ),
+                                            );
+                                            final quantityChip = ActionChip(
                                               onPressed: () =>
                                                   _editAllocationQuantity(
                                                     index,
@@ -1775,332 +1781,426 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
                                                 Icons.tune,
                                                 size: 18,
                                               ),
-                                            ),
-                                          const Spacer(),
-                                          if (showSplitUi &&
-                                              line.allocations.length > 1)
-                                            IconButton(
-                                              onPressed: () =>
-                                                  _removeAllocation(
-                                                    index,
-                                                    allocationIndex,
-                                                  ),
-                                              icon: const Icon(Icons.close),
-                                              tooltip: 'Eliminar partición',
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 10),
-                                      if ((allocation.barcode
-                                              ?.trim()
-                                              .isNotEmpty ??
-                                          false))
-                                        Text(
-                                          'EAN ${allocation.barcode}',
-                                          style: textTheme.bodyMedium?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        )
-                                      else
-                                        Text(
-                                          'EAN opcional: escanéalo si te ayuda a identificar mejor el producto.',
-                                          style: textTheme.bodySmall?.copyWith(
-                                            color: colorScheme.onSurfaceVariant,
-                                          ),
-                                        ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  _formatAllocationProduct(
-                                                    allocation,
-                                                  ),
-                                                  style: textTheme.bodyMedium,
-                                                ),
-                                                if ((allocation.productSource
-                                                        ?.trim()
-                                                        .isNotEmpty ??
-                                                    false))
-                                                  Padding(
-                                                    padding:
-                                                        const EdgeInsets.only(
-                                                          top: 4,
-                                                        ),
+                                            );
+                                            final canRemoveAllocation =
+                                                showSplitUi &&
+                                                line.allocations.length > 1;
+
+                                            Widget titleWidget() {
+                                              return Expanded(
+                                                child: Align(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: FittedBox(
+                                                    fit: BoxFit.scaleDown,
+                                                    alignment:
+                                                        Alignment.centerLeft,
                                                     child: Text(
-                                                      allocation.productSource!,
-                                                      style: textTheme.bodySmall
+                                                      allocationLabel,
+                                                      maxLines: 1,
+                                                      softWrap: false,
+                                                      style: textTheme
+                                                          .titleSmall
                                                           ?.copyWith(
-                                                            color:
-                                                                allocation
-                                                                    .usesKnownProduct
-                                                                ? Colors
-                                                                      .green
-                                                                      .shade700
-                                                                : colorScheme
-                                                                      .onSurfaceVariant,
                                                             fontWeight:
-                                                                FontWeight.w600,
+                                                                FontWeight.w700,
                                                           ),
                                                     ),
                                                   ),
+                                                ),
+                                              );
+                                            }
+
+                                            if (useStackedHeader) {
+                                              return Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      titleWidget(),
+                                                      const SizedBox(width: 8),
+                                                      statusBadge,
+                                                    ],
+                                                  ),
+                                                  if (showSplitUi) ...[
+                                                    const SizedBox(height: 8),
+                                                    Row(
+                                                      children: [
+                                                        quantityChip,
+                                                        if (canRemoveAllocation)
+                                                          const Spacer(),
+                                                        if (canRemoveAllocation)
+                                                          IconButton(
+                                                            onPressed: () =>
+                                                                _removeAllocation(
+                                                                  index,
+                                                                  allocationIndex,
+                                                                ),
+                                                            icon: const Icon(
+                                                              Icons.close,
+                                                            ),
+                                                            tooltip:
+                                                                'Eliminar partición',
+                                                          ),
+                                                      ],
+                                                    ),
+                                                  ],
+                                                ],
+                                              );
+                                            }
+
+                                            return Row(
+                                              children: [
+                                                titleWidget(),
+                                                const SizedBox(width: 8),
+                                                statusBadge,
+                                                if (showSplitUi) ...[
+                                                  const SizedBox(width: 8),
+                                                  quantityChip,
+                                                ],
+                                                if (canRemoveAllocation) ...[
+                                                  const SizedBox(width: 4),
+                                                  IconButton(
+                                                    onPressed: () =>
+                                                        _removeAllocation(
+                                                          index,
+                                                          allocationIndex,
+                                                        ),
+                                                    icon: const Icon(
+                                                      Icons.close,
+                                                    ),
+                                                    tooltip:
+                                                        'Eliminar partición',
+                                                  ),
+                                                ],
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                        const SizedBox(height: 10),
+                                        if ((allocation.barcode
+                                                ?.trim()
+                                                .isNotEmpty ??
+                                            false))
+                                          Text(
+                                            'EAN ${allocation.barcode}',
+                                            style: textTheme.bodyMedium
+                                                ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
+                                          )
+                                        else
+                                          Text(
+                                            'EAN opcional: escanéalo si te ayuda a identificar mejor el producto.',
+                                            style: textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                          ),
+                                        const SizedBox(height: 6),
+                                        Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Expanded(
+                                              child: Column(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    _formatAllocationProduct(
+                                                      allocation,
+                                                    ),
+                                                    style: textTheme.bodyMedium,
+                                                  ),
+                                                  if ((allocation.productSource
+                                                          ?.trim()
+                                                          .isNotEmpty ??
+                                                      false))
+                                                    Padding(
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                            top: 4,
+                                                          ),
+                                                      child: Text(
+                                                        allocation
+                                                            .productSource!,
+                                                        style: textTheme
+                                                            .bodySmall
+                                                            ?.copyWith(
+                                                              color:
+                                                                  allocation
+                                                                      .usesKnownProduct
+                                                                  ? Colors
+                                                                        .green
+                                                                        .shade700
+                                                                  : colorScheme
+                                                                        .onSurfaceVariant,
+                                                              fontWeight:
+                                                                  FontWeight
+                                                                      .w600,
+                                                            ),
+                                                      ),
+                                                    ),
+                                                ],
+                                              ),
+                                            ),
+                                            if ((allocation.imageUrl
+                                                    ?.trim()
+                                                    .isNotEmpty ??
+                                                false)) ...[
+                                              const SizedBox(width: 12),
+                                              _buildAllocationImage(allocation),
+                                            ],
+                                          ],
+                                        ),
+                                        if (suggestions.isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 10,
+                                            ),
+                                            child: Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              children: suggestions.map((
+                                                match,
+                                              ) {
+                                                final isActive =
+                                                    allocation.barcode ==
+                                                    match.barcode;
+                                                return ActionChip(
+                                                  avatar: Icon(
+                                                    isActive
+                                                        ? Icons
+                                                              .check_circle_outline
+                                                        : Icons.history,
+                                                    size: 18,
+                                                  ),
+                                                  label: Text(
+                                                    _formatMatchLabel(match),
+                                                  ),
+                                                  onPressed: () =>
+                                                      _assignMatchToAllocation(
+                                                        index,
+                                                        allocationIndex,
+                                                        match,
+                                                      ),
+                                                );
+                                              }).toList(),
+                                            ),
+                                          ),
+                                        const SizedBox(height: 12),
+                                        _buildAllocationMetaFields(
+                                          allocation: allocation,
+                                          lineIndex: index,
+                                          allocationIndex: allocationIndex,
+                                          textTheme: textTheme,
+                                        ),
+                                        if (showSplitUi &&
+                                            line.allocations.length > 1)
+                                          Padding(
+                                            padding: const EdgeInsets.only(
+                                              top: 10,
+                                            ),
+                                            child: Wrap(
+                                              spacing: 8,
+                                              runSpacing: 8,
+                                              children: [
+                                                ActionChip(
+                                                  onPressed:
+                                                      allocation.ubicacionId ==
+                                                          null
+                                                      ? null
+                                                      : () =>
+                                                            _copyAllocationLocationToOthers(
+                                                              index,
+                                                              allocationIndex,
+                                                            ),
+                                                  avatar: const Icon(
+                                                    Icons.content_copy_outlined,
+                                                    size: 18,
+                                                  ),
+                                                  label: const Text(
+                                                    'Copiar ubicación',
+                                                  ),
+                                                ),
+                                                ActionChip(
+                                                  onPressed:
+                                                      allocation
+                                                              .fechaCaducidad ==
+                                                          null
+                                                      ? null
+                                                      : () =>
+                                                            _copyAllocationExpiryToOthers(
+                                                              index,
+                                                              allocationIndex,
+                                                            ),
+                                                  avatar: const Icon(
+                                                    Icons.event_repeat_outlined,
+                                                    size: 18,
+                                                  ),
+                                                  label: const Text(
+                                                    'Copiar caducidad',
+                                                  ),
+                                                ),
                                               ],
                                             ),
                                           ),
-                                          if ((allocation.imageUrl
-                                                  ?.trim()
-                                                  .isNotEmpty ??
-                                              false)) ...[
-                                            const SizedBox(width: 12),
-                                            _buildAllocationImage(allocation),
-                                          ],
-                                        ],
-                                      ),
-                                      if (suggestions.isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 10,
-                                          ),
-                                          child: Wrap(
-                                            spacing: 8,
-                                            runSpacing: 8,
-                                            children: suggestions.map((match) {
-                                              final isActive =
-                                                  allocation.barcode ==
-                                                  match.barcode;
-                                              return ActionChip(
-                                                avatar: Icon(
-                                                  isActive
-                                                      ? Icons
-                                                            .check_circle_outline
-                                                      : Icons.history,
-                                                  size: 18,
-                                                ),
-                                                label: Text(
-                                                  _formatMatchLabel(match),
-                                                ),
-                                                onPressed: () =>
-                                                    _assignMatchToAllocation(
-                                                      index,
-                                                      allocationIndex,
-                                                      match,
-                                                    ),
-                                              );
-                                            }).toList(),
-                                          ),
-                                        ),
-                                      const SizedBox(height: 12),
-                                      _buildAllocationMetaFields(
-                                        allocation: allocation,
-                                        lineIndex: index,
-                                        allocationIndex: allocationIndex,
-                                        textTheme: textTheme,
-                                      ),
-                                      if (showSplitUi &&
-                                          line.allocations.length > 1)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            top: 10,
-                                          ),
-                                          child: Wrap(
-                                            spacing: 8,
-                                            runSpacing: 8,
-                                            children: [
-                                              ActionChip(
-                                                onPressed:
-                                                    allocation.ubicacionId ==
-                                                        null
-                                                    ? null
-                                                    : () =>
-                                                          _copyAllocationLocationToOthers(
-                                                            index,
-                                                            allocationIndex,
-                                                          ),
-                                                avatar: const Icon(
-                                                  Icons.content_copy_outlined,
-                                                  size: 18,
-                                                ),
-                                                label: const Text(
-                                                  'Copiar ubicación',
-                                                ),
-                                              ),
-                                              ActionChip(
-                                                onPressed:
-                                                    allocation.fechaCaducidad ==
-                                                        null
-                                                    ? null
-                                                    : () =>
-                                                          _copyAllocationExpiryToOthers(
-                                                            index,
-                                                            allocationIndex,
-                                                          ),
-                                                avatar: const Icon(
-                                                  Icons.event_repeat_outlined,
-                                                  size: 18,
-                                                ),
-                                                label: const Text(
-                                                  'Copiar caducidad',
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      const SizedBox(height: 12),
-                                      Wrap(
-                                        spacing: 10,
-                                        runSpacing: 10,
-                                        children: [
-                                          OutlinedButton.icon(
-                                            onPressed: () =>
-                                                _scanBarcodeForAllocation(
-                                                  index,
-                                                  allocationIndex,
-                                                ),
-                                            icon: const Icon(
-                                              Icons.qr_code_scanner,
-                                              size: 18,
-                                            ),
-                                            label: Text(
-                                              (allocation.barcode
-                                                          ?.trim()
-                                                          .isNotEmpty ??
-                                                      false)
-                                                  ? 'Cambiar EAN'
-                                                  : 'Escanear EAN',
-                                            ),
-                                            style: OutlinedButton.styleFrom(
-                                              foregroundColor: _eanActionColor,
-                                              side: BorderSide(
-                                                color: _eanActionColor
-                                                    .withValues(alpha: 0.45),
-                                              ),
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                            ),
-                                          ),
-                                          OutlinedButton.icon(
-                                            onPressed: () =>
-                                                _editAllocationProduct(
-                                                  index,
-                                                  allocationIndex,
-                                                ),
-                                            icon: const Icon(
-                                              Icons.edit_note,
-                                              size: 18,
-                                            ),
-                                            label: const Text(
-                                              'Editar producto',
-                                            ),
-                                            style: OutlinedButton.styleFrom(
-                                              shape: RoundedRectangleBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                            ),
-                                          ),
-                                          if (allocation.barcode != null)
-                                            TextButton.icon(
+                                        const SizedBox(height: 12),
+                                        Wrap(
+                                          spacing: 10,
+                                          runSpacing: 10,
+                                          children: [
+                                            OutlinedButton.icon(
                                               onPressed: () =>
-                                                  _clearBarcodeForAllocation(
+                                                  _scanBarcodeForAllocation(
                                                     index,
                                                     allocationIndex,
                                                   ),
                                               icon: const Icon(
-                                                Icons.restart_alt,
+                                                Icons.qr_code_scanner,
                                                 size: 18,
                                               ),
-                                              label: const Text('Limpiar EAN'),
+                                              label: Text(
+                                                (allocation.barcode
+                                                            ?.trim()
+                                                            .isNotEmpty ??
+                                                        false)
+                                                    ? 'Cambiar EAN'
+                                                    : 'Escanear EAN',
+                                              ),
+                                              style: OutlinedButton.styleFrom(
+                                                foregroundColor:
+                                                    _eanActionColor,
+                                                side: BorderSide(
+                                                  color: _eanActionColor
+                                                      .withValues(alpha: 0.45),
+                                                ),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                              ),
                                             ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              }).toList(),
-                            ),
-                            const SizedBox(height: 14),
-                            if (showSplitUi)
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: OutlinedButton.icon(
-                                      onPressed: () => _addAllocation(index),
-                                      icon: const Icon(
-                                        Icons.call_split,
-                                        size: 18,
-                                      ),
-                                      label: const Text('Dividir línea'),
-                                      style: OutlinedButton.styleFrom(
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(
-                                            12,
+                                            OutlinedButton.icon(
+                                              onPressed: () =>
+                                                  _editAllocationProduct(
+                                                    index,
+                                                    allocationIndex,
+                                                  ),
+                                              icon: const Icon(
+                                                Icons.edit_note,
+                                                size: 18,
+                                              ),
+                                              label: const Text(
+                                                'Editar producto',
+                                              ),
+                                              style: OutlinedButton.styleFrom(
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(12),
+                                                ),
+                                              ),
+                                            ),
+                                            if (allocation.barcode != null)
+                                              TextButton.icon(
+                                                onPressed: () =>
+                                                    _clearBarcodeForAllocation(
+                                                      index,
+                                                      allocationIndex,
+                                                    ),
+                                                icon: const Icon(
+                                                  Icons.restart_alt,
+                                                  size: 18,
+                                                ),
+                                                label: const Text(
+                                                  'Limpiar EAN',
+                                                ),
+                                              ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                              const SizedBox(height: 14),
+                              if (showSplitUi)
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: () => _addAllocation(index),
+                                        icon: const Icon(
+                                          Icons.call_split,
+                                          size: 18,
+                                        ),
+                                        label: const Text('Dividir línea'),
+                                        style: OutlinedButton.styleFrom(
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(
+                                              12,
+                                            ),
                                           ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      _isReadyToPersist(line)
-                                          ? 'Lista para persistir en inventario'
-                                          : 'Completa reparto, producto, ubicación y caducidad en cada partición. El EAN es opcional.',
-                                      style: textTheme.bodySmall?.copyWith(
-                                        color: _isReadyToPersist(line)
-                                            ? Colors.green.shade700
-                                            : colorScheme.onSurfaceVariant,
-                                        fontWeight: FontWeight.w600,
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        _isReadyToPersist(line)
+                                            ? 'Lista para persistir en inventario'
+                                            : 'Completa reparto, producto, ubicación y caducidad en cada partición. El EAN es opcional.',
+                                        style: textTheme.bodySmall?.copyWith(
+                                          color: _isReadyToPersist(line)
+                                              ? Colors.green.shade700
+                                              : colorScheme.onSurfaceVariant,
+                                          fontWeight: FontWeight.w600,
+                                        ),
                                       ),
                                     ),
+                                  ],
+                                )
+                              else
+                                Text(
+                                  _isReadyToPersist(line)
+                                      ? 'Lista para persistir en inventario'
+                                      : 'Completa producto, ubicación y caducidad. El EAN es opcional.',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: _isReadyToPersist(line)
+                                        ? Colors.green.shade700
+                                        : colorScheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w600,
                                   ),
-                                ],
-                              )
-                            else
-                              Text(
-                                _isReadyToPersist(line)
-                                    ? 'Lista para persistir en inventario'
-                                    : 'Completa producto, ubicación y caducidad. El EAN es opcional.',
-                                style: textTheme.bodySmall?.copyWith(
-                                  color: _isReadyToPersist(line)
-                                      ? Colors.green.shade700
-                                      : colorScheme.onSurfaceVariant,
-                                  fontWeight: FontWeight.w600,
                                 ),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                },
+                    );
+                  },
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
       bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FilledButton(
-            onPressed: isLoadingContext ? null : _finishMatching,
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(56),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
+        top: false,
+        minimum: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: FilledButton(
+          onPressed: isLoadingContext ? null : _finishMatching,
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(56),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: const Text(
-              'Guardar y Alimentar Inventario',
-              style: TextStyle(fontSize: 16),
-            ),
+          ),
+          child: const Text(
+            'Guardar y Alimentar Inventario',
+            style: TextStyle(fontSize: 16),
           ),
         ),
       ),
