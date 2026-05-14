@@ -1,4 +1,4 @@
-// frontend/lib/services/ticket_parser_service.dart
+﻿// frontend/lib/services/ticket_parser_service.dart
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:frontend/models/ticket_item.dart';
 
@@ -10,10 +10,12 @@ class ParsedTicketResult {
 
 class TicketParserService {
   /// Price: "0,85", "1.49", "-0,50" optionally followed by € + IVA letter (A/B/C)
+  /// Allows optional space after comma/period to handle OCR artifacts like "2, 10"
   static final _priceRegex = RegExp(
-    r'(-?\s*\d+[,\.]\d{2})\s*€?\s*(?:[A-Z]\b)?(?:\s|$)',
+    r'(-?\s*\d+[,\.]\s?\d{2})\s*€?\s*(?:[A-Z]\b)?(?:\s|$)',
     caseSensitive: false,
   );
+  static const bool _debugGeneric = true;
 
   /// Discount keywords
   static const _discountKw = [
@@ -29,6 +31,9 @@ class TicketParserService {
   /// Patterns that definitively END item parsing (checked per combined row text)
   static final _stopPatterns = [
     RegExp(r'^TOTAL\b', caseSensitive: false),
+    RegExp(r'^TUTAL\b', caseSensitive: false),
+    // OCR misreads: I0TAL, T0TAL, 1OTAL, TOAL, TO7AL, etc.
+    RegExp(r'^[IT1]?[O0][T7]?AL\b', caseSensitive: false),
     RegExp(r'^ENTREGA\b', caseSensitive: false),
     RegExp(r'^SUBTOTAL\b', caseSensitive: false),
     RegExp(r'TOTAL VENTA', caseSensitive: false),
@@ -55,13 +60,17 @@ class TicketParserService {
     RegExp(r'^TARJETA', caseSensitive: false),
     RegExp(r'^CAMBIO', caseSensitive: false),
     RegExp(r'^IVA\b', caseSensitive: false),
+    RegExp(r'I\.?V\.?A\.?', caseSensitive: false),
     RegExp(r'B\.IMP', caseSensitive: false),
+    RegExp(r'BASE\s+IMPONIBLE', caseSensitive: false),
+    RegExp(r'CUOTA\s+IVA', caseSensitive: false),
     RegExp(r'^Nº\b', caseSensitive: false),
     RegExp(r'\bFECHA\b', caseSensitive: false),
     RegExp(r'^IMPORTE\b', caseSensitive: false),
     RegExp(r'FORMA DE PAGO', caseSensitive: false),
-    RegExp(r'DESCRIPCI[ÓO]N', caseSensitive: false),
+    RegExp(r'D\s*E\s*S\s*C\s*R\s*I\s*P\s*C\s*I\s*[Ã“O]\s*N', caseSensitive: false),
     RegExp(r'CANTIDAD\s+PRECIO', caseSensitive: false),
+    RegExp(r'P\.?\s*UNIT', caseSensitive: false),
     RegExp(r'^\d+%$', caseSensitive: false), // "4%", "21%"
     RegExp(r'^[A-D]\s+\d+%', caseSensitive: false), // "A  4%", "B 10%"
     RegExp(r'^Suma\b', caseSensitive: false),
@@ -110,7 +119,8 @@ class TicketParserService {
     allLines.sort((a, b) => a.boundingBox.top.compareTo(b.boundingBox.top));
 
     debug('blocks=${recognizedText.blocks.length} lines=${allLines.length}');
-    for (int i = 0; i < allLines.length && i < 40; i++) {
+    final maxLines = _debugGeneric ? allLines.length : 40;
+    for (int i = 0; i < allLines.length && i < maxLines; i++) {
       final line = allLines[i];
       debug(
         'LINE[$i] y=${line.boundingBox.top.round()} x=${line.boundingBox.left.round()} text="${line.text.trim()}"',
@@ -119,7 +129,7 @@ class TicketParserService {
 
     // Detect supermarket using the first lines first, then broader heuristics.
     String detectedSupermercado = 'Desconocido';
-    for (int i = 0; i < allLines.length && i < 40; i++) {
+    for (int i = 0; i < allLines.length && i < maxLines; i++) {
       final t = allLines[i].text.toUpperCase();
       if (t.contains('MERCADONA')) {
         detectedSupermercado = 'Mercadona';
@@ -225,8 +235,8 @@ class TicketParserService {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // LIDL PARSER — Column-aware / row-grouping approach
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // LIDL PARSER â€” Column-aware / row-grouping approach
   //
   // LIDL tickets use a two-column layout:
   //   LEFT column:  product name
@@ -236,7 +246,7 @@ class TicketParserService {
   // 1. Find the "EUR" column header to know where items start.
   // 2. Group all subsequent TextLines into "rows" by Y-coordinate proximity.
   // 3. Within each row, sort by X: leftmost = name, rightmost with price = price.
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static List<TicketItem> _parseLidl(List<TextLine> lines) {
     void debug(String message) {
       print('LIDL DEBUG: $message');
@@ -274,7 +284,7 @@ class TicketParserService {
     }
 
     String fixOcrToken(String token) {
-      final hasLetters = RegExp(r'[A-ZÁÉÍÓÚÜÑ]').hasMatch(token);
+      final hasLetters = RegExp(r'[A-ZÁÃ‰ÍÃ“ÃšÃœÃ‘]').hasMatch(token);
       final hasDigits = RegExp(r'\d').hasMatch(token);
       if (hasLetters && hasDigits) {
         return token.replaceAll('0', 'O');
@@ -332,6 +342,7 @@ class TicketParserService {
           .replaceAll(RegExp(r'\bMOL\s+IDO\b'), 'MOLIDO')
           .replaceAll(RegExp(r'\bA\s+JO\b'), 'AJO')
           .replaceAll(RegExp(r'\bGRANUL\s+ADO\b'), 'GRANULADO')
+          .replaceAll(RegExp(r'\bGRIEGOO\b'), 'GRIEGO')
           .replaceAll(RegExp(r'\s+'), ' ')
           .trim();
       return normalized;
@@ -450,7 +461,7 @@ class TicketParserService {
     for (final rowLines in rowGroups) {
       if (!parsing) break;
 
-      // Sort by X within the row (left → right)
+      // Sort by X within the row (left â†’ right)
       rowLines.sort((a, b) => a.boundingBox.left.compareTo(b.boundingBox.left));
 
       // Build combined row text for stop/skip checking
@@ -606,53 +617,53 @@ class TicketParserService {
     return items;
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // DIA PARSER
   //
-  // DIA digital PDF — tabla de 4 columnas:
+  // DIA digital PDF â€” tabla de 4 columnas:
   //   Col1: Nombre (1-2 líneas)  Col2: "N ud"  Col3: precio/ud  Col4: total+IVA
   //
   // Estructura real de coordenadas Y por producto (del OCR):
-  //   Y≈2499  "LVQR LIGHT 16"   ← nombre línea 1
-  //   Y≈2560  "1 ud"            ← trigger qty   ─┐ misma fila lógica
-  //   Y≈2562  "2,99 €"          ← precio/ud      │ (Δ ≤ 60px entre sí)
-  //   Y≈2562  "2,99 €"          ← total          ─┘
-  //   Y≈2606  "250 G"           ← peso (ruido)
-  //   Y≈2804  "GUANCIALE"       ← nombre siguiente producto
+  //   Yâ‰ˆ2499  "LVQR LIGHT 16"   â† nombre línea 1
+  //   Yâ‰ˆ2560  "1 ud"            â† trigger qty   â”€â” misma fila lógica
+  //   Yâ‰ˆ2562  "2,99 €"          â† precio/ud      â”‚ (Î” â‰¤ 60px entre sí)
+  //   Yâ‰ˆ2562  "2,99 €"          â† total          â”€â”˜
+  //   Yâ‰ˆ2606  "250 G"           â† peso (ruido)
+  //   Yâ‰ˆ2804  "GUANCIALE"       â† nombre siguiente producto
   //
   // Estrategia:
   //   Para cada línea trigger ("N ud"), el nombre del producto son las líneas
-  //   cuya Y está dentro de ±MAX_NAME_DIST px del trigger Y,
+  //   cuya Y está dentro de Â±MAX_NAME_DIST px del trigger Y,
   //   pero que NO son precio puro, peso, ni qty.
-  //   MAX_NAME_DIST = 120px cubre nombre_línea_1 (Δ≈60) y nombre_línea_2 (Δ≈30)
-  //   sin alcanzar el nombre del producto SIGUIENTE (Δ≥200px).
+  //   MAX_NAME_DIST = 120px cubre nombre_línea_1 (Î”â‰ˆ60) y nombre_línea_2 (Î”â‰ˆ30)
+  //   sin alcanzar el nombre del producto SIGUIENTE (Î”â‰¥200px).
   //
-  // Fallback a _parseGeneric para tickets físicos DIA (sin cabecera DESCRIPCIÓN).
-  // ─────────────────────────────────────────────────────────────────────────
-  // ─────────────────────────────────────────────────────────────────────────
+  // Fallback a _parseGeneric para tickets físicos DIA (sin cabecera DESCRIPCIÃ“N).
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // DIA PARSER
   //
   // El PDF digital de DIA tiene una tabla con 4 columnas. ML Kit las devuelve
   // como TextLines individuales. Según los datos reales del OCR, las columnas
   // se distinguen por su coordenada X:
   //
-  //   X <  500  → Col1: Nombre del producto (1-3 líneas consecutivas)
-  //   X ≈ 1050  → Col2: Cantidad  "N ud"          ← TRIGGER de cada producto
-  //   X ≈ 1400  → Col3: Precio unitario
-  //   X ≈ 1770  → Col4: Total (precio × cantidad) + letra IVA
+  //   X <  500  â†’ Col1: Nombre del producto (1-3 líneas consecutivas)
+  //   X â‰ˆ 1050  â†’ Col2: Cantidad  "N ud"          â† TRIGGER de cada producto
+  //   X â‰ˆ 1400  â†’ Col3: Precio unitario
+  //   X â‰ˆ 1770  â†’ Col4: Total (precio Ã— cantidad) + letra IVA
   //
   // Estrategia:
   //   1. Delimitar la zona entre "Productos vendidos por Dia" y "Total venta Dia"
-  //   2. Separar líneas de nombre (X < 500) de líneas de datos (X ≥ 500)
+  //   2. Separar líneas de nombre (X < 500) de líneas de datos (X â‰¥ 500)
   //   3. Identificar triggers: líneas de datos que coinciden con "N ud"
   //   4. Para cada trigger:
-  //      a. Precio total = línea con X > 1700 cuya Y esté a ±20px del trigger
+  //      a. Precio total = línea de datos con X > 1700 cuya Y esté a Â±20px del trigger
   //      b. Nombre = líneas de nombre (X < 500) cuya Y es menor que la del
   //         trigger Y mayor que la del trigger anterior (o el inicio)
   //      c. Filtrar líneas de nombre que sean solo peso ("250 G", etc.)
   //
   // Fallback a _parseGeneric si no se encuentra la sección o no hay triggers.
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static List<TicketItem> _parseDia(List<TextLine> lines) {
     final diaProductsSectionRegex = RegExp(
       r'PRODUCTOS\s+VENDIDOS\s+POR\s+D[1IÍL]A',
@@ -663,8 +674,8 @@ class TicketParserService {
       RegExp(r'DESGLOSE\s+DE\s+IVA', caseSensitive: false),
       RegExp(r'FORMA\s+DE\s+PAGO', caseSensitive: false),
       RegExp(r'IVA\s+INCLUIDO', caseSensitive: false),
-      RegExp(r'DATOS\s+DE\s+LA\s+OPERACI[ÓO]N', caseSensitive: false),
-      RegExp(r'OPERACI[ÓO]N\s+CONTACTLESS', caseSensitive: false),
+      RegExp(r'DATOS\s+DE\s+LA\s+OPERACI[Ã“O]N', caseSensitive: false),
+      RegExp(r'OPERACI[Ã“O]N\s+CONTACTLESS', caseSensitive: false),
       RegExp(r'COMERCIAL\s+POSIPAR', caseSensitive: false),
     ];
 
@@ -674,7 +685,7 @@ class TicketParserService {
 
     if (!hasProductsSection) return _parseGeneric(lines);
 
-    // ── 1. Delimitar zona de productos ────────────────────────────────────
+    // â”€â”€ 1. Delimitar zona de productos â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     int startIndex = -1;
     int endIndex = lines.length;
     for (int i = 0; i < lines.length; i++) {
@@ -692,8 +703,8 @@ class TicketParserService {
 
     final zone = lines.sublist(startIndex, endIndex);
 
-    // ── 2. Separar columna de nombre (X < 500) del resto ─────────────────
-    // Umbral X calibrado con los datos reales: nombres en X≈85-100, datos en X≈1050+
+    // â”€â”€ 2. Separar columna de nombre (X < 500) del resto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Umbral X calibrado con los datos reales: nombres en Xâ‰ˆ85-100, datos en Xâ‰ˆ1050+
     const int nameColMaxX = 500;
     const int quantityColMinX = 900;
     const int quantityColMaxX = 1250;
@@ -710,7 +721,7 @@ class TicketParserService {
               .map((l) => l.boundingBox.bottom.toDouble())
               .reduce((a, b) => a > b ? a : b);
 
-    // ── 3. Identificar triggers de la columna cantidad ────────────────────
+    // â”€â”€ 3. Identificar triggers de la columna cantidad â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     final qtyRegex = RegExp(r'^(\d+)\s*uds?$', caseSensitive: false);
     final weightQtyRegex = RegExp(
       r'^\d+[,\.]\d+\s*(KG|KGS|G|GR|GRS|L|ML)\b',
@@ -730,7 +741,7 @@ class TicketParserService {
     bool shouldSkipDiaNameLine(String text) {
       final upper = text.trim().toUpperCase();
       if (upper.isEmpty) return true;
-      if (RegExp(r'^DESCRIPCI[ÓO]N$', caseSensitive: false).hasMatch(upper))
+      if (RegExp(r'^DESCRIPCI[Ã“O]N$', caseSensitive: false).hasMatch(upper))
         return true;
       if (RegExp(
         r'^PRODUCTOS\s+VENDIDOS\s+POR\s+DIA$',
@@ -769,7 +780,7 @@ class TicketParserService {
           : (int.tryParse(qtyMatch.group(1)!) ?? 1);
       final requiresQuantityReview = weightQtyRegex.hasMatch(triggerText);
 
-      // ── Precio total: línea de datos con X > 1700 y Y a ±25px del trigger
+      // â”€â”€ Precio total: línea de datos con X > 1700 y Y a Â±25px del trigger
       final totalLine = dataLines
           .where(
             (l) =>
@@ -790,14 +801,14 @@ class TicketParserService {
       final parsedPrice = double.tryParse(priceStr) ?? 0.0;
       if (parsedPrice <= 0) continue;
 
-      // ── Nombre: líneas de nombre (X < 500) asignadas a ESTE trigger.
+      // â”€â”€ Nombre: líneas de nombre (X < 500) asignadas a ESTE trigger.
       //
       // Cada producto ocupa la banda vertical comprendida entre el punto medio
       // con el trigger anterior y el punto medio con el trigger siguiente.
       // Así evitamos solapes como:
-      //   GUANCIALE / SELECCIÓN  -> trigger en Y=2852
+      //   GUANCIALE / SELECCIÃ“N  -> trigger en Y=2852
       //   HUMMUS RECETA / LIBANE -> trigger en Y=3144
-      // donde "SELECCIÓN" (Y=2882) debe pertenecer solo al producto 2.
+      // donde "SELECCIÃ“N" (Y=2882) debe pertenecer solo al producto 2.
       //
       // Banda del producto t:
       //   lower = midpoint(prevTrigger, currentTrigger)
@@ -855,94 +866,322 @@ class TicketParserService {
     return _parseGeneric(lines);
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // GENERIC PARSER (Mercadona, Carrefour, etc.)
-  // ─────────────────────────────────────────────────────────────────────────
+  //
+  // Column-matching approach:
+  //   1. Find product zone (between header row and TOTAL row)
+  //   2. Classify each TextLine as "description" (has letters) or
+  //      "price-only" (just digits/comma/dot, no letters)
+  //   3. Match each description to its closest price(s) by Y-proximity
+  //   4. Among matched prices, rightmost (by X) = line total
+  //
+  // This approach is immune to OCR returning description and price in
+  // any Y-order, because we match by proximity rather than sequence.
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static List<TicketItem> _parseGeneric(List<TextLine> lines) {
     final items = <TicketItem>[];
-    bool parsing = true;
 
-    for (int i = 0; i < lines.length; i++) {
-      if (!parsing) break;
-      final line = lines[i].text.trim().toUpperCase();
-
-      if (_stopPatterns.any((p) => p.hasMatch(line))) {
-        parsing = false;
-        break;
+    void debug(String message) {
+      if (_debugGeneric) {
+        print('GENERIC DEBUG: $message');
       }
-      if (_skipPatterns.any((p) => p.hasMatch(line))) continue;
-      if (line.length < 2) continue;
+    }
 
-      final matches = _priceRegex.allMatches(line).toList();
-      if (matches.isEmpty) continue;
-
-      final priceStr = matches.last
-          .group(1)!
-          .replaceAll(' ', '')
-          .replaceAll(',', '.');
-      final parsedPrice = double.tryParse(priceStr) ?? 0.0;
-
-      final isDiscount =
-          _discountKw.any((kw) => line.contains(kw)) || parsedPrice < 0;
-      if (isDiscount && items.isNotEmpty) {
-        _applyDiscountToItem(items.last, parsedPrice.abs());
-        continue;
+    // â”€â”€ Helper: extract ALL prices from a text string â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    List<double> extractAllPrices(String text) {
+      final matches = _priceRegex.allMatches(text.toUpperCase()).toList();
+      final prices = <double>[];
+      for (final m in matches) {
+        final priceStr = m.group(1)!.replaceAll(' ', '').replaceAll(',', '.');
+        final p = double.tryParse(priceStr);
+        if (p != null && p > 0) prices.add(p);
       }
+      return prices;
+    }
 
-      String nameOnly = line.replaceAll(_priceRegex, '').trim();
-      if (RegExp(
-        r'^\d+[,\.]\d+\s*KG\s*X',
-        caseSensitive: false,
-      ).hasMatch(nameOnly))
-        continue;
+    Match? leadingQtyMatch(String text) {
+      return RegExp(r'^(\d{1,2})\s+(?=[A-ZÁÃ‰ÍÃ“ÃšÃœÃ‘])').firstMatch(text);
+    }
 
-      int qty = 1;
-      final qtyMatch = RegExp(
+    Match? inlineQtyMatch(String text) {
+      return RegExp(
         r'(?:^|\b)(\d+)\s*(?:ud|uds|x)\b',
         caseSensitive: false,
-      ).firstMatch(nameOnly);
-      if (qtyMatch != null) {
-        qty = int.tryParse(qtyMatch.group(1)!) ?? 1;
-        nameOnly = nameOnly.replaceAll(qtyMatch.group(0)!, '').trim();
-      }
+      ).firstMatch(text);
+    }
 
-      final isJustWeight =
-          nameOnly.isEmpty ||
-          (RegExp(
-                r'^\d+[,\.]?\d*\s*(G|KG|ML|L)?\s*$',
-                caseSensitive: false,
-              ).hasMatch(nameOnly) &&
-              nameOnly.length < 8);
+    String normalizeName(String text) {
+      var normalized = text
+          .replaceAll(RegExp(r'\bOK\b'), '0%')
+          .replaceAll(RegExp(r'\bO%\b'), '0%')
+          .replaceFirst(RegExp(r'^1\s*\+\s*'), '+ ')
+          .trim();
 
-      if (!isJustWeight && !_skipPatterns.any((p) => p.hasMatch(nameOnly))) {
-        items.add(
-          TicketItem(
-            nombre: nameOnly,
-            precioUnitario: parsedPrice,
-            cantidad: qty,
-          ),
-        );
-      } else if (i > 0) {
-        final prevLine = lines[i - 1].text.trim().toUpperCase();
-        String fullName = prevLine;
-        if (i > 1) {
-          final pp = lines[i - 2].text.trim().toUpperCase();
-          if (!_stopPatterns.any((p) => p.hasMatch(pp)) &&
-              !_priceRegex.hasMatch(pp)) {
-            fullName = '$pp $prevLine';
-          }
+      final tokens = normalized
+          .split(' ')
+          .where((token) => token.isNotEmpty)
+          .map((token) {
+        final hasLetters = RegExp(r'[A-ZÁÃ‰ÍÃ“ÃšÃœÃ‘]').hasMatch(token);
+        final hasDigits = RegExp(r'\d').hasMatch(token);
+        if (hasLetters && hasDigits) {
+          return token.replaceAll('0', 'O');
         }
-        if (!_skipPatterns.any((p) => p.hasMatch(fullName))) {
-          items.add(
-            TicketItem(
-              nombre: fullName,
-              precioUnitario: parsedPrice,
-              cantidad: qty,
-            ),
-          );
+        return token;
+      }).toList();
+
+      normalized = tokens.join(' ');
+      normalized = normalized
+          .replaceAll(RegExp(r'\bLASANA\b'), 'LASAÑA')
+          .replaceAll(RegExp(r'\bMADRILENA\b'), 'MADRILEÑA')
+          .replaceAll(RegExp(r'\bESPINADAS\b'), 'ESPINACAS')
+          .replaceAll(RegExp(r'\bGRIEGOO\b'), 'GRIEGO')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+
+      return normalized;
+    }
+
+    bool isLikelyProductName(String text) {
+      final upper = text.trim().toUpperCase();
+      if (upper.length < 2) return false;
+      if (_skipPatterns.any((p) => p.hasMatch(upper))) return false;
+      if (_stopPatterns.any((p) => p.hasMatch(upper))) return false;
+      if (!RegExp(r'[A-ZÁÃ‰ÍÃ“ÃšÃœÃ‘]').hasMatch(upper)) return false;
+      if (RegExp(r'^\d+[\s\d,\.]*$').hasMatch(upper)) return false;
+      if (RegExp(r'\b(IVA|IMPONIBLE|CUOTA|TOTAL|SUBTOTAL|PAGO|CAMBIO)\b')
+          .hasMatch(upper)) {
+        return false;
+      }
+      return true;
+    }
+
+    bool isHeaderLine(String upper) {
+      return upper.contains('DESCRIP') ||
+          upper.contains('P. UNIT') ||
+          upper.contains('P UNIT') ||
+          RegExp(r'IMP\.\s*\(\s*[E€]\s*\)').hasMatch(upper);
+    }
+
+    // â”€â”€ Step 1: Find product zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Zone starts after the "Descripción / P. Unit" header or the first
+    // line that looks like a product. Zone ends at TOTAL.
+    int zoneStart = 0;
+    int zoneEnd = lines.length;
+    bool foundHeader = false;
+
+    for (int i = 0; i < lines.length; i++) {
+      final text = lines[i].text.trim().toUpperCase();
+      // Check for header markers (Descripción, P. Unit)
+      if (!foundHeader && isHeaderLine(text)) {
+        zoneStart = i + 1;
+        foundHeader = true;
+        continue;
+      } else if (!foundHeader && _skipPatterns.any((p) => p.hasMatch(text))) {
+        zoneStart = i + 1; // start AFTER this line
+      }
+      // Check for TOTAL (end of products)
+      if (_stopPatterns.any((p) => p.hasMatch(text))) {
+        zoneEnd = i;
+        debug('STOP at line[$i] "$text"');
+        break;
+      }
+    }
+
+    if (zoneStart >= zoneEnd) zoneStart = 0;
+    debug('productZone: [$zoneStart, $zoneEnd) of ${lines.length} lines');
+
+    // â”€â”€ Step 2: Classify lines in product zone â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Description lines: contain letters (product names)
+    // Price-only lines: only digits, comma, dot, spaces (prices)
+    final descLines = <TextLine>[];
+    final priceLines = <TextLine>[];
+
+    for (int i = zoneStart; i < zoneEnd; i++) {
+      final l = lines[i];
+      final text = l.text.trim();
+      final upper = text.toUpperCase();
+
+      // Skip/stop check
+      if (isHeaderLine(upper)) continue;
+      if (_skipPatterns.any((p) => p.hasMatch(upper))) continue;
+
+      final nameAfterPrice = upper.replaceAll(_priceRegex, '').trim();
+      final hasLetters = RegExp(r'[A-ZÁÃ‰ÍÃ“ÃšÃœÃ‘]').hasMatch(nameAfterPrice);
+      final hasPrice = _priceRegex.hasMatch(upper);
+
+      if (hasLetters) {
+        // Description line (may also contain inline prices)
+        descLines.add(l);
+      } else if (hasPrice) {
+        // Price-only line
+        priceLines.add(l);
+      }
+    }
+
+    debug('descLines=${descLines.length} priceLines=${priceLines.length}');
+
+    // â”€â”€ Step 3: Match prices to descriptions by Y-proximity â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // For each price line, find the closest description line.
+    // This ensures each price is paired with exactly one description.
+    // Max Y-distance tolerance: 70px handles OCR jitter while avoiding
+    // cross-product matches (adjacent products are ~80-100px apart).
+    const maxYDistance = 70.0;
+
+    // Map: description index â†’ list of matched price values
+    final descPriceMap = <int, List<double>>{};
+    // Track which price lines are claimed
+    final claimedPrices = <int>{};
+
+    // Sort price lines by distance to their closest desc for greedy matching
+    // Process closest matches first to avoid conflicts
+    final priceDescPairs = <({int priceIdx, int descIdx, double dist})>[];
+    for (int p = 0; p < priceLines.length; p++) {
+      final priceY = priceLines[p].boundingBox.top;
+      for (int d = 0; d < descLines.length; d++) {
+        final descY = descLines[d].boundingBox.top;
+        final dist = (priceY - descY).abs();
+        if (dist <= maxYDistance) {
+          priceDescPairs.add((priceIdx: p, descIdx: d, dist: dist));
         }
       }
     }
+    // Sort by distance (closest first)
+    priceDescPairs.sort((a, b) => a.dist.compareTo(b.dist));
+
+    // Greedy assignment: each price goes to its closest unclaimed desc
+    for (final pair in priceDescPairs) {
+      if (claimedPrices.contains(pair.priceIdx)) continue;
+      claimedPrices.add(pair.priceIdx);
+      final prices = extractAllPrices(priceLines[pair.priceIdx].text.trim());
+      descPriceMap.putIfAbsent(pair.descIdx, () => []).addAll(prices);
+    }
+
+    // Also extract inline prices from description lines themselves
+    for (int d = 0; d < descLines.length; d++) {
+      final text = descLines[d].text.trim().toUpperCase();
+      final inlinePrices = extractAllPrices(text);
+      if (inlinePrices.isNotEmpty) {
+        descPriceMap.putIfAbsent(d, () => []).addAll(inlinePrices);
+      }
+    }
+
+    // â”€â”€ Step 4: Build items from matched descriptions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // Process descriptions in Y-order
+    final sortedDescIndices = List.generate(descLines.length, (i) => i);
+    sortedDescIndices.sort(
+      (a, b) => descLines[a].boundingBox.top.compareTo(
+        descLines[b].boundingBox.top,
+      ),
+    );
+
+    for (final d in sortedDescIndices) {
+      final desc = descLines[d];
+      final text = desc.text.trim().toUpperCase();
+      final prices = descPriceMap[d] ?? [];
+
+      // Skip descriptions with no matched prices
+      if (prices.isEmpty) {
+        debug('SKIP (no price) "$text"');
+        continue;
+      }
+
+      // Extract name: remove any inline price patterns
+      String nameRaw = text.replaceAll(_priceRegex, '').trim();
+
+      // Discount handling
+      final isDiscount =
+          _discountKw.any((kw) => nameRaw.contains(kw)) ||
+          prices.any((p) => p < 0);
+      if (isDiscount && items.isNotEmpty) {
+        final discountAmount = prices.where((p) => p > 0).fold(0.0, (a, b) => a + b);
+        if (discountAmount > 0) {
+          _applyDiscountToItem(items.last, discountAmount);
+        }
+        continue;
+      }
+
+      // Skip weight-detail lines
+      if (RegExp(r'^\d+[,\.]\d+\s*KG\s*X', caseSensitive: false)
+          .hasMatch(nameRaw)) {
+        continue;
+      }
+
+      // Skip non-product names
+      if (!isLikelyProductName(nameRaw)) {
+        debug('SKIP (not product) "$nameRaw"');
+        continue;
+      }
+
+      // Extract quantity from name
+      int qty = 1;
+      bool qtyFromLeading = false;
+      String nameForQty = nameRaw
+          .replaceFirst(RegExp(r'^I\s+'), '1 ')
+          .replaceFirst(RegExp(r'^I\b'), '1');
+      final leadingMatch = leadingQtyMatch(nameForQty);
+      if (leadingMatch != null) {
+        qty = int.tryParse(leadingMatch.group(1)!) ?? 1;
+        nameRaw = nameForQty.replaceFirst(leadingMatch.group(0)!, '').trim();
+        nameForQty = nameRaw;
+        qtyFromLeading = qty > 1;
+      }
+      final inlineMatch = inlineQtyMatch(nameForQty);
+      if (inlineMatch != null) {
+        qty = int.tryParse(inlineMatch.group(1)!) ?? 1;
+        nameRaw = nameForQty.replaceAll(inlineMatch.group(0)!, '').trim();
+        qtyFromLeading = false;
+      }
+
+      nameRaw = normalizeName(nameRaw);
+
+      if (nameRaw.isEmpty) continue;
+
+      final lineTotal = prices.reduce((a, b) => a > b ? a : b);
+      final minPrice = prices.reduce((a, b) => a < b ? a : b);
+
+      if (qty == 1 && prices.length >= 2 && minPrice > 0) {
+        final inferred = lineTotal / minPrice;
+        final inferredInt = inferred.round();
+        if (inferredInt > 1 && (inferred - inferredInt).abs() <= 0.05) {
+          qty = inferredInt;
+        }
+      }
+
+      // Compute unit price
+      double unitPrice = lineTotal;
+      if (qty > 1 && prices.length >= 2) {
+        if ((minPrice * qty - lineTotal).abs() <= 0.05) {
+          unitPrice = minPrice;
+        } else {
+          unitPrice = double.parse((lineTotal / qty).toStringAsFixed(2));
+        }
+      } else if (qty > 1 && qtyFromLeading) {
+        // Leading qty "1 CORTES 8L" with single price = unit price
+        unitPrice = lineTotal;
+      }
+
+      // Skip weight-only fragments
+      final isJustWeight =
+          nameRaw.isEmpty ||
+          (RegExp(r'^\d+[,\.]?\d*\s*(G|KG|ML|L)?\s*$', caseSensitive: false)
+                  .hasMatch(nameRaw) &&
+              nameRaw.length < 8);
+
+      if (!isJustWeight &&
+          !_skipPatterns.any((p) => p.hasMatch(nameRaw))) {
+        items.add(
+          TicketItem(
+            nombre: nameRaw,
+            precioUnitario: unitPrice,
+            cantidad: qty,
+          ),
+        );
+        debug('ITEM name="$nameRaw" qty=$qty unit=$unitPrice prices=$prices');
+      }
+    }
+
     return items;
   }
 }
+
