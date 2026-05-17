@@ -1,7 +1,7 @@
 ---
 name: "Orchestrator"
 description: "Use when a task spans backend and frontend, requires coordination across multiple areas, or you want an agent to route work between backend, frontend, receipts, and review specialists."
-tools: [read, search, todo, agent]
+tools: [execute/runNotebookCell, execute/getTerminalOutput, execute/killTerminal, execute/sendToTerminal, execute/createAndRunTask, execute/runInTerminal, execute/runTests, read/getNotebookSummary, read/problems, read/readFile, read/viewImage, read/terminalSelection, read/terminalLastCommand, agent/runSubagent, edit/createDirectory, edit/createFile, edit/createJupyterNotebook, edit/editFiles, edit/editNotebook, edit/rename, search/codebase, search/fileSearch, search/listDirectory, search/textSearch, search/usages, browser/openBrowserPage, browser/readPage, browser/screenshotPage, browser/navigatePage, browser/clickElement, browser/dragElement, browser/hoverElement, browser/typeInPage, browser/runPlaywrightCode, browser/handleDialog, todo]
 agents: [Backend Specialist, Frontend Specialist, Receipts Specialist, Reviewer]
 user-invocable: true
 ---

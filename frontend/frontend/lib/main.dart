@@ -177,28 +177,45 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                   final stateLabel = ExpiryUtils.getStateLabel(estadoProducto);
                   final stateIcon = ExpiryUtils.getStateIcon(estadoProducto);
 
-                  return Card(
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                  final surfaceColor = colorScheme.surface;
+                  final borderColor = colorScheme.outlineVariant.withValues(
+                    alpha: 0.75,
+                  );
+
+                  return Container(
+                    decoration: BoxDecoration(
+                      color: surfaceColor,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: borderColor),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorScheme.shadow.withValues(alpha: 0.06),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.all(12.0),
+                      padding: const EdgeInsets.all(14.0),
                       child: Row(
                         children: [
                           Container(
-                            width: 40,
-                            height: 40,
+                            width: 42,
+                            height: 42,
                             decoration: BoxDecoration(
-                              color: statusColor.withAlpha((255 * 0.12).round()),
+                              color: statusColor.withValues(alpha: 0.12),
                               shape: BoxShape.circle,
+                              border: Border.all(
+                                color: statusColor.withValues(alpha: 0.25),
+                              ),
                             ),
                             child: Icon(
                               statusIcon,
                               color: statusColor,
+                              size: 20,
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 14),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -206,39 +223,64 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                                 Text(
                                   item.producto,
                                   style: textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 6),
                                 Text(
                                   'Ubicación: ${item.ubicacion}',
                                   style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurface.withAlpha((255 * 0.65).round()),
+                                    color: colorScheme.onSurface
+                                        .withValues(alpha: 0.6),
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                const SizedBox(height: 6),
                                 Text(
                                   expiryMessage,
                                   style: textTheme.bodySmall?.copyWith(
                                     color: statusColor,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w700,
                                   ),
                                 ),
                                 if (showStateBadge) ...[
-                                  const SizedBox(height: 6),
+                                  const SizedBox(height: 8),
                                   Row(
                                     children: [
-                                      Icon(
-                                        stateIcon,
-                                        size: 14,
-                                        color: stateBadgeColor,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        stateLabel,
-                                        style: textTheme.labelSmall?.copyWith(
-                                          color: stateBadgeColor,
-                                          fontWeight: FontWeight.w600,
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: stateBadgeColor.withValues(
+                                            alpha: 0.12,
+                                          ),
+                                          borderRadius:
+                                              BorderRadius.circular(999),
+                                          border: Border.all(
+                                            color: stateBadgeColor.withValues(
+                                              alpha: 0.3,
+                                            ),
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              stateIcon,
+                                              size: 14,
+                                              color: stateBadgeColor,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              stateLabel,
+                                              style: textTheme.labelSmall
+                                                  ?.copyWith(
+                                                color: stateBadgeColor,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
                                     ],
@@ -255,56 +297,66 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                                 '${item.fechaCaducidad.day}/${item.fechaCaducidad.month}/${item.fechaCaducidad.year}',
                                 style: textTheme.bodyMedium?.copyWith(
                                   color: statusColor,
-                                  fontWeight: FontWeight.w700,
-                                  decoration: daysDiff < 0 ? TextDecoration.lineThrough : null,
+                                  fontWeight: FontWeight.w800,
+                                  decoration: daysDiff < 0
+                                      ? TextDecoration.lineThrough
+                                      : null,
                                 ),
                               ),
-                              const SizedBox(height: 4),
+                              const SizedBox(height: 6),
                               Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // Badge de Estado (Urgente, Próximo...)
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
+                                      horizontal: 10,
+                                      vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: statusColor.withAlpha((255 * 0.12).round()),
+                                      color: statusColor.withValues(
+                                        alpha: 0.12,
+                                      ),
                                       borderRadius: BorderRadius.circular(999),
+                                      border: Border.all(
+                                        color: statusColor.withValues(
+                                          alpha: 0.3,
+                                        ),
+                                      ),
                                     ),
                                     child: Text(
                                       statusLabel,
                                       style: textTheme.labelSmall?.copyWith(
                                         color: statusColor,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ),
                                   const SizedBox(width: 6),
-                                  // Badge de Cantidad
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 2,
+                                      horizontal: 10,
+                                      vertical: 4,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: statusColor, // Fondo sólido con el color de urgencia
+                                      color: statusColor,
                                       borderRadius: BorderRadius.circular(999),
                                     ),
                                     child: Text(
                                       'x${item.cantidad}',
                                       style: textTheme.labelSmall?.copyWith(
-                                        color: Colors.white, // Texto blanco para contraste
-                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w800,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 10),
                               IconButton(
-                                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                                constraints: const BoxConstraints(
+                                  minWidth: 32,
+                                  minHeight: 32,
+                                ),
                                 padding: const EdgeInsets.all(6),
                                 tooltip: 'Eliminar',
                                 icon: const Icon(Icons.delete_outline, size: 18),
@@ -315,8 +367,10 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
                                   item.productoId,
                                 ),
                                 style: IconButton.styleFrom(
-                                  backgroundColor: colorScheme.errorContainer,
-                                  foregroundColor: colorScheme.onErrorContainer,
+                                  backgroundColor:
+                                      colorScheme.errorContainer,
+                                  foregroundColor:
+                                      colorScheme.onErrorContainer,
                                 ),
                               ),
                             ],
@@ -331,31 +385,68 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(24.0),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.check_circle_outline_rounded,
-                        size: 80,
-                        color: colorScheme.primary,
-                      ),
-                      const SizedBox(height: 24),
-                      Text(
-                        '¡Todo en orden!',
-                        style: textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.w600,
+                  child: Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 24,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.surface,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: colorScheme.outlineVariant.withValues(
+                          alpha: 0.75,
                         ),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No tienes productos próximos a caducar en la siguiente semana. ¡Buen trabajo!',
-                        textAlign: TextAlign.center,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurface.withOpacity(0.65),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colorScheme.shadow.withValues(alpha: 0.06),
+                          blurRadius: 18,
+                          offset: const Offset(0, 6),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withValues(alpha: 0.12),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: colorScheme.primary.withValues(
+                                alpha: 0.25,
+                              ),
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.check_circle_outline_rounded,
+                            size: 34,
+                            color: colorScheme.primary,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Text(
+                          '¡Todo en orden!',
+                          style: textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'No tienes productos próximos a caducar en la siguiente semana. ¡Buen trabajo!',
+                          textAlign: TextAlign.center,
+                          style: textTheme.bodyMedium?.copyWith(
+                            color: colorScheme.onSurface.withValues(alpha: 0.65),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               );

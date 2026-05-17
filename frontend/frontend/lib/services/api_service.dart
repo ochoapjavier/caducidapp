@@ -18,7 +18,7 @@ import 'app_exceptions.dart';
 // Usa la IP de tu máquina en la red local para pruebas en dispositivo físico.
 // Si usas el emulador de Android, la IP para referirte al localhost de tu PC es 10.0.2.2.
 const String _localBaseUrl =
-    'http://192.168.1.150:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
+    'http://192.168.1.146:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
 const String _productionBaseUrl = 'https://caducidapp-api.onrender.com';
 
 // kDebugMode es `true` en `flutter run` y `false` en `flutter build --release`.

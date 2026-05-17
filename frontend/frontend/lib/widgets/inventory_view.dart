@@ -71,7 +71,9 @@ class _InventoryCompactActionButton extends StatelessWidget {
           child: InkWell(
             onTap: onPressed,
             borderRadius: BorderRadius.circular(12),
-            child: Icon(icon, size: 18, color: foregroundColor),
+            child: Center(
+              child: Icon(icon, size: 18, color: foregroundColor),
+            ),
           ),
         ),
       ),
@@ -101,17 +103,10 @@ class _InventoryActionCluster extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (compact) {
-      final children = <Widget>[];
-
-      void addButton(Widget button) {
-        if (children.isNotEmpty) {
-          children.add(const SizedBox(width: 4));
-        }
-        children.add(expand ? Expanded(child: button) : button);
-      }
+      final buttons = <Widget>[];
 
       if (onTicketAction != null) {
-        addButton(
+        buttons.add(
           _InventoryCompactActionButton(
             icon: Icons.receipt_long_rounded,
             tooltip: 'Ticket',
@@ -124,7 +119,10 @@ class _InventoryActionCluster extends StatelessWidget {
       }
 
       if (onAddItem != null) {
-        addButton(
+        if (buttons.isNotEmpty) {
+          buttons.add(const SizedBox(width: 4));
+        }
+        buttons.add(
           _InventoryCompactActionButton(
             icon: Icons.add_rounded,
             tooltip: 'Añadir',
@@ -137,7 +135,10 @@ class _InventoryActionCluster extends StatelessWidget {
       }
 
       if (onRemoveItem != null) {
-        addButton(
+        if (buttons.isNotEmpty) {
+          buttons.add(const SizedBox(width: 4));
+        }
+        buttons.add(
           _InventoryCompactActionButton(
             icon: Icons.remove_rounded,
             tooltip: 'Quitar',
@@ -149,19 +150,13 @@ class _InventoryActionCluster extends StatelessWidget {
         );
       }
 
-      return Container(
-        padding: const EdgeInsets.all(3),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.75),
-          ),
-        ),
-        child: Row(
-          mainAxisSize: expand ? MainAxisSize.max : MainAxisSize.min,
-          children: children,
-        ),
+      if (buttons.isEmpty) {
+        return const SizedBox.shrink();
+      }
+
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: buttons,
       );
     }
 
@@ -651,7 +646,7 @@ class InventoryViewState extends State<InventoryView> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: MainAxisSize.max,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
@@ -671,86 +666,87 @@ class InventoryViewState extends State<InventoryView> {
                 ),
               ),
               const SizedBox(height: 16),
-              ...[
-                for (var index = 0; index < actions.length; index++) ...[
-                  if (index > 0) const SizedBox(height: 10),
-                  Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      onTap: () {
-                        Navigator.of(sheetContext).pop();
-                        Future<void>.delayed(Duration.zero, () {
-                          actions[index].onPressed();
-                        });
-                      },
-                      borderRadius: BorderRadius.circular(18),
-                      child: Ink(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: actions[index].backgroundColor.withValues(
-                            alpha: 0.58,
+              Expanded(
+                child: ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: actions.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final action = actions[index];
+                    return Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          Navigator.of(sheetContext).pop();
+                          Future<void>.delayed(Duration.zero, () {
+                            action.onPressed();
+                          });
+                        },
+                        borderRadius: BorderRadius.circular(18),
+                        child: Ink(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
                           ),
-                          borderRadius: BorderRadius.circular(18),
-                          border: Border.all(
-                            color: actions[index].foregroundColor.withValues(
-                              alpha: 0.12,
+                          decoration: BoxDecoration(
+                            color: action.backgroundColor.withValues(
+                              alpha: 0.58,
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(
+                              color: action.foregroundColor.withValues(
+                                alpha: 0.12,
+                              ),
                             ),
                           ),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 36,
-                              height: 36,
-                              decoration: BoxDecoration(
-                                color: actions[index].foregroundColor
-                                    .withValues(alpha: 0.12),
-                                borderRadius: BorderRadius.circular(12),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 36,
+                                height: 36,
+                                decoration: BoxDecoration(
+                                  color: action.foregroundColor
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  action.icon,
+                                  size: 18,
+                                  color: action.foregroundColor,
+                                ),
                               ),
-                              child: Icon(
-                                actions[index].icon,
-                                size: 18,
-                                color: actions[index].foregroundColor,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    actions[index].label,
-                                    style: textTheme.titleSmall?.copyWith(
-                                      color: actions[index].foregroundColor,
-                                      fontWeight: FontWeight.w800,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      action.label,
+                                      style: textTheme.titleSmall?.copyWith(
+                                        color: action.foregroundColor,
+                                        fontWeight: FontWeight.w800,
+                                      ),
                                     ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    actions[index].description,
-                                    style: textTheme.bodySmall?.copyWith(
-                                      color: actions[index].foregroundColor
-                                          .withValues(alpha: 0.88),
-                                      height: 1.25,
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      action.description,
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: action.foregroundColor
+                                            .withValues(alpha: 0.88),
+                                        height: 1.25,
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-                            ),
-                            Icon(
-                              Icons.chevron_right_rounded,
-                              color: actions[index].foregroundColor,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ],
+                    );
+                  },
+                ),
+              ),
             ],
           ),
         ),
@@ -3277,6 +3273,23 @@ class InventoryViewState extends State<InventoryView> {
                                                 ),
                                               );
                                             }
+
+                                            secondaryActions.add(
+                                              _InventoryItemAction(
+                                                icon: Icons.home_work_rounded,
+                                                label: 'Transferir a otro hogar',
+                                                description:
+                                                    'Mover stock a una ubicacion de otro hogar',
+                                                onPressed: () =>
+                                                    _showTransferHouseholdDialog(
+                                                      item,
+                                                    ),
+                                                backgroundColor:
+                                                    Colors.teal.shade100,
+                                                foregroundColor:
+                                                    Colors.teal.shade800,
+                                              ),
+                                            );
 
                                             final moreActionsButton = Tooltip(
                                               message: 'Más acciones',
