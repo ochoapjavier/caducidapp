@@ -14,7 +14,7 @@ import 'app_exceptions.dart';
 // --- 2. GESTIÓN DE ENTORNO AUTOMÁTICA ---
 // Usa la IP de tu máquina en la red local para pruebas en dispositivo físico.
 // Si usas el emulador de Android, la IP para referirte al localhost de tu PC es 10.0.2.2.
-const String _localBaseUrl = 'http://192.168.1.145:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
+const String _localBaseUrl = 'http://localhost:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
 const String _productionBaseUrl = 'https://caducidapp-api.onrender.com';
 
 // kDebugMode es `true` en `flutter run` y `false` en `flutter build --release`.
@@ -106,6 +106,18 @@ Future<List<AlertaItem>> fetchAlertas() async {
 Future<List<Ubicacion>> fetchUbicaciones() async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
+    final response = await http.get(Uri.parse('$apiUrl/ubicaciones/'), headers: headers);
+    final List<dynamic> jsonList = _processResponse(response);
+    return jsonList.map((json) => Ubicacion.fromJson(json)).toList();
+  });
+}
+
+// Obtener ubicaciones de un hogar específico (ignora el hogar activo actual)
+Future<List<Ubicacion>> fetchUbicacionesDeHogar(int hogarId) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    headers['X-Hogar-Id'] = hogarId.toString(); // Sobrescribir header para esta petición
+    
     final response = await http.get(Uri.parse('$apiUrl/ubicaciones/'), headers: headers);
     final List<dynamic> jsonList = _processResponse(response);
     return jsonList.map((json) => Ubicacion.fromJson(json)).toList();
@@ -467,6 +479,30 @@ Future<Map<String, dynamic>> relocateProduct({
 
     final response = await http.post(
       Uri.parse('$apiUrl/stock/$stockId/relocate'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    return _processResponse(response);
+  });
+}
+
+/// Transfiere unidades de un producto a otro hogar diferente.
+Future<Map<String, dynamic>> transferProductBetweenHouseholds({
+  required int stockId,
+  required int targetHogarId,
+  required int targetLocationId,
+  required int cantidad,
+}) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = {
+      'target_hogar_id': targetHogarId,
+      'target_ubicacion_id': targetLocationId,
+      'cantidad_transferir': cantidad,
+    };
+
+    final response = await http.post(
+      Uri.parse('$apiUrl/stock/$stockId/transfer'),
       headers: headers,
       body: jsonEncode(body),
     );
