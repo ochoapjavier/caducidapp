@@ -5,7 +5,7 @@ from typing import List
 from database import get_db
 from schemas import (
     StockItem, StockItemCreate, StockItemCreateFromScan,
-    StockUpdate, StockRemove,
+    StockUpdate, StockRemove, StockTransferHousehold
 )
 from services.stock_service import StockService
 from dependencies import get_active_hogar_id, require_miembro_or_admin_role
@@ -81,3 +81,20 @@ def update_stock_item(
     """Update editable fields of a stock item: name/brand (master product), expiration date, quantity and location. Requires member or admin role."""
     hogar_id, _ = auth_data
     return service.update_stock_item_details(id_stock, hogar_id, payload)
+
+@router.post("/{id_stock}/transfer", status_code=200)
+def transfer_stock_to_another_household(
+    id_stock: int,
+    payload: StockTransferHousehold,
+    service: StockService = Depends(get_stock_service),
+    auth_data: tuple = Depends(require_miembro_or_admin_role)
+):
+    """Transfer a quantity of stock from the current household to a different household."""
+    current_hogar_id, _ = auth_data
+    return service.transfer_stock_between_households(
+        id_stock=id_stock,
+        current_hogar_id=current_hogar_id,
+        target_hogar_id=payload.target_hogar_id,
+        target_ubicacion_id=payload.target_ubicacion_id,
+        cantidad_transferir=payload.cantidad_transferir
+    )

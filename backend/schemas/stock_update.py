@@ -20,3 +20,9 @@ class StockRemove(BaseModel):
     """Request: eliminar una cantidad específica de un item de stock."""
     id_stock: int
     cantidad: int
+
+class StockTransferHousehold(BaseModel):
+    """Request: transferir cantidad de un producto a una ubicación de otro hogar."""
+    target_hogar_id: int
+    target_ubicacion_id: int
+    cantidad_transferir: int

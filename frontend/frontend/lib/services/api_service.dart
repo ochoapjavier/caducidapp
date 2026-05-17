@@ -125,6 +125,18 @@ Future<List<Ubicacion>> fetchUbicaciones() async {
   });
 }
 
+// Obtener ubicaciones de un hogar específico (ignora el hogar activo actual)
+Future<List<Ubicacion>> fetchUbicacionesDeHogar(int hogarId) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    headers['X-Hogar-Id'] = hogarId.toString(); // Sobrescribir header para esta petición
+    
+    final response = await http.get(Uri.parse('$apiUrl/ubicaciones/'), headers: headers);
+    final List<dynamic> jsonList = _processResponse(response);
+    return jsonList.map((json) => Ubicacion.fromJson(json)).toList();
+  });
+}
+
 // Nueva función: Crear una ubicación (POST /ubicaciones/)
 Future<void> createUbicacion(String nombre, {bool esCongelador = false}) async {
   return safeApiCall(() async {
@@ -487,6 +499,30 @@ Future<Map<String, dynamic>> relocateProduct({
 
     final response = await http.post(
       Uri.parse('$apiUrl/stock/$stockId/relocate'),
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    return _processResponse(response);
+  });
+}
+
+/// Transfiere unidades de un producto a otro hogar diferente.
+Future<Map<String, dynamic>> transferProductBetweenHouseholds({
+  required int stockId,
+  required int targetHogarId,
+  required int targetLocationId,
+  required int cantidad,
+}) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = {
+      'target_hogar_id': targetHogarId,
+      'target_ubicacion_id': targetLocationId,
+      'cantidad_transferir': cantidad,
+    };
+
+    final response = await http.post(
+      Uri.parse('$apiUrl/stock/$stockId/transfer'),
       headers: headers,
       body: jsonEncode(body),
     );
