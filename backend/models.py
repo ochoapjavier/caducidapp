@@ -201,3 +201,39 @@ class ShoppingListItem(Base):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"ShoppingItem(id={self.id}, nombre={self.producto_nombre}, hogar={self.hogar_id})"
+
+
+class Supermercado(Base):
+    """Global catalog of Supermarkets to avoid duplicating the same market across households."""
+    __tablename__ = 'supermercados'
+    
+    id_supermercado = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(100), unique=True, nullable=False, index=True)
+    logo_url = Column(String(512), nullable=True)
+    color_hex = Column(String(7), nullable=True) # e.g. #005F20 for Mercadona
+
+    def __repr__(self) -> str:
+        return f"Supermercado(id={self.id_supermercado}, nombre={self.nombre})"
+
+
+class DiccionarioTicketProducto(Base):
+    """Memory dictionary connecting ML Kit extracted receipt names to physical Product barcodes/Ids."""
+    __tablename__ = 'diccionario_ticket_producto'
+    
+    id_diccionario = Column(Integer, primary_key=True, index=True)
+    hogar_id = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
+    ticket_nombre = Column(String(255), nullable=False, index=True)
+    fk_supermercado = Column(Integer, ForeignKey('supermercados.id_supermercado', ondelete='CASCADE'), nullable=False, index=True)
+    fk_producto_maestro = Column(Integer, ForeignKey('producto_maestro.id_producto', ondelete='CASCADE'), nullable=False)
+    
+    __table_args__ = (
+        UniqueConstraint('hogar_id', 'fk_supermercado', 'ticket_nombre', 'fk_producto_maestro', name='ticket_super_producto_unique'),
+    )
+
+    # Relationships
+    hogar = relationship("Hogar")
+    supermercado = relationship("Supermercado")
+    producto = relationship("Product")
+
+    def __repr__(self) -> str:
+        return f"DiccionarioTicket(hogar={self.hogar_id}, ticket={self.ticket_nombre}, super={self.fk_supermercado})"

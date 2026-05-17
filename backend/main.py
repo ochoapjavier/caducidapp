@@ -13,6 +13,8 @@ Base.metadata.create_all(bind=engine)
 from routers import router as inventory_router
 from routers import notifications as notifications_router
 from routers import shopping_list as shopping_list_router
+from routers import receipts as receipts_router
+from routers import supermercados as supermercados_router
 
 app = FastAPI(title="Core Inventory API (Modular)")
 
@@ -39,6 +41,8 @@ app.add_middleware(
 app.include_router(inventory_router, prefix="/api/v1")
 app.include_router(notifications_router.router, prefix="/api/v1/notifications", tags=["Notifications"])
 app.include_router(shopping_list_router.router, prefix="/api/v1", tags=["Shopping List"])
+app.include_router(receipts_router.router, prefix="/api/v1/inventory/receipts", tags=["Receipts"])
+app.include_router(supermercados_router.router, prefix="/api/v1/inventory/supermercados", tags=["Supermercados"])
 
 @app.get("/")
 def read_root():

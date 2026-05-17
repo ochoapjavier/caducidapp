@@ -45,7 +45,8 @@ class StockService:
                 producto_maestro = self.product_repo.get_or_create_by_name(
                     name=item_data.product_name, 
                     hogar_id=hogar_id,
-                    brand=item_data.brand
+                    brand=item_data.brand,
+                    image_url=item_data.image_url,
                 )
         
         if not producto_maestro:

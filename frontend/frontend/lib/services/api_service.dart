@@ -8,20 +8,25 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../models/alerta.dart';
 import '../models/ubicacion.dart';
 import '../models/hogar.dart';
+import '../models/ticket_item.dart';
+import '../models/ticket_review_submission.dart';
+import '../models/supermercado.dart';
 import 'hogar_service.dart';
 import 'app_exceptions.dart';
 
 // --- 2. GESTIÓN DE ENTORNO AUTOMÁTICA ---
 // Usa la IP de tu máquina en la red local para pruebas en dispositivo físico.
 // Si usas el emulador de Android, la IP para referirte al localhost de tu PC es 10.0.2.2.
-const String _localBaseUrl = 'http://localhost:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
+const String _localBaseUrl =
+    'http://192.168.1.150:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
 const String _productionBaseUrl = 'https://caducidapp-api.onrender.com';
 
 // kDebugMode es `true` en `flutter run` y `false` en `flutter build --release`.
 const String baseUrl = kDebugMode ? _localBaseUrl : _productionBaseUrl;
 const String apiPrefix = '/api/v1/inventory';
 const String apiUrl = '$baseUrl$apiPrefix';
-const String apiV1Url = '$baseUrl/api/v1'; // Base para otros servicios (ej. notificaciones)
+const String apiV1Url =
+    '$baseUrl/api/v1'; // Base para otros servicios (ej. notificaciones)
 
 // Wrapper global para manejar excepciones de red y servidor
 Future<T> safeApiCall<T>(Future<T> Function() apiCall) async {
@@ -59,9 +64,9 @@ dynamic _processResponse(http.Response response) {
     case 403:
       throw AuthException('Sesión expirada o sin permisos');
     case 404:
-      // A veces 404 es un resultado válido (ej. buscar producto), 
+      // A veces 404 es un resultado válido (ej. buscar producto),
       // pero por defecto lo tratamos como excepción si no se maneja antes.
-      throw ValidationException('Recurso no encontrado'); 
+      throw ValidationException('Recurso no encontrado');
     case 500:
     default:
       throw ServerException('Error del servidor (${response.statusCode})');
@@ -72,22 +77,24 @@ dynamic _processResponse(http.Response response) {
 Future<Map<String, String>> getAuthHeaders() async {
   final user = FirebaseAuth.instance.currentUser;
   if (user == null) {
-    throw AuthException('Usuario no autenticado. No se puede realizar la petición.');
+    throw AuthException(
+      'Usuario no autenticado. No se puede realizar la petición.',
+    );
   }
   final idToken = await user.getIdToken();
-  
+
   final headers = {
     'Content-Type': 'application/json; charset=UTF-8',
     'Authorization': 'Bearer $idToken',
   };
-  
+
   // Añadir X-Hogar-Id si hay un hogar activo seleccionado
   final hogarService = HogarService();
   final hogarActivo = await hogarService.getHogarActivo();
   if (hogarActivo != null) {
     headers['X-Hogar-Id'] = hogarActivo.toString();
   }
-  
+
   return headers;
 }
 
@@ -95,7 +102,10 @@ Future<Map<String, String>> getAuthHeaders() async {
 Future<List<AlertaItem>> fetchAlertas() async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
-    final response = await http.get(Uri.parse('$apiUrl/alertas/proxima-semana'), headers: headers);
+    final response = await http.get(
+      Uri.parse('$apiUrl/alertas/proxima-semana'),
+      headers: headers,
+    );
     final jsonBody = _processResponse(response);
     final List<dynamic> rawList = jsonBody['productos_proximos_a_caducar'];
     return rawList.map((json) => AlertaItem.fromJson(json)).toList();
@@ -106,7 +116,10 @@ Future<List<AlertaItem>> fetchAlertas() async {
 Future<List<Ubicacion>> fetchUbicaciones() async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
-    final response = await http.get(Uri.parse('$apiUrl/ubicaciones/'), headers: headers);
+    final response = await http.get(
+      Uri.parse('$apiUrl/ubicaciones/'),
+      headers: headers,
+    );
     final List<dynamic> jsonList = _processResponse(response);
     return jsonList.map((json) => Ubicacion.fromJson(json)).toList();
   });
@@ -149,21 +162,25 @@ Future<void> deleteUbicacion(int id) async {
       headers: headers,
     );
     if (response.statusCode != 200) {
-       _processResponse(response); // Will throw exception
+      _processResponse(response); // Will throw exception
     }
   });
 }
 
 // Función para actualizar una ubicación (PUT /ubicaciones/{id})
-Future<void> updateUbicacion(int id, String newName, {bool? esCongelador}) async {
+Future<void> updateUbicacion(
+  int id,
+  String newName, {
+  bool? esCongelador,
+}) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
-    
+
     final Map<String, dynamic> body = {'nombre': newName};
     if (esCongelador != null) {
       body['es_congelador'] = esCongelador;
     }
-    
+
     final response = await http.put(
       Uri.parse('$apiUrl/ubicaciones/$id'),
       headers: headers,
@@ -208,7 +225,10 @@ Future<void> addManualStockItem({
 Future<Map<String, dynamic>?> fetchProductFromCatalog(String barcode) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
-    final response = await http.get(Uri.parse('$apiUrl/products/by-barcode/$barcode'), headers: headers);
+    final response = await http.get(
+      Uri.parse('$apiUrl/products/by-barcode/$barcode'),
+      headers: headers,
+    );
 
     if (response.statusCode == 404) return null;
     return _processResponse(response);
@@ -226,10 +246,7 @@ Future<void> updateProductInCatalog({
     final response = await http.put(
       Uri.parse('$apiUrl/products/by-barcode/$barcode'),
       headers: headers,
-      body: jsonEncode({
-        'nombre': name,
-        'marca': brand,
-      }),
+      body: jsonEncode({'nombre': name, 'marca': brand}),
     );
     _processResponse(response);
   });
@@ -249,9 +266,13 @@ Future<List<Map<String, dynamic>>> fetchMasterProducts(String query) async {
 }
 
 /// Busca un producto en la API de Open Food Facts usando su código de barras.
-Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(String barcode) async {
+Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(
+  String barcode,
+) async {
   // No usamos safeApiCall aquí porque queremos manejar el error silenciosamente o devolver null
-  final uri = Uri.parse('https://world.openfoodfacts.org/api/v2/product/$barcode.json');
+  final uri = Uri.parse(
+    'https://world.openfoodfacts.org/api/v2/product/$barcode.json',
+  );
   try {
     final response = await http.get(uri);
 
@@ -349,10 +370,7 @@ Future<Map<String, dynamic>> removeStockItems({
     final response = await http.post(
       Uri.parse('$apiUrl/stock/remove'),
       headers: headers,
-      body: jsonEncode({
-        'id_stock': stockId,
-        'cantidad': cantidad,
-      }),
+      body: jsonEncode({'id_stock': stockId, 'cantidad': cantidad}),
     );
     return _processResponse(response);
   });
@@ -372,7 +390,11 @@ Future<Map<String, dynamic>> updateStockItem({
     final body = <String, dynamic>{};
     if (productName != null) body['product_name'] = productName;
     if (brand != null) body['brand'] = brand;
-    if (fechaCaducidad != null) body['fecha_caducidad'] = fechaCaducidad.toIso8601String().split('T').first;
+    if (fechaCaducidad != null)
+      body['fecha_caducidad'] = fechaCaducidad
+          .toIso8601String()
+          .split('T')
+          .first;
     if (cantidadActual != null) body['cantidad_actual'] = cantidadActual;
     if (ubicacionId != null) body['ubicacion_id'] = ubicacionId;
     if (ubicacionId != null) body['ubicacion_id'] = ubicacionId;
@@ -382,8 +404,9 @@ Future<Map<String, dynamic>> updateStockItem({
       headers: headers,
       body: jsonEncode(body),
     );
-    
-    if (response.statusCode == 404) throw ValidationException('Item no encontrado');
+
+    if (response.statusCode == 404)
+      throw ValidationException('Item no encontrado');
     return _processResponse(response);
   });
 }
@@ -472,10 +495,7 @@ Future<Map<String, dynamic>> relocateProduct({
 }) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
-    final body = {
-      'cantidad': cantidad,
-      'nueva_ubicacion_id': nuevaUbicacionId,
-    };
+    final body = {'cantidad': cantidad, 'nueva_ubicacion_id': nuevaUbicacionId};
 
     final response = await http.post(
       Uri.parse('$apiUrl/stock/$stockId/relocate'),
@@ -546,10 +566,7 @@ Future<Hogar> createHogar(String nombre, {String icono = 'home'}) async {
     final response = await http.post(
       Uri.parse('$apiUrl/hogares'),
       headers: headers,
-      body: jsonEncode({
-        'nombre': nombre,
-        'icono': icono,
-      }),
+      body: jsonEncode({'nombre': nombre, 'icono': icono}),
     );
     return Hogar.fromJson(_processResponse(response));
   });
@@ -562,9 +579,7 @@ Future<void> unirseAHogar(String codigoInvitacion) async {
     final response = await http.post(
       Uri.parse('$apiUrl/hogares/unirse'),
       headers: headers,
-      body: jsonEncode({
-        'codigo_invitacion': codigoInvitacion.toUpperCase(),
-      }),
+      body: jsonEncode({'codigo_invitacion': codigoInvitacion.toUpperCase()}),
     );
     _processResponse(response);
   });
@@ -608,15 +623,17 @@ Future<void> expulsarMiembro(int hogarId, String userId) async {
 }
 
 /// Cambiar el rol de un miembro (solo admin)
-Future<void> cambiarRolMiembro(int hogarId, String userId, String nuevoRol) async {
+Future<void> cambiarRolMiembro(
+  int hogarId,
+  String userId,
+  String nuevoRol,
+) async {
   return safeApiCall(() async {
     final headers = await getAuthHeaders();
     final response = await http.put(
       Uri.parse('$apiUrl/hogares/$hogarId/miembros/$userId/rol'),
       headers: headers,
-      body: jsonEncode({
-        'nuevo_rol': nuevoRol,
-      }),
+      body: jsonEncode({'nuevo_rol': nuevoRol}),
     );
     _processResponse(response);
   });
@@ -629,10 +646,7 @@ Future<Hogar> updateHogar(int hogarId, String nombre, String icono) async {
     final response = await http.put(
       Uri.parse('$apiUrl/hogares/$hogarId'),
       headers: headers,
-      body: jsonEncode({
-        'nombre': nombre,
-        'icono': icono,
-      }),
+      body: jsonEncode({'nombre': nombre, 'icono': icono}),
     );
     return Hogar.fromJson(_processResponse(response));
   });
@@ -648,5 +662,64 @@ Future<void> updateMyApodo(int hogarId, String apodo) async {
       body: jsonEncode({'apodo': apodo}),
     );
     _processResponse(response);
+  });
+}
+
+Future<List<Supermercado>> getSupermercados() async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(
+      Uri.parse('$apiUrl/supermercados/'),
+      headers: headers,
+    );
+    final List<dynamic> jsonList = _processResponse(response);
+    return jsonList.map((json) => Supermercado.fromJson(json)).toList();
+  });
+}
+
+Future<Supermercado> createSupermercado(String nombre) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = json.encode({'nombre': nombre});
+    final response = await http.post(
+      Uri.parse('$apiUrl/supermercados/'),
+      headers: headers,
+      body: body,
+    );
+    return Supermercado.fromJson(_processResponse(response));
+  });
+}
+
+Future<Map<String, dynamic>> saveTicketMatches(
+  TicketReviewSubmission submission,
+) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+
+    final body = json.encode({
+      'items': submission.lineas.map((linea) => linea.toJson()).toList(),
+      'supermercado_id': submission.supermercadoId,
+      'supermercado_nombre': submission.supermercadoNombre,
+    });
+
+    final response = await http.post(
+      Uri.parse('$apiUrl/receipts/match'),
+      headers: headers,
+      body: body,
+    );
+
+    return _processResponse(response);
+  });
+}
+
+Future<List<Map<String, dynamic>>> getDictionaryMemory() async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.get(
+      Uri.parse('$apiUrl/receipts/dictionary'),
+      headers: headers,
+    );
+    final List<dynamic> jsonList = _processResponse(response);
+    return jsonList.cast<Map<String, dynamic>>();
   });
 }
