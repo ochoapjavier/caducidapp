@@ -27,14 +27,189 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
   static const int _ocrChunkOverlap = 220;
 
   bool _isProcessing = false;
-  String _statusMessage = 'Elige cómo quieres subir el ticket';
+  String _statusMessage = 'Selecciona el tipo de ticket para empezar';
+  final List<TicketItem> _mergedItems = [];
+  String _detectedSupermercado = 'Desconocido';
+  List<TicketItem> _pendingUniqueItems = [];
+  List<TicketItem> _pendingDuplicateItems = [];
+  bool _includeDuplicates = false;
+
+  String _normalizeItemName(String name) {
+    return name
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  bool _isDuplicateItem(TicketItem candidate, TicketItem incoming) {
+    final candidateName = _normalizeItemName(candidate.nombre);
+    final incomingName = _normalizeItemName(incoming.nombre);
+    if (candidateName != incomingName) {
+      return false;
+    }
+
+    final sameQuantity = candidate.cantidad == incoming.cantidad;
+    final samePrice =
+        (candidate.precioUnitario - incoming.precioUnitario).abs() < 0.01;
+    return sameQuantity && samePrice;
+  }
+
+  void _stageParsedResult(ParsedTicketResult parsedResult) {
+    final overlapCandidates = _mergedItems.length <= 8
+        ? [..._mergedItems]
+        : _mergedItems.sublist(_mergedItems.length - 8);
+
+    final uniqueItems = <TicketItem>[];
+    final duplicateItems = <TicketItem>[];
+
+    for (final item in parsedResult.items) {
+      final isDuplicate = overlapCandidates.any(
+        (candidate) => _isDuplicateItem(candidate, item),
+      );
+
+      if (isDuplicate) {
+        duplicateItems.add(item);
+      } else {
+        uniqueItems.add(item);
+      }
+    }
+
+    _pendingUniqueItems = uniqueItems;
+    _pendingDuplicateItems = duplicateItems;
+
+    if (_detectedSupermercado == 'Desconocido' &&
+        parsedResult.supermercado != 'Desconocido') {
+      _detectedSupermercado = parsedResult.supermercado;
+    }
+  }
+
+  void _applyPendingItems({required bool includeDuplicates}) {
+    if (_pendingUniqueItems.isEmpty && _pendingDuplicateItems.isEmpty) {
+      return;
+    }
+
+    _mergedItems.addAll(_pendingUniqueItems);
+    if (includeDuplicates) {
+      _mergedItems.addAll(_pendingDuplicateItems);
+    }
+
+    _pendingUniqueItems = [];
+    _pendingDuplicateItems = [];
+  }
+
+  Future<bool?> _showScanSummarySheet() async {
+    final newCount = _pendingUniqueItems.length;
+    final duplicateCount = _pendingDuplicateItems.length;
+    var localIncludeDuplicates = _includeDuplicates;
+
+    return showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        final colorScheme = Theme.of(sheetContext).colorScheme;
+        final textTheme = Theme.of(sheetContext).textTheme;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: StatefulBuilder(
+              builder: (context, setSheetState) {
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Resultados del escaneo',
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Se detectaron $newCount lineas nuevas.',
+                      style: textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    if (duplicateCount > 0) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        '$duplicateCount posibles duplicadas.',
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: localIncludeDuplicates,
+                        onChanged: (value) {
+                          setSheetState(() {
+                            localIncludeDuplicates = value;
+                          });
+                        },
+                        title: const Text('Incluir duplicadas'),
+                        subtitle: const Text(
+                          'Si el ticket estaba repetido, desactivalo.',
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              _includeDuplicates = localIncludeDuplicates;
+                              Navigator.of(sheetContext).pop(true);
+                            },
+                            child: const Text('Añadir otra foto'),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            onPressed: () {
+                              _includeDuplicates = localIncludeDuplicates;
+                              Navigator.of(sheetContext).pop(false);
+                            },
+                            child: const Text('Continuar'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    TextButton(
+                      onPressed: () {
+                        _includeDuplicates = localIncludeDuplicates;
+                        _mergedItems.clear();
+                        _pendingUniqueItems = [];
+                        _pendingDuplicateItems = [];
+                        _detectedSupermercado = 'Desconocido';
+                        Navigator.of(sheetContext).pop(null);
+                      },
+                      child: const Text('Empezar de cero'),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   Future<void> _processImage(ImageSource source) async {
     if (_isProcessing) return;
 
     setState(() {
       _isProcessing = true;
-      _statusMessage = 'Cargando imagen...';
+      _statusMessage = 'Preparando imagen...';
     });
 
     try {
@@ -46,7 +221,7 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
       if (image == null) {
         setState(() {
           _isProcessing = false;
-          _statusMessage = 'Operación cancelada';
+          _statusMessage = 'Proceso cancelado';
         });
         return;
       }
@@ -66,7 +241,7 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
 
     setState(() {
       _isProcessing = true;
-      _statusMessage = 'Seleccionando PDF...';
+      _statusMessage = 'Preparando PDF...';
     });
 
     try {
@@ -81,14 +256,14 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
           result.files.first.path == null) {
         setState(() {
           _isProcessing = false;
-          _statusMessage = 'Operación cancelada';
+          _statusMessage = 'Proceso cancelado';
         });
         return;
       }
 
       final pdfPath = result.files.first.path!;
       setState(() {
-        _statusMessage = 'Convirtiendo PDF a imagen...';
+        _statusMessage = 'Convirtiendo PDF...';
       });
 
       // Open the PDF and render ALL pages to images, then run OCR on each
@@ -98,7 +273,7 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
       for (int pageIndex = 1; pageIndex <= doc.pagesCount; pageIndex++) {
         setState(() {
           _statusMessage =
-              'Analizando página $pageIndex de ${doc.pagesCount}...';
+              'Leyendo página $pageIndex de ${doc.pagesCount}...';
         });
 
         final page = await doc.getPage(pageIndex);
@@ -128,7 +303,7 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
       doc.close();
 
       setState(() {
-        _statusMessage = 'Buscando productos y descuentos...';
+        _statusMessage = 'Analizando productos y descuentos...';
       });
 
       // Build a combined RecognizedText from all pages
@@ -144,7 +319,7 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
 
   Future<void> _runOcrOnFilePath(String filePath) async {
     setState(() {
-      _statusMessage = 'Extrayendo texto con IA Local...';
+      _statusMessage = 'Leyendo texto del ticket...';
     });
 
     debugPrint('SCANNER DEBUG: _runOcrOnFilePath filePath=$filePath');
@@ -167,7 +342,7 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
     }
 
     setState(() {
-      _statusMessage = 'Buscando productos y descuentos...';
+      _statusMessage = 'Analizando productos y descuentos...';
     });
     await _parseCombinedText(recognizedText);
   }
@@ -313,7 +488,34 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pop(parsedResult);
+    setState(() {
+      _isProcessing = false;
+      _statusMessage = 'Escaneo listo.';
+    });
+
+    _stageParsedResult(parsedResult);
+
+    final addAnother = await _showScanSummarySheet();
+    if (addAnother == null || !mounted) {
+      return;
+    }
+
+    _applyPendingItems(includeDuplicates: _includeDuplicates);
+
+    if (addAnother) {
+      setState(() {
+        _statusMessage =
+            'Puedes añadir otra foto o continuar con el ticket.';
+      });
+      return;
+    }
+
+    Navigator.of(context).pop(
+      ParsedTicketResult(
+        supermercado: _detectedSupermercado,
+        items: List<TicketItem>.from(_mergedItems),
+      ),
+    );
   }
 
   void _handleError(Object e) {
@@ -325,8 +527,100 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
     );
     setState(() {
       _isProcessing = false;
-      _statusMessage = 'Hubo un error al procesar el ticket.';
+      _statusMessage = 'No se pudo procesar el ticket.';
     });
+  }
+
+  Future<void> _showSourceSheet() async {
+    if (_isProcessing) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        final colorScheme = Theme.of(sheetContext).colorScheme;
+        final textTheme = Theme.of(sheetContext).textTheme;
+
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                    Text(
+                      'Selecciona el origen',
+                  style: textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                      'Puedes usar foto, imagen o un PDF digital.',
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _buildSourceSection(
+                  title: 'Ticket fisico',
+                  children: [
+                    _buildSourceTile(
+                      context: sheetContext,
+                      icon: Icons.camera_alt_rounded,
+                      title: 'Usar camara',
+                      subtitle: 'Ideal para tickets impresos.',
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _processImage(ImageSource.camera);
+                      },
+                    ),
+                    _buildSourceTile(
+                      context: sheetContext,
+                      icon: Icons.photo_library_rounded,
+                      title: 'Elegir foto',
+                      subtitle: 'Selecciona una imagen clara del ticket.',
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _processImage(ImageSource.gallery);
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                _buildSourceSection(
+                  title: 'Ticket digital',
+                  children: [
+                    _buildSourceTile(
+                      context: sheetContext,
+                      icon: Icons.picture_as_pdf_rounded,
+                      title: 'Subir PDF',
+                      subtitle: 'Tickets descargados o enviados por email.',
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _processPdf();
+                      },
+                    ),
+                    _buildSourceTile(
+                      context: sheetContext,
+                      icon: Icons.image_rounded,
+                      title: 'Imagen o pantallazo',
+                      subtitle: 'Pantallazos de Lidl Plus o Dia.',
+                      onTap: () {
+                        Navigator.of(sheetContext).pop();
+                        _processImage(ImageSource.gallery);
+                      },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -361,7 +655,7 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
                 ),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: 48),
+              const SizedBox(height: 32),
 
               if (_isProcessing)
                 const Expanded(
@@ -371,9 +665,9 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
                       children: [
                         CircularProgressIndicator(),
                         SizedBox(height: 24),
-                        Text('Analizando ticket en tu dispositivo...'),
+                        Text('Procesando en tu dispositivo...'),
                         Text(
-                          'Totalmente privado y gratis.',
+                          'No se sube ningun archivo.',
                           style: TextStyle(color: Colors.grey, fontSize: 12),
                         ),
                       ],
@@ -381,38 +675,80 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
                   ),
                 )
               else ...[
-                // Tarjeta 1: Cámara
-                _buildActionCard(
-                  context: context,
-                  title: 'Tomar Foto del Ticket',
-                  subtitle:
-                      'Asegúrate de que haya buena luz y el ticket esté liso.',
-                  icon: Icons.camera_alt_rounded,
-                  color: colorScheme.primary,
-                  onTap: () => _processImage(ImageSource.camera),
-                ),
-                const SizedBox(height: 16),
-
-                // Tarjeta 2: Galería (imagen)
-                _buildActionCard(
-                  context: context,
-                  title: 'Subir desde Galería',
-                  subtitle:
-                      'Ideal para pantallazos de Día, Lidl Plus o Mercadona.',
-                  icon: Icons.photo_library_rounded,
-                  color: colorScheme.secondary,
-                  onTap: () => _processImage(ImageSource.gallery),
-                ),
-                const SizedBox(height: 16),
-
-                // Tarjeta 3: PDF
-                _buildActionCard(
-                  context: context,
-                  title: 'Subir PDF del Ticket',
-                  subtitle: 'Para tickets PDF descargados de la app del super.',
-                  icon: Icons.picture_as_pdf_rounded,
-                  color: Colors.deepOrange,
-                  onTap: _processPdf,
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: colorScheme.outlineVariant.withValues(
+                        alpha: 0.7,
+                      ),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: colorScheme.shadow.withValues(alpha: 0.06),
+                        blurRadius: 18,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 54,
+                            height: 54,
+                            decoration: BoxDecoration(
+                              color: colorScheme.primary.withValues(
+                                alpha: 0.12,
+                              ),
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: colorScheme.primary.withValues(
+                                  alpha: 0.25,
+                                ),
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.receipt_long_rounded,
+                              color: colorScheme.primary,
+                              size: 28,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Escanea un ticket',
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Aceptamos foto, imagen guardada o PDF.',
+                                  style: textTheme.bodySmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.icon(
+                        onPressed: _showSourceSheet,
+                        icon: const Icon(Icons.qr_code_scanner_rounded),
+                        label: const Text('Elegir ticket'),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ],
@@ -422,69 +758,90 @@ class _TicketScannerScreenState extends State<TicketScannerScreen> {
     );
   }
 
-  Widget _buildActionCard({
+  Widget _buildSourceSection({
+    required String title,
+    required List<Widget> children,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+        const SizedBox(height: 10),
+        ...children,
+      ],
+    );
+  }
+
+  Widget _buildSourceTile({
     required BuildContext context,
+    required IconData icon,
     required String title,
     required String subtitle,
-    required IconData icon,
-    required Color color,
     required VoidCallback onTap,
   }) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
-    return Card(
-      elevation: 4,
-      shadowColor: color.withOpacity(0.4),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      clipBehavior: Clip.hardEdge,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(20.0),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [color.withOpacity(0.1), color.withOpacity(0.05)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Material(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+              ),
             ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(0.2),
-                  shape: BoxShape.circle,
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, color: colorScheme.primary, size: 22),
                 ),
-                child: Icon(icon, size: 32, color: color),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      subtitle,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ],
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ],
+            ),
           ),
         ),
       ),

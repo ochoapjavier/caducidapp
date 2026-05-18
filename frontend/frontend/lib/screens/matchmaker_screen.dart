@@ -7,7 +7,9 @@ import 'package:frontend/models/ticket_item.dart';
 import 'package:frontend/models/ticket_review_submission.dart';
 import 'package:frontend/models/ubicacion.dart';
 import 'package:frontend/screens/scanner_screen.dart';
+import 'package:frontend/screens/ticket_scanner_screen.dart';
 import 'package:frontend/services/api_service.dart' as api;
+import 'package:frontend/services/ticket_parser_service.dart';
 
 class MatchmakerScreen extends StatefulWidget {
   final List<TicketItem> initialItems;
@@ -185,6 +187,33 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
     return compact.substring(0, limit).toUpperCase();
   }
 
+  String? _resolveLocalLogoAsset(String supermercadoNombre) {
+    final normalized = supermercadoNombre.trim().toLowerCase();
+    switch (normalized) {
+      case 'mercadona':
+        return 'assets/logos/mercadona_logo.png';
+      case 'dia':
+        return 'assets/logos/logo_dia.jpeg';
+      case 'lidl':
+        return 'assets/logos/lidl_logo.png';
+      case 'alcampo':
+        return 'assets/logos/alcampo_logo.png';
+      case 'carrefour':
+        return 'assets/logos/carrefour_logo.png';
+      case 'aldi':
+        return 'assets/logos/aldi_logo.png';
+      case 'consum':
+        return 'assets/logos/consum_logo.png';
+      case 'eroski':
+        return 'assets/logos/eroski_logo.png';
+      case 'covirán':
+        return 'assets/logos/coviran_logo.png';
+      case 'ahorramas':
+        return 'assets/logos/ahorramas_logo.png';
+    }
+    return null;
+  }
+
   Color _foregroundColorFor(Color backgroundColor) {
     return backgroundColor.computeLuminance() > 0.45
         ? Colors.black87
@@ -308,9 +337,24 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
   }) {
     final foregroundColor = _foregroundColorFor(accentColor);
     final rasterLogoUrl = _resolveRasterLogoUrl(logoUrl);
+    final localLogoAsset = _resolveLocalLogoAsset(supermercadoNombre);
     final initials = _buildSupermercadoInitials(supermercadoNombre);
 
     Widget markChild() {
+      if (localLogoAsset != null) {
+        return Image.asset(
+          localLogoAsset,
+          fit: BoxFit.contain,
+          errorBuilder: (_, __, ___) => Text(
+            initials,
+            style: textTheme.labelLarge?.copyWith(
+              color: foregroundColor,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 0.6,
+            ),
+          ),
+        );
+      }
       if (rasterLogoUrl != null) {
         return Image.network(
           rasterLogoUrl,
@@ -338,40 +382,25 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
 
     return Container(
       height: 50,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: accentColor,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: accentColor.withValues(alpha: 0.4)),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 34,
-            height: 34,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: foregroundColor.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: foregroundColor.withValues(alpha: 0.22),
-              ),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: markChild(),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              supermercadoNombre,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: textTheme.labelLarge?.copyWith(
-                color: foregroundColor,
-                fontWeight: FontWeight.w700,
-              ),
+      child: Center(
+        child: SizedBox(
+          height: 30,
+          width: 120,
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: SizedBox(
+              height: 30,
+              width: 120,
+              child: Center(child: markChild()),
             ),
           ),
-        ],
+        ),
       ),
     );
   }
@@ -1236,6 +1265,158 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
     );
   }
 
+  void _addManualItem() {
+    final nameController = TextEditingController();
+    final quantityController = TextEditingController(text: '1');
+    final priceController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Añadir línea manual'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(labelText: 'Nombre *'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: quantityController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Cantidad *',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: priceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Precio unitario *',
+                  prefixText: '€ ',
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final newName = nameController.text.trim();
+              final newQuantity = int.tryParse(quantityController.text.trim());
+              final newPrice = double.tryParse(
+                priceController.text.trim().replaceAll(',', '.'),
+              );
+
+              if (newName.isEmpty) {
+                _showSnackBar('El nombre no puede estar vacío.');
+                return;
+              }
+              if (newQuantity == null || newQuantity <= 0) {
+                _showSnackBar(
+                  'La cantidad debe ser un número entero positivo.',
+                );
+                return;
+              }
+              if (newPrice == null || newPrice <= 0) {
+                _showSnackBar('El precio unitario debe ser mayor que cero.');
+                return;
+              }
+
+              setState(() {
+                final newItem = TicketItem(
+                  nombre: newName.toUpperCase(),
+                  precioUnitario: newPrice,
+                  cantidad: newQuantity,
+                  requiereRevisionCantidad: false,
+                );
+                final newLine = TicketReviewLine(item: newItem);
+                newLine.allocations.add(_buildDefaultAllocation(newItem));
+                reviewLines.add(newLine);
+                _suggestedMatchesByName = _buildSuggestedMatchesByName(
+                  selectedSupermercadoId,
+                );
+              });
+
+              Navigator.pop(context);
+            },
+            child: const Text('Añadir'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _retryOcr() async {
+    if (!mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Reintentar OCR'),
+        content: const Text(
+          'Se reemplazaran las lineas actuales por el nuevo escaneo. ¿Quieres continuar?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    final parsedResult = await Navigator.of(context).push<ParsedTicketResult>(
+      MaterialPageRoute(builder: (context) => const TicketScannerScreen()),
+    );
+
+    if (parsedResult == null || !mounted) {
+      return;
+    }
+
+    int? matchedSupermercadoId;
+    final normalized = parsedResult.supermercado.toLowerCase().trim();
+    if (normalized.isNotEmpty && supermercados.isNotEmpty) {
+      for (final supermercado in supermercados) {
+        if (supermercado.nombre.toLowerCase().trim() == normalized) {
+          matchedSupermercadoId = supermercado.id;
+          break;
+        }
+      }
+    }
+
+    setState(() {
+      reviewLines = parsedResult.items
+          .map((item) => TicketReviewLine(item: _cloneItem(item)))
+          .toList();
+      customSupermercadoNombre = parsedResult.supermercado;
+      selectedSupermercadoId = matchedSupermercadoId;
+      _suggestedMatchesByName = _buildSuggestedMatchesByName(
+        selectedSupermercadoId,
+      );
+    });
+
+    await _autofillKnownMatches();
+  }
+
   void _removeItem(int index) {
     final removedLine = reviewLines[index];
 
@@ -1363,6 +1544,9 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
       colorScheme.primary,
     );
     final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final totalLines = reviewLines.length;
+    final readyLines = reviewLines.where(_isReadyToPersist).length;
+    final progress = totalLines == 0 ? 0.0 : readyLines / totalLines;
 
     return Scaffold(
       appBar: AppBar(
@@ -1434,6 +1618,82 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
                   ? CrossFadeState.showSecond
                   : CrossFadeState.showFirst,
               duration: const Duration(milliseconds: 180),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'Líneas del ticket',
+                          style: textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '$readyLines/$totalLines listas',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: _retryOcr,
+                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                          label: const Text('Reintentar OCR'),
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: _addManualItem,
+                          icon: const Icon(Icons.add_rounded, size: 18),
+                          label: const Text('Añadir línea'),
+                          style: OutlinedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: progress,
+                  minHeight: 6,
+                  backgroundColor: colorScheme.outlineVariant.withValues(
+                    alpha: 0.35,
+                  ),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    colorScheme.primary,
+                  ),
+                ),
+              ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
