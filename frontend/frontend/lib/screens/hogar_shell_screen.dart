@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:frontend/screens/home_screen.dart';
 import 'package:frontend/screens/inventory_management_screen.dart';
 import 'package:frontend/screens/shopping_list_screen.dart';
 import 'package:frontend/screens/profile_screen.dart'; // Importar ProfileScreen
-import 'package:frontend/main.dart'; // Para AlertasDashboard
 
 class HogarShellScreen extends StatefulWidget {
   final int hogarId;
@@ -17,8 +17,10 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
   int _selectedIndex = 0;
   
   // Keys para forzar refresco
+  final GlobalKey<dynamic> _homeKey = GlobalKey();
   final GlobalKey<dynamic> _inventoryKey = GlobalKey(); 
   final GlobalKey<dynamic> _shoppingListKey = GlobalKey();
+  final GlobalKey<dynamic> _profileKey = GlobalKey();
 
   late List<Widget> _screens;
 
@@ -26,10 +28,10 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
   void initState() {
     super.initState();
     _screens = [
-      const AlertasDashboard(), // Inicio (Alertas)
+      HomeScreen(key: _homeKey), // Inicio
       InventoryManagementScreen(key: _inventoryKey), // Inventario
       ShoppingListScreen(key: _shoppingListKey, hogarId: widget.hogarId), // Lista
-      ProfileScreen(hogarId: widget.hogarId), // Perfil (Reemplaza a Hogar)
+      ProfileScreen(key: _profileKey, hogarId: widget.hogarId), // Perfil
     ];
   }
 
@@ -39,14 +41,15 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
     });
     
     // Refrescar la pantalla seleccionada si tiene método refresh
-    if (index == 1) { // Inventario
-      final state = _inventoryKey.currentState;
-      if (state != null) {
-        // Usamos dynamic o cast si definimos una interfaz, pero dynamic funciona si el método existe
-        (state as dynamic).refresh();
-      }
-    } else if (index == 2) { // Lista
-      final state = _shoppingListKey.currentState;
+    final key = switch (index) {
+      0 => _homeKey,
+      1 => _inventoryKey,
+      2 => _shoppingListKey,
+      3 => _profileKey,
+      _ => null,
+    };
+    if (key != null) {
+      final state = key.currentState;
       if (state != null) {
         (state as dynamic).refresh();
       }

@@ -35,6 +35,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _loadSettings();
   }
 
+  Future<void> refresh() async {
+    await _loadAppVersion();
+    await _loadSettings();
+  }
+
   Future<void> _loadAppVersion() async {
     final info = await PackageInfo.fromPlatform();
     if (mounted) {
