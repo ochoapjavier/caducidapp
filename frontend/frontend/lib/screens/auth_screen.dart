@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key});
@@ -145,22 +146,22 @@ class _AuthScreenState extends State<AuthScreen> {
                             Navigator.of(ctx).pop();
                           }
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('✉️ Email reenviado. Revisa tu bandeja (y spam).'),
-                                backgroundColor: Colors.green,
-                                duration: Duration(seconds: 5),
-                              ),
+                            AppToast.show(
+                              context,
+                              message:
+                                  '✉️ Email reenviado. Revisa tu bandeja (y spam).',
+                              type: AppToastType.success,
+                              duration: const Duration(seconds: 5),
                             );
                           }
                         } catch (e) {
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error al reenviar. Espera unos minutos e intenta de nuevo.'),
-                                backgroundColor: Colors.red,
-                                duration: Duration(seconds: 5),
-                              ),
+                            AppToast.show(
+                              context,
+                              message:
+                                  'Error al reenviar. Espera unos minutos e intenta de nuevo.',
+                              type: AppToastType.error,
+                              duration: const Duration(seconds: 5),
                             );
                           }
                         }
@@ -273,21 +274,19 @@ class _AuthScreenState extends State<AuthScreen> {
 
       // Mostramos el error al usuario en un SnackBar
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(message),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
+        AppToast.show(
+          context,
+          message: message,
+          type: AppToastType.error,
         );
       }
     } catch (error) {
       // Para cualquier otro tipo de error
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Ocurrió un error inesperado.'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
+        AppToast.show(
+          context,
+          message: 'Ocurrió un error inesperado.',
+          type: AppToastType.error,
         );
       }
     } finally {
@@ -304,16 +303,20 @@ class _AuthScreenState extends State<AuthScreen> {
     // Guardamos el email del formulario para no tener que volver a escribirlo
     _formKey.currentState?.save();
     if (_userEmail.isEmpty || !_userEmail.contains('@')) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Por favor, introduce un email válido para restablecer la contraseña.')),
-        );
+      AppToast.show(
+        context,
+        message: 'Por favor, introduce un email válido para restablecer la contraseña.',
+        type: AppToastType.error,
+      );
         return;
     }
 
     _firebaseAuth.sendPasswordResetEmail(email: _userEmail);
 
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Se ha enviado un enlace para restablecer la contraseña a tu correo.')),
+    AppToast.show(
+      context,
+      message: 'Se ha enviado un enlace para restablecer la contraseña a tu correo.',
+      type: AppToastType.success,
     );
 }
 

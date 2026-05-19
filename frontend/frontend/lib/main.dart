@@ -23,6 +23,7 @@ import 'widgets/quantity_selection_dialog.dart';
 import 'services/shopping_service.dart';
 import 'services/theme_service.dart';
 import 'widgets/error_view.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -58,11 +59,11 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
         await HogarService().clearHogarActivo();
         
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Tu sesión de hogar ha caducado. Por favor selecciona un hogar.'),
-              backgroundColor: Colors.orange,
-            ),
+          AppToast.show(
+            context,
+            message:
+                'Tu sesión de hogar ha caducado. Por favor selecciona un hogar.',
+            type: AppToastType.info,
           );
           // Redirigir al inicio para forzar la re-verificación del hogar
           Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
@@ -107,19 +108,20 @@ class _AlertasDashboardState extends State<AlertasDashboard> {
 
             // 4. Notificar
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(addToShoppingList 
-                    ? 'Eliminado y añadido a la lista de compra.' 
-                    : 'Producto eliminado.'),
-                  backgroundColor: Colors.green,
-                ),
+              AppToast.show(
+                context,
+                message: addToShoppingList
+                    ? 'Eliminado y añadido a la lista de compra.'
+                    : 'Producto eliminado.',
+                type: AppToastType.success,
               );
             }
           } catch (e) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Error: ${e.toString()}'), backgroundColor: Colors.red),
+              AppToast.show(
+                context,
+                message: 'Error: ${e.toString()}',
+                type: AppToastType.error,
               );
             }
           }
@@ -593,12 +595,12 @@ class MyApp extends StatelessWidget {
                 FirebaseAuth.instance.signOut();
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(
-                        content: Text('⚠️ Por favor, verifica tu email antes de continuar. Revisa tu bandeja (y spam).'),
-                        backgroundColor: Colors.orange,
-                        duration: Duration(seconds: 5),
-                      ),
+                    AppToast.show(
+                      ctx,
+                      message:
+                          '⚠️ Por favor, verifica tu email antes de continuar. Revisa tu bandeja (y spam).',
+                      type: AppToastType.info,
+                      duration: const Duration(seconds: 5),
                     );
                   }
                 });

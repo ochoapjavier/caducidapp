@@ -7,6 +7,7 @@ import 'package:frontend/screens/matchmaker_screen.dart';
 import 'package:frontend/models/ticket_review_submission.dart';
 import 'package:frontend/services/ticket_parser_service.dart';
 import 'package:frontend/services/api_service.dart' as api;
+import 'package:frontend/widgets/app_toast.dart';
 
 class InventoryManagementScreen extends StatefulWidget {
   const InventoryManagementScreen({super.key});
@@ -60,7 +61,6 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
 
   void _startSmartReceiptFlow() async {
     final navigator = Navigator.of(context);
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
     final hadKeyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     FocusManager.instance.primaryFocus?.unfocus();
     if (hadKeyboardVisible) {
@@ -87,27 +87,27 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
 
       if (matchedResult != null && matchedResult.lineas.isNotEmpty) {
         try {
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(content: Text('Guardando ticket e inventario...')),
+          AppToast.show(
+            context,
+            message: 'Guardando ticket e inventario...',
+            type: AppToastType.info,
           );
 
           await api.saveTicketMatches(matchedResult);
           await _inventoryViewKey.currentState?.refreshInventory();
 
           if (!mounted) return;
-          scaffoldMessenger.showSnackBar(
-            const SnackBar(
-              content: Text('¡Ticket guardado y stock actualizado con éxito!'),
-              backgroundColor: Colors.green,
-            ),
+          AppToast.show(
+            context,
+            message: '¡Ticket guardado y stock actualizado con éxito!',
+            type: AppToastType.success,
           );
         } catch (e) {
           if (!mounted) return;
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: Text('Error guardando ticket: $e'),
-              backgroundColor: Colors.red,
-            ),
+          AppToast.show(
+            context,
+            message: 'Error guardando ticket: $e',
+            type: AppToastType.error,
           );
         }
       }

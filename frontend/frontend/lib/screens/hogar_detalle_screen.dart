@@ -7,6 +7,7 @@ import '../models/hogar.dart';
 import '../services/api_service.dart';
 import 'shopping_list_screen.dart';
 import '../widgets/error_view.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class HogarDetalleScreen extends StatefulWidget {
   final int hogarId;
@@ -51,12 +52,11 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
   void _copiarCodigo() {
     if (_hogarDetalle != null) {
       Clipboard.setData(ClipboardData(text: _hogarDetalle!.codigoInvitacion));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Código copiado al portapapeles'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 2),
-        ),
+      AppToast.show(
+        context,
+        message: 'Código copiado al portapapeles',
+        type: AppToastType.success,
+        duration: const Duration(seconds: 2),
       );
     }
   }
@@ -96,20 +96,18 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
         );
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Código regenerado exitosamente'),
-            backgroundColor: Colors.green,
-          ),
+        AppToast.show(
+          context,
+          message: 'Código regenerado exitosamente',
+          type: AppToastType.success,
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+        AppToast.show(
+          context,
+          message: 'Error: $e',
+          type: AppToastType.error,
         );
       }
     }
@@ -124,12 +122,11 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
       // Copiar al portapapeles
       Clipboard.setData(ClipboardData(text: mensaje));
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Mensaje copiado. Compártelo por WhatsApp, email, etc.'),
-          backgroundColor: Colors.green,
-          duration: Duration(seconds: 3),
-        ),
+      AppToast.show(
+        context,
+        message: 'Mensaje copiado. Compártelo por WhatsApp, email, etc.',
+        type: AppToastType.success,
+        duration: const Duration(seconds: 3),
       );
     }
   }
@@ -242,8 +239,10 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
               onPressed: () async {
                 final nombre = nombreController.text.trim();
                 if (nombre.isEmpty) {
-                  ScaffoldMessenger.of(parentContext).showSnackBar(
-                    const SnackBar(content: Text('El nombre no puede estar vacío')),
+                  AppToast.show(
+                    parentContext,
+                    message: 'El nombre no puede estar vacío',
+                    type: AppToastType.error,
                   );
                   return;
                 }
@@ -263,18 +262,19 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
                   if (mounted) {
                     Navigator.of(parentContext).pop(); // Cerrar loading
                     await _loadDetalles(); // Recargar detalles
-                    ScaffoldMessenger.of(parentContext).showSnackBar(
-                      const SnackBar(
-                        content: Text('Hogar actualizado'),
-                        backgroundColor: Colors.green,
-                      ),
+                    AppToast.show(
+                      parentContext,
+                      message: 'Hogar actualizado',
+                      type: AppToastType.success,
                     );
                   }
                 } catch (e) {
                   if (mounted) {
                     Navigator.of(parentContext).pop(); // Cerrar loading
-                    ScaffoldMessenger.of(parentContext).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
+                    AppToast.show(
+                      parentContext,
+                      message: 'Error: $e',
+                      type: AppToastType.error,
                     );
                   }
                 }
@@ -313,20 +313,18 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
       await expulsarMiembro(widget.hogarId, miembro.userId);
       if (mounted) {
         await _loadDetalles(); // Recargar lista de miembros
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('${miembro.apodo} eliminado del hogar'),
-            backgroundColor: Colors.green,
-          ),
+        AppToast.show(
+          context,
+          message: '${miembro.apodo} eliminado del hogar',
+          type: AppToastType.success,
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+        AppToast.show(
+          context,
+          message: 'Error: $e',
+          type: AppToastType.error,
         );
       }
     }
@@ -354,8 +352,10 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
             onPressed: () async {
               final nuevo = controller.text.trim();
               if (nuevo.isEmpty) {
-                ScaffoldMessenger.of(parentContext).showSnackBar(
-                  const SnackBar(content: Text('El apodo no puede estar vacío')),
+                AppToast.show(
+                  parentContext,
+                  message: 'El apodo no puede estar vacío',
+                  type: AppToastType.error,
                 );
                 return;
               }
@@ -375,15 +375,19 @@ class _HogarDetalleScreenState extends State<HogarDetalleScreen> {
                 if (mounted) {
                   Navigator.of(parentContext).pop(); // cerrar loading
                   await _loadDetalles();
-                  ScaffoldMessenger.of(parentContext).showSnackBar(
-                    const SnackBar(content: Text('Apodo actualizado'), backgroundColor: Colors.green),
+                  AppToast.show(
+                    parentContext,
+                    message: 'Apodo actualizado',
+                    type: AppToastType.success,
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   Navigator.of(parentContext).pop();
-                  ScaffoldMessenger.of(parentContext).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
+                  AppToast.show(
+                    parentContext,
+                    message: 'Error: $e',
+                    type: AppToastType.error,
                   );
                 }
               }

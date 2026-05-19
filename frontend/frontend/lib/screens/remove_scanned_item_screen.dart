@@ -6,6 +6,7 @@ import 'package:frontend/services/hogar_service.dart';
 import 'package:frontend/utils/expiry_utils.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/widgets/quantity_selection_dialog.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class RemoveScannedItemScreen extends StatefulWidget {
   final String? initialBarcode;
@@ -66,8 +67,10 @@ class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al buscar producto: $e')),
+        AppToast.show(
+          context,
+          message: 'Error al buscar producto: $e',
+          type: AppToastType.error,
         );
         // Volver a escanear
         setState(() => _isScanning = true);
@@ -163,20 +166,21 @@ class _RemoveScannedItemScreenState extends State<RemoveScannedItemScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(addToShoppingList 
-              ? 'Eliminado y añadido a la lista.' 
-              : 'Stock actualizado.'),
-            backgroundColor: Colors.green,
-          ),
+        AppToast.show(
+          context,
+          message: addToShoppingList
+              ? 'Eliminado y añadido a la lista.'
+              : 'Stock actualizado.',
+          type: AppToastType.success,
         );
         Navigator.of(context).pop(true); // Volver y refrescar
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        AppToast.show(
+          context,
+          message: 'Error: $e',
+          type: AppToastType.error,
         );
         setState(() => _isLoading = false);
       }

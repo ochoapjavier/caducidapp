@@ -10,6 +10,7 @@ import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/screens/ticket_scanner_screen.dart';
 import 'package:frontend/services/api_service.dart' as api;
 import 'package:frontend/services/ticket_parser_service.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class MatchmakerScreen extends StatefulWidget {
   final List<TicketItem> initialItems;
@@ -670,9 +671,8 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message)));
+    AppToast.hide();
+    AppToast.show(context, message: message);
   }
 
   Color _parseColor(String? colorHex, Color fallback) {
@@ -1424,29 +1424,24 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
       reviewLines.removeAt(index);
     });
 
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            'Se ha quitado "${removedLine.item.nombre}" del ticket.',
-          ),
-          action: SnackBarAction(
-            label: 'Deshacer',
-            onPressed: () {
-              setState(() {
-                reviewLines.insert(
-                  index.clamp(0, reviewLines.length),
-                  removedLine,
-                );
-                _suggestedMatchesByName = _buildSuggestedMatchesByName(
-                  selectedSupermercadoId,
-                );
-              });
-            },
-          ),
-        ),
-      );
+    AppToast.hide();
+    AppToast.show(
+      context,
+      message: 'Se ha quitado "${removedLine.item.nombre}" del ticket.',
+      type: AppToastType.info,
+      actionLabel: 'Deshacer',
+      onAction: () {
+        setState(() {
+          reviewLines.insert(
+            index.clamp(0, reviewLines.length),
+            removedLine,
+          );
+          _suggestedMatchesByName = _buildSuggestedMatchesByName(
+            selectedSupermercadoId,
+          );
+        });
+      },
+    );
   }
 
   Future<void> _handleSupermercadoChange(int? value) async {
@@ -1767,27 +1762,23 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
                   itemBuilder: (context, index) {
                     final line = reviewLines[index];
                     final item = line.item;
-                    final requiresQuantityReview =
-                        item.requiereRevisionCantidad;
+                    final suggestions =
+                        _suggestedMatchesByName[item.nombre] ?? const [];
+                    final showSplitUi = _usesSplitUi(line);
+                    final requiresQuantityReview = item.requiereRevisionCantidad;
                     final isReady = _isReadyToPersist(line);
                     final readyAllocationCount = _countReadyAllocations(line);
-                    final showSplitUi = _usesSplitUi(line);
-                    final suggestions =
-                        _suggestedMatchesByName[item.nombre] ??
-                        const <_DictionaryProductMatch>[];
 
                     return Dismissible(
-                      key: ValueKey(
-                        'ticket-item-$index-${item.nombre}-${item.precioUnitario}',
-                      ),
+                      key: ValueKey('ticket-line-${item.nombre}-$index'),
                       direction: DismissDirection.endToStart,
                       background: Container(
                         decoration: BoxDecoration(
-                          color: Colors.red.shade600,
+                          color: colorScheme.error,
                           borderRadius: BorderRadius.circular(18),
                         ),
-                        alignment: Alignment.centerRight,
                         padding: const EdgeInsets.symmetric(horizontal: 24),
+                        alignment: Alignment.centerRight,
                         child: const Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [

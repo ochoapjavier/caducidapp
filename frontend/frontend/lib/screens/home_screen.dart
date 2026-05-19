@@ -5,6 +5,7 @@ import 'package:frontend/models/alerta.dart';
 import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/utils/expiry_utils.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,8 +18,6 @@ class HomeScreenState extends State<HomeScreen> {
   late Future<List<AlertaItem>> _alertasFuture;
   final TextEditingController _searchController = TextEditingController();
   Timer? _debounce;
-  Timer? _undoTimer;
-  OverlayEntry? _undoOverlay;
   List<dynamic> _quickResults = [];
   bool _isSearching = false;
   Object? _quickError;
@@ -36,8 +35,6 @@ class HomeScreenState extends State<HomeScreen> {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     _debounce?.cancel();
-    _undoTimer?.cancel();
-    _undoOverlay?.remove();
     super.dispose();
   }
 
@@ -105,7 +102,8 @@ class HomeScreenState extends State<HomeScreen> {
     try {
       await removeStockItems(stockId: stockId, cantidad: 1);
       if (mounted) {
-        _showUndoToast(
+        AppToast.show(
+          context,
           message: 'Consumido 1 de $productName',
           actionLabel: currentQuantity > 1 ? 'Deshacer' : null,
           onAction: currentQuantity > 1
@@ -116,12 +114,20 @@ class HomeScreenState extends State<HomeScreen> {
                       cantidadActual: currentQuantity,
                     );
                     if (mounted) {
-                      _showUndoToast(message: 'Consumo deshecho.');
+                      AppToast.show(
+                        context,
+                        message: 'Consumo deshecho.',
+                        type: AppToastType.success,
+                      );
                     }
                     await refresh();
                   } catch (e) {
                     if (mounted) {
-                      _showUndoToast(message: 'No se pudo deshacer: $e');
+                      AppToast.show(
+                        context,
+                        message: 'No se pudo deshacer: $e',
+                        type: AppToastType.error,
+                      );
                     }
                   }
                 }
@@ -131,7 +137,11 @@ class HomeScreenState extends State<HomeScreen> {
       await refresh();
     } catch (e) {
       if (mounted) {
-        _showUndoToast(message: 'Error al consumir: $e');
+        AppToast.show(
+          context,
+          message: 'Error al consumir: $e',
+          type: AppToastType.error,
+        );
       }
     }
   }
@@ -141,7 +151,8 @@ class HomeScreenState extends State<HomeScreen> {
       final currentQuantity = item.cantidad;
       await removeStockItems(stockId: item.id, cantidad: 1);
       if (mounted) {
-        _showUndoToast(
+        AppToast.show(
+          context,
           message: 'Consumido 1 de ${item.producto}',
           actionLabel: currentQuantity > 1 ? 'Deshacer' : null,
           onAction: currentQuantity > 1
@@ -152,12 +163,20 @@ class HomeScreenState extends State<HomeScreen> {
                       cantidadActual: currentQuantity,
                     );
                     if (mounted) {
-                      _showUndoToast(message: 'Consumo deshecho.');
+                      AppToast.show(
+                        context,
+                        message: 'Consumo deshecho.',
+                        type: AppToastType.success,
+                      );
                     }
                     await refresh();
                   } catch (e) {
                     if (mounted) {
-                      _showUndoToast(message: 'No se pudo deshacer: $e');
+                      AppToast.show(
+                        context,
+                        message: 'No se pudo deshacer: $e',
+                        type: AppToastType.error,
+                      );
                     }
                   }
                 }
@@ -167,7 +186,11 @@ class HomeScreenState extends State<HomeScreen> {
       await refresh();
     } catch (e) {
       if (mounted) {
-        _showUndoToast(message: 'Error al consumir: $e');
+        AppToast.show(
+          context,
+          message: 'Error al consumir: $e',
+          type: AppToastType.error,
+        );
       }
     }
   }
@@ -212,47 +235,6 @@ class HomeScreenState extends State<HomeScreen> {
     return '$day/$month/$year';
   }
 
-  void _showUndoToast({
-    required String message,
-    String? actionLabel,
-    Future<void> Function()? onAction,
-  }) {
-    _undoTimer?.cancel();
-    _undoOverlay?.remove();
-
-    final overlay = Overlay.of(context);
-    if (overlay == null) return;
-
-    late OverlayEntry entry;
-    entry = OverlayEntry(
-      builder: (context) {
-        final bottomInset = MediaQuery.of(context).padding.bottom;
-        return Positioned(
-          left: 16,
-          right: 16,
-          bottom: 16 + bottomInset,
-          child: _UndoToastCard(
-            message: message,
-            actionLabel: actionLabel,
-            onAction: actionLabel == null
-                ? null
-                : () async {
-                    entry.remove();
-                    _undoOverlay = null;
-                    await onAction?.call();
-                  },
-          ),
-        );
-      },
-    );
-
-    _undoOverlay = entry;
-    overlay.insert(entry);
-    _undoTimer = Timer(const Duration(seconds: 4), () {
-      entry.remove();
-      _undoOverlay = null;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -654,77 +636,6 @@ class HomeScreenState extends State<HomeScreen> {
               ),
             );
           },
-        ),
-      ),
-    );
-  }
-}
-
-class _UndoToastCard extends StatelessWidget {
-  const _UndoToastCard({
-    required this.message,
-    this.actionLabel,
-    this.onAction,
-  });
-
-  final String message;
-  final String? actionLabel;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0, end: 1),
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value,
-          child: Transform.translate(
-            offset: Offset(0, 12 * (1 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: Material(
-        elevation: 10,
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: colorScheme.outlineVariant),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.check_circle_rounded,
-                  color: colorScheme.primary, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  message,
-                  style: textTheme.bodyMedium,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (actionLabel != null && onAction != null)
-                TextButton(
-                  onPressed: onAction,
-                  style: TextButton.styleFrom(
-                    foregroundColor: colorScheme.primary,
-                    textStyle: textTheme.labelLarge?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  child: Text(actionLabel!),
-                ),
-            ],
-          ),
         ),
       ),
     );

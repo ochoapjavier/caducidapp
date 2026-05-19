@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/shopping_service.dart';
 import '../models/ubicacion.dart';
 import '../screens/scanner_screen.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class MagicMoveDialog extends StatefulWidget {
   final List<dynamic> itemsToMove;
@@ -86,8 +87,10 @@ class _MagicMoveDialogState extends State<MagicMoveDialog> {
 
     // 2. Buscar producto
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Buscando producto...')),
+      AppToast.show(
+        context,
+        message: 'Buscando producto...',
+        type: AppToastType.info,
       );
     }
 
@@ -113,16 +116,18 @@ class _MagicMoveDialogState extends State<MagicMoveDialog> {
           };
         });
         
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('¡Producto identificado: ${data['product_name'] ?? data['nombre']}!'),
-            backgroundColor: Colors.green,
-          ),
+        AppToast.show(
+          context,
+          message:
+              '¡Producto identificado: ${data['product_name'] ?? data['nombre']}!',
+          type: AppToastType.success,
         );
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Producto no encontrado. Puedes editarlo manualmente.')),
+          AppToast.show(
+            context,
+            message: 'Producto no encontrado. Puedes editarlo manualmente.',
+            type: AppToastType.info,
           );
         }
       }
@@ -211,8 +216,10 @@ class _MagicMoveDialogState extends State<MagicMoveDialog> {
     } catch (e) {
       debugPrint('Error moving items: $e');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al mover productos: $e')),
+        AppToast.show(
+          context,
+          message: 'Error al mover productos: $e',
+          type: AppToastType.error,
         );
         setState(() => _isSaving = false);
       }

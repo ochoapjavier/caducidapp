@@ -1,6 +1,7 @@
 // frontend/lib/widgets/inventory_view.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/utils/expiry_utils.dart'; // Utilidades centralizadas para lógica de caducidad
@@ -11,6 +12,8 @@ import 'package:frontend/services/hogar_service.dart';
 import 'package:frontend/widgets/error_view.dart';
 import 'package:frontend/models/hogar.dart';
 import 'package:frontend/models/ubicacion.dart';
+import 'package:frontend/utils/date_parser.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 // Eliminado _isLoading (no se usaba)
 
@@ -967,15 +970,12 @@ class InventoryViewState extends State<InventoryView> {
 
             // 4. Notificar
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(
-                    addToShoppingList
-                        ? 'Eliminado y añadido a la lista.'
-                        : 'Producto eliminado.',
-                  ),
-                  backgroundColor: Colors.green,
-                ),
+              AppToast.show(
+                context,
+                message: addToShoppingList
+                    ? 'Eliminado y añadido a la lista.'
+                    : 'Producto eliminado.',
+                type: AppToastType.success,
               );
             }
           } catch (e) {
@@ -1210,11 +1210,10 @@ class InventoryViewState extends State<InventoryView> {
         await refreshInventory(preserveScrollOffset: true);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Producto abierto correctamente'),
-              backgroundColor: colorScheme.primary,
-            ),
+          AppToast.show(
+            context,
+            message: 'Producto abierto correctamente',
+            type: AppToastType.success,
           );
         }
       } catch (e) {
@@ -1245,18 +1244,13 @@ class InventoryViewState extends State<InventoryView> {
 
     // Validar que existen ubicaciones de tipo congelador
     if (locations.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
+      AppToast.show(
+        context,
+        message:
             'No tienes ubicaciones de tipo congelador. Crea una primero en la pantalla de Ubicaciones.',
-          ),
-          backgroundColor: colorScheme.error,
-          action: SnackBarAction(
-            label: 'OK',
-            textColor: Colors.white,
-            onPressed: () {},
-          ),
-        ),
+        type: AppToastType.error,
+        actionLabel: 'OK',
+        onAction: () {},
       );
       return;
     }
@@ -1407,11 +1401,10 @@ class InventoryViewState extends State<InventoryView> {
         await refreshInventory(preserveScrollOffset: true);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Producto congelado correctamente'),
-              backgroundColor: colorScheme.primary,
-            ),
+          AppToast.show(
+            context,
+            message: 'Producto congelado correctamente',
+            type: AppToastType.success,
           );
         }
       } catch (e) {
@@ -1441,12 +1434,11 @@ class InventoryViewState extends State<InventoryView> {
     // Validar que existen ubicaciones que no son congelador
     if (locations.isEmpty) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
+      AppToast.show(
+        context,
+        message:
             'No tienes ubicaciones normales (no congelador) para descongelar. Crea una primero en la pantalla de Ubicaciones.',
-          ),
-        ),
+        type: AppToastType.info,
       );
       return;
     }
@@ -1620,11 +1612,10 @@ class InventoryViewState extends State<InventoryView> {
         await refreshInventory(preserveScrollOffset: true);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Producto descongelado correctamente'),
-              backgroundColor: colorScheme.primary,
-            ),
+          AppToast.show(
+            context,
+            message: 'Producto descongelado correctamente',
+            type: AppToastType.success,
           );
         }
       } catch (e) {
@@ -1762,11 +1753,10 @@ class InventoryViewState extends State<InventoryView> {
         await refreshInventory(preserveScrollOffset: true);
 
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Producto reubicado correctamente'),
-              backgroundColor: colorScheme.primary,
-            ),
+          AppToast.show(
+            context,
+            message: 'Producto reubicado correctamente',
+            type: AppToastType.success,
           );
         }
       } catch (e) {
@@ -1807,11 +1797,10 @@ class InventoryViewState extends State<InventoryView> {
     if (!mounted) return;
     
     if (allHogares.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('No perteneces a ningún otro hogar al que transferir.'),
-          backgroundColor: colorScheme.error,
-        ),
+      AppToast.show(
+        context,
+        message: 'No perteneces a ningún otro hogar al que transferir.',
+        type: AppToastType.error,
       );
       return;
     }
@@ -1970,11 +1959,10 @@ class InventoryViewState extends State<InventoryView> {
         await refreshInventory();
         
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Producto transferido correctamente al otro hogar.'),
-              backgroundColor: colorScheme.primary,
-            ),
+          AppToast.show(
+            context,
+            message: 'Producto transferido correctamente al otro hogar.',
+            type: AppToastType.success,
           );
         }
       } catch (e) {
@@ -3700,15 +3688,56 @@ class InventoryViewState extends State<InventoryView> {
                                   const SizedBox(height: 12),
                                   TextFormField(
                                     controller: dateController,
-                                    readOnly: true,
                                     decoration: InputDecoration(
                                       labelText: 'Fecha de caducidad',
                                       border: OutlineInputBorder(
                                         borderRadius: BorderRadius.circular(14),
                                       ),
                                       prefixIcon: const Icon(Icons.calendar_today_outlined),
+                                      suffixIcon: IconButton(
+                                        icon: const Icon(Icons.date_range_outlined),
+                                        onPressed: saving
+                                            ? null
+                                            : () => pickDate(setStateModal),
+                                        tooltip: 'Elegir fecha',
+                                      ),
                                     ),
-                                    onTap: saving ? null : () => pickDate(setStateModal),
+                                    keyboardType: TextInputType.datetime,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(
+                                        RegExp(r'[0-9/]'),
+                                      ),
+                                    ],
+                                    onChanged: (value) {
+                                      final parsed = parseExpirationDate(value);
+                                      if (parsed != null) {
+                                        setStateModal(() {
+                                          selectedDate = parsed;
+                                        });
+                                      }
+                                    },
+                                    onFieldSubmitted: (value) {
+                                      final parsed = parseExpirationDate(value);
+                                      if (parsed != null) {
+                                        setStateModal(() {
+                                          selectedDate = parsed;
+                                          dateController.text =
+                                              '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}/${parsed.year}';
+                                        });
+                                      }
+                                    },
+                                    onEditingComplete: () {
+                                      final parsed = parseExpirationDate(
+                                        dateController.text,
+                                      );
+                                      if (parsed != null) {
+                                        setStateModal(() {
+                                          selectedDate = parsed;
+                                          dateController.text =
+                                              '${parsed.day.toString().padLeft(2, '0')}/${parsed.month.toString().padLeft(2, '0')}/${parsed.year}';
+                                        });
+                                      }
+                                    },
                                   ),
                                 ],
                               ),
@@ -3772,13 +3801,10 @@ class InventoryViewState extends State<InventoryView> {
                                           }
                                           if (mounted) {
                                             Navigator.of(ctx).pop();
-                                            ScaffoldMessenger.of(context).showSnackBar(
-                                              SnackBar(
-                                                content: const Text(
-                                                  'Ítem actualizado.',
-                                                ),
-                                                backgroundColor: colorScheme.primary,
-                                              ),
+                                            AppToast.show(
+                                              context,
+                                              message: 'Ítem actualizado.',
+                                              type: AppToastType.success,
                                             );
                                           }
                                         } catch (e) {
@@ -3786,11 +3812,10 @@ class InventoryViewState extends State<InventoryView> {
                                             return;
                                           }
                                           setStateModal(() => saving = false);
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            SnackBar(
-                                              content: Text('Error al actualizar: $e'),
-                                              backgroundColor: colorScheme.error,
-                                            ),
+                                          AppToast.show(
+                                            context,
+                                            message: 'Error al actualizar: $e',
+                                            type: AppToastType.error,
                                           );
                                         }
                                       },

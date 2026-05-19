@@ -56,6 +56,8 @@ class _QuantitySelectionDialogState extends State<QuantitySelectionDialog> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
+    final current = int.tryParse(_controller.text) ?? widget.initialQuantity;
+    final remaining = (widget.maxQuantity - current).clamp(0, widget.maxQuantity);
 
     return SafeArea(
       top: false,
@@ -194,6 +196,13 @@ class _QuantitySelectionDialogState extends State<QuantitySelectionDialog> {
                             icon: const Icon(Icons.add),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        'Quedaran: $remaining',
+                        style: textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
                       ),
                     ],
                   ),

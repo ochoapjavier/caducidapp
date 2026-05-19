@@ -8,6 +8,8 @@ import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/date_scanner_screen.dart';
 import 'package:intl/intl.dart';
+import 'package:frontend/widgets/app_toast.dart';
+import 'package:frontend/utils/date_parser.dart';
 
 class AddManualItemScreen extends StatefulWidget {
   const AddManualItemScreen({super.key});
@@ -72,6 +74,16 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
     setState(() {});
   }
 
+  void _applyParsedDate(String value) {
+    final parsed = parseExpirationDate(value);
+    if (parsed != null) {
+      setState(() {
+        _selectedDate = parsed;
+        _dateController.text = DateFormat('dd/MM/yyyy').format(parsed);
+      });
+    }
+  }
+
   void _presentDatePicker() {
     showDatePicker(
       context: context,
@@ -123,8 +135,10 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
       } catch (e) {
         if (mounted) {
           Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al buscar producto: ${e.toString()}')),
+          AppToast.show(
+            context,
+            message: 'Error al buscar producto: ${e.toString()}',
+            type: AppToastType.error,
           );
         }
       }
@@ -148,8 +162,10 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
 
     if (!isValid || _selectedDate == null) {
       if (_selectedDate == null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Por favor, selecciona una fecha de caducidad.')),
+        AppToast.show(
+          context,
+          message: 'Por favor, selecciona una fecha de caducidad.',
+          type: AppToastType.info,
         );
       }
       return;
@@ -198,12 +214,10 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
           );
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content:
-                    Text('Error al actualizar el producto: ${e.toString()}'),
-                backgroundColor: Colors.red,
-              ),
+            AppToast.show(
+              context,
+              message: 'Error al actualizar el producto: ${e.toString()}',
+              type: AppToastType.error,
             );
             setState(() {
               _isLoading = false;
@@ -227,21 +241,19 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Producto añadido con éxito.'),
-            backgroundColor: Colors.green,
-          ),
+        AppToast.show(
+          context,
+          message: 'Producto añadido con éxito.',
+          type: AppToastType.success,
         );
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
+        AppToast.show(
+          context,
+          message: 'Error: ${e.toString()}',
+          type: AppToastType.error,
         );
       }
     } finally {
@@ -263,6 +275,19 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
       foregroundColor: scheme.onPrimary,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     );
+    Widget sectionCard({required Widget child}) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: scheme.outlineVariant.withValues(alpha: 0.7),
+          ),
+        ),
+        child: child,
+      );
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Añadir Producto Manualmente'),
@@ -281,218 +306,281 @@ class _AddManualItemScreenState extends State<AddManualItemScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const Padding(
-                        padding: EdgeInsets.only(bottom: 24.0),
-                        child: Text(
-                          'Los campos marcados con * son obligatorios.',
-                          style: TextStyle(color: Colors.grey),
-                        ),
+                        padding: EdgeInsets.only(bottom: 18.0),
+                        
                       ),
-                      LayoutBuilder(
-                        builder: (context, constraints) {
-                          return Autocomplete<Map<String, dynamic>>(
-                            optionsBuilder: (TextEditingValue textEditingValue) async {
-                              if (textEditingValue.text.length < 2) {
-                                return const Iterable<Map<String, dynamic>>.empty();
-                              }
-                              try {
-                                return await fetchMasterProducts(textEditingValue.text);
-                              } catch (e) {
-                                debugPrint('Error fetching suggestions: $e');
-                                return const Iterable<Map<String, dynamic>>.empty();
-                              }
-                            },
-                            displayStringForOption: (option) => option['nombre'],
-                            fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
-                              // Sincronizar el controlador interno del Autocomplete con nuestro controlador del formulario
-                              if (textEditingController.text != _productNameController.text) {
-                                textEditingController.text = _productNameController.text;
-                              }
-                              
-                              // Escuchar cambios para actualizar nuestro controlador principal
-                              // Esto es necesario porque el Autocomplete usa su propio controller
-                              textEditingController.addListener(() {
-                                _productNameController.text = textEditingController.text;
-                              });
+                      sectionCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Producto',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 12),
+                            LayoutBuilder(
+                              builder: (context, constraints) {
+                                return Autocomplete<Map<String, dynamic>>(
+                                  optionsBuilder: (TextEditingValue textEditingValue) async {
+                                    if (textEditingValue.text.length < 2) {
+                                      return const Iterable<Map<String, dynamic>>.empty();
+                                    }
+                                    try {
+                                      return await fetchMasterProducts(textEditingValue.text);
+                                    } catch (e) {
+                                      debugPrint('Error fetching suggestions: $e');
+                                      return const Iterable<Map<String, dynamic>>.empty();
+                                    }
+                                  },
+                                  displayStringForOption: (option) => option['nombre'],
+                                  fieldViewBuilder: (context, textEditingController, focusNode, onFieldSubmitted) {
+                                    if (textEditingController.text != _productNameController.text) {
+                                      textEditingController.text = _productNameController.text;
+                                    }
 
-                              return TextFormField(
-                                controller: textEditingController,
-                                focusNode: focusNode,
-                                decoration: const InputDecoration(
-                                  labelText: 'Nombre del Producto *',
-                                  suffixIcon: Icon(Icons.search),
-                                ),
-                                textCapitalization: TextCapitalization.sentences,
-                                validator: (value) => (value == null || value.trim().isEmpty)
-                                    ? 'Introduce un nombre.'
-                                    : null,
-                                onFieldSubmitted: (String value) {
-                                  onFieldSubmitted();
-                                },
-                              );
-                            },
-                            onSelected: (Map<String, dynamic> selection) {
-                              setState(() {
-                                _productNameController.text = selection['nombre'];
-                                if (selection['marca'] != null) {
-                                  _brandController.text = selection['marca'];
-                                }
-                                if (selection['barcode'] != null) {
-                                  _barcodeController.text = selection['barcode'];
-                                }
-                                if (selection['id_producto'] != null) {
-                                  _selectedProductId = selection['id_producto'];
-                                }
-                              });
-                            },
-                            optionsViewBuilder: (context, onSelected, options) {
-                              return Align(
-                                alignment: Alignment.topLeft,
-                                child: Material(
-                                  elevation: 4.0,
-                                  child: SizedBox(
-                                    width: constraints.maxWidth,
-                                    child: ListView.builder(
-                                      padding: EdgeInsets.zero,
-                                      shrinkWrap: true,
-                                      itemCount: options.length,
-                                      itemBuilder: (BuildContext context, int index) {
-                                        final option = options.elementAt(index);
-                                        return ListTile(
-                                          title: Text(option['nombre']),
-                                          subtitle: option['marca'] != null ? Text(option['marca']) : null,
-                                          onTap: () {
-                                            onSelected(option);
-                                          },
-                                        );
+                                    textEditingController.addListener(() {
+                                      _productNameController.text = textEditingController.text;
+                                    });
+
+                                    return TextFormField(
+                                      controller: textEditingController,
+                                      focusNode: focusNode,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Nombre del Producto *',
+                                        suffixIcon: Icon(Icons.search),
+                                      ),
+                                      textCapitalization: TextCapitalization.sentences,
+                                      validator: (value) => (value == null || value.trim().isEmpty)
+                                          ? 'Introduce un nombre.'
+                                          : null,
+                                      onFieldSubmitted: (String value) {
+                                        onFieldSubmitted();
                                       },
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _brandController,
-                        decoration: const InputDecoration(
-                            labelText: 'Marca (Opcional)'),
-                        textCapitalization: TextCapitalization.words,
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _barcodeController,
-                        decoration: InputDecoration(
-                          labelText: 'Código de Barras (EAN) (Opcional)',
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.qr_code_scanner),
-                            onPressed: _scanBarcode,
-                            tooltip: 'Escanear código de barras',
-                          ),
-                        ),
-                        keyboardType: TextInputType.number,
-                      ),
-                      const SizedBox(height: 16),
-                      FutureBuilder<List<Ubicacion>>(
-                        future: _ubicacionesFuture,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Center(
-                                child: CircularProgressIndicator());
-                          }
-                          if (snapshot.hasError ||
-                              !snapshot.hasData ||
-                              snapshot.data!.isEmpty) {
-                            return const Text(
-                                'No se pudieron cargar las ubicaciones. Añade una en la pestaña "Ubicaciones".');
-                          }
-
-                          return DropdownButtonFormField<int>(
-                            value: _selectedUbicacionId,
-                            decoration: const InputDecoration(
-                                labelText: 'Ubicación *'),
-                            items: snapshot.data!.map((ubicacion) {
-                              return DropdownMenuItem(
-                                value: ubicacion.id,
-                                child: Text(ubicacion.nombre),
-                              );
-                            }).toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedUbicacionId = value;
-                              });
-                            },
-                            validator: (value) => (value == null)
-                                ? 'Selecciona una ubicación.'
-                                : null,
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _quantityController,
-                        textAlign: TextAlign.center,
-                        decoration: InputDecoration(
-                          labelText: 'Cantidad *',
-                          prefixIcon: IconButton(
-                            icon: const Icon(Icons.remove_circle_outline),
-                            onPressed:
-                                (int.tryParse(_quantityController.text) ?? 1) > 1
-                                    ? _decrementQuantity
-                                    : null,
-                          ),
-                          suffixIcon: IconButton(
-                            icon: const Icon(Icons.add_circle_outline),
-                            onPressed: _incrementQuantity,
-                          ),
-                        ),
-                        keyboardType: TextInputType.number,
-                        inputFormatters: [
-                          FilteringTextInputFormatter.digitsOnly,
-                        ],
-                        onChanged: (value) => _onQuantityChanged(),
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Introduce una cantidad.';
-                          }
-                          if (int.tryParse(value) == null ||
-                              int.parse(value) <= 0) {
-                            return 'La cantidad debe ser un número positivo.';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _dateController,
+                                    );
+                                  },
+                                  onSelected: (Map<String, dynamic> selection) {
+                                    setState(() {
+                                      _productNameController.text = selection['nombre'];
+                                      if (selection['marca'] != null) {
+                                        _brandController.text = selection['marca'];
+                                      }
+                                      if (selection['barcode'] != null) {
+                                        _barcodeController.text = selection['barcode'];
+                                      }
+                                      if (selection['id_producto'] != null) {
+                                        _selectedProductId = selection['id_producto'];
+                                      }
+                                    });
+                                  },
+                                  optionsViewBuilder: (context, onSelected, options) {
+                                    return Align(
+                                      alignment: Alignment.topLeft,
+                                      child: Material(
+                                        elevation: 4.0,
+                                        child: SizedBox(
+                                          width: constraints.maxWidth,
+                                          child: ListView.builder(
+                                            padding: EdgeInsets.zero,
+                                            shrinkWrap: true,
+                                            itemCount: options.length,
+                                            itemBuilder: (BuildContext context, int index) {
+                                              final option = options.elementAt(index);
+                                              return ListTile(
+                                                title: Text(option['nombre']),
+                                                subtitle: option['marca'] != null ? Text(option['marca']) : null,
+                                                onTap: () {
+                                                  onSelected(option);
+                                                },
+                                              );
+                                            },
+                                          ),
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _brandController,
                               decoration: const InputDecoration(
-                                hintText: 'Fecha de Caducidad *',
-                                prefixIcon: Icon(Icons.calendar_today),
+                                  labelText: 'Marca (Opcional)'),
+                              textCapitalization: TextCapitalization.words,
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _barcodeController,
+                              decoration: InputDecoration(
+                                labelText: 'Código de Barras (EAN) (Opcional)',
+                                suffixIcon: IconButton(
+                                  icon: const Icon(Icons.qr_code_scanner),
+                                  onPressed: _scanBarcode,
+                                  tooltip: 'Escanear código de barras',
+                                ),
                               ),
-                              readOnly: true,
-                              onTap: _presentDatePicker,
+                              keyboardType: TextInputType.number,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      sectionCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Ubicación y cantidad',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 12),
+                            FutureBuilder<List<Ubicacion>>(
+                              future: _ubicacionesFuture,
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const Center(
+                                      child: CircularProgressIndicator());
+                                }
+                                if (snapshot.hasError ||
+                                    !snapshot.hasData ||
+                                    snapshot.data!.isEmpty) {
+                                  return const Text(
+                                      'No se pudieron cargar las ubicaciones. Añade una en la pestaña "Ubicaciones".');
+                                }
+
+                                return DropdownButtonFormField<int>(
+                                  value: _selectedUbicacionId,
+                                  decoration: const InputDecoration(
+                                      labelText: 'Ubicación *'),
+                                  items: snapshot.data!.map((ubicacion) {
+                                    return DropdownMenuItem(
+                                      value: ubicacion.id,
+                                      child: Text(ubicacion.nombre),
+                                    );
+                                  }).toList(),
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedUbicacionId = value;
+                                    });
+                                  },
+                                  validator: (value) => (value == null)
+                                      ? 'Selecciona una ubicación.'
+                                      : null,
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            TextFormField(
+                              controller: _quantityController,
+                              textAlign: TextAlign.center,
+                              decoration: InputDecoration(
+                                labelText: 'Cantidad *',
+                                prefixIcon: IconButton(
+                                  icon: const Icon(Icons.remove_circle_outline),
+                                  onPressed:
+                                      (int.tryParse(_quantityController.text) ?? 1) > 1
+                                          ? _decrementQuantity
+                                          : null,
+                                ),
+                                suffixIcon: IconButton(
+                                  icon: const Icon(Icons.add_circle_outline),
+                                  onPressed: _incrementQuantity,
+                                ),
+                              ),
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              onChanged: (value) => _onQuantityChanged(),
                               validator: (value) {
                                 if (value == null || value.isEmpty) {
-                                  return 'Por favor, selecciona una fecha.';
+                                  return 'Introduce una cantidad.';
+                                }
+                                if (int.tryParse(value) == null ||
+                                    int.parse(value) <= 0) {
+                                  return 'La cantidad debe ser un número positivo.';
                                 }
                                 return null;
                               },
                             ),
-                          ),
-                          const SizedBox(width: 8),
-                          IconButton(
-                            icon: const Icon(Icons.camera_alt_outlined, size: 30),
-                            onPressed: _scanDate,
-                            tooltip: 'Escanear fecha con la cámara',
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 16),
+                      sectionCard(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Caducidad',
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleSmall
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: TextFormField(
+                                    controller: _dateController,
+                                    decoration: InputDecoration(
+                                      hintText: 'Fecha de Caducidad *',
+                                      prefixIcon: const Icon(Icons.calendar_today),
+                                      suffixIcon: IconButton(
+                                        icon: const Icon(Icons.date_range_outlined),
+                                        onPressed: _presentDatePicker,
+                                        tooltip: 'Elegir fecha',
+                                      ),
+                                    ),
+                                    keyboardType: TextInputType.datetime,
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.allow(
+                                        RegExp(r'[0-9/]'),
+                                      ),
+                                    ],
+                                    onChanged: (value) {
+                                      final parsed = parseExpirationDate(value);
+                                      if (parsed != null) {
+                                        _selectedDate = parsed;
+                                      }
+                                    },
+                                    onFieldSubmitted: (value) {
+                                      _applyParsedDate(value);
+                                    },
+                                    onEditingComplete: () {
+                                      _applyParsedDate(_dateController.text);
+                                    },
+                                    validator: (value) {
+                                      if (value == null || value.isEmpty) {
+                                        return 'Por favor, selecciona una fecha.';
+                                      }
+                                      if (parseExpirationDate(value) == null) {
+                                        return 'Formato no valido.';
+                                      }
+                                      return null;
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  icon: const Icon(Icons.camera_alt_outlined, size: 30),
+                                  onPressed: _scanDate,
+                                  tooltip: 'Escanear fecha con la camara',
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
                       _isLoading
                           ? const Center(
                               child: CircularProgressIndicator(),

@@ -9,6 +9,7 @@ import 'hogar_detalle_screen.dart';
 import 'settings_screen.dart'; // Para reutilizar lógica o migrarla
 import 'locations_management_screen.dart';
 import '../services/theme_service.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class ProfileScreen extends StatefulWidget {
   final int hogarId;
@@ -81,8 +82,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar ajustes: $e')),
+        AppToast.show(
+          context,
+          message: 'Error al guardar ajustes: $e',
+          type: AppToastType.error,
         );
       }
     }
