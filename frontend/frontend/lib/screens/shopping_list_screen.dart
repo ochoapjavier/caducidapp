@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import 'dart:async';
 import '../widgets/magic_move_dialog.dart';
 import '../widgets/error_view.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class ShoppingListScreen extends StatefulWidget {
   final int hogarId;
@@ -60,8 +61,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
       _itemController.clear();
       _loadItems();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al añadir item: $e')),
+      AppToast.show(
+        context,
+        message: 'Error al añadir item: $e',
+        type: AppToastType.error,
       );
     }
   }
@@ -71,8 +74,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
       await _shoppingService.updateItem(item.id, completado: !item.completado);
       _loadItems();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al actualizar item: $e')),
+      AppToast.show(
+        context,
+        message: 'Error al actualizar item: $e',
+        type: AppToastType.error,
       );
     }
   }
@@ -82,8 +87,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
       await _shoppingService.deleteItem(id);
       _loadItems();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error al eliminar item: $e')),
+      AppToast.show(
+        context,
+        message: 'Error al eliminar item: $e',
+        type: AppToastType.error,
       );
     }
   }
@@ -111,8 +118,10 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
 
     if (result == true) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Productos movidos al inventario correctamente')),
+        AppToast.show(
+          context,
+          message: 'Productos movidos al inventario correctamente',
+          type: AppToastType.success,
         );
       }
       _loadItems(); // Recargar la lista para reflejar los cambios (items eliminados)

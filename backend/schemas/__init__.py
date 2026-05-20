@@ -6,7 +6,7 @@ from .item import (
     ProductSchema, LocationSchema,
 )
 from .alert import AlertResponse
-from .stock_update import StockUpdate, StockRemove
+from .stock_update import StockUpdate, StockRemove, StockTransferHousehold
 from .product_update import ProductUpdate
 from .product_actions import (
     OpenProductRequest, FreezeProductRequest, UnfreezeProductRequest,
@@ -16,6 +16,16 @@ from .hogar import (
     HogarCreate, HogarUpdate, HogarSchema, HogarDetalle, MiembroInfo,
     HogarMiembroCreate, HogarMiembroUpdate, HogarMiembroSchema,
     InvitacionResponse
+)
+
+from .receipt import (
+    TicketMatchRequest,
+    TicketParsedItem,
+    TicketAllocation,
+    ReceiptDictionaryEntry,
+    ReceiptDictionaryProductMatch,
+    SupermercadoSchema,
+    SupermercadoCreate,
 )
 
 __all__ = [
@@ -28,6 +38,7 @@ __all__ = [
     "AlertResponse",
     "StockUpdate",
     "StockRemove",
+    "StockTransferHousehold",
     "ProductSchema",
     "LocationSchema",
     "ProductUpdate",
@@ -45,4 +56,11 @@ __all__ = [
     "HogarMiembroUpdate",
     "HogarMiembroSchema",
     "InvitacionResponse",
+    "TicketMatchRequest",
+    "TicketParsedItem",
+    "TicketAllocation",
+    "ReceiptDictionaryEntry",
+    "ReceiptDictionaryProductMatch",
+    "SupermercadoSchema",
+    "SupermercadoCreate",
 ]

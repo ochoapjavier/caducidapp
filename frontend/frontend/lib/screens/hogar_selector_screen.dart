@@ -5,6 +5,7 @@ import '../models/hogar.dart';
 import '../services/api_service.dart';
 import '../services/hogar_service.dart';
 import '../widgets/error_view.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class HogarSelectorScreen extends StatefulWidget {
   const HogarSelectorScreen({Key? key}) : super(key: key);
@@ -161,8 +162,10 @@ class _HogarSelectorScreenState extends State<HogarSelectorScreen> {
               onPressed: () async {
                 final nombre = nombreController.text.trim();
                 if (nombre.isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Por favor ingresa un nombre')),
+                  AppToast.show(
+                    context,
+                    message: 'Por favor ingresa un nombre',
+                    type: AppToastType.error,
                   );
                   return;
                 }
@@ -186,8 +189,10 @@ class _HogarSelectorScreenState extends State<HogarSelectorScreen> {
                 } catch (e) {
                   if (mounted) {
                     Navigator.of(parentContext).pop(); // Cerrar loading
-                    ScaffoldMessenger.of(parentContext).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
+                    AppToast.show(
+                      parentContext,
+                      message: 'Error: $e',
+                      type: AppToastType.error,
                     );
                   }
                 }
@@ -238,8 +243,10 @@ class _HogarSelectorScreenState extends State<HogarSelectorScreen> {
             onPressed: () async {
               final codigo = codigoController.text.trim().toUpperCase();
               if (codigo.isEmpty) {
-                ScaffoldMessenger.of(parentContext).showSnackBar(
-                  const SnackBar(content: Text('Por favor ingresa el código')),
+                AppToast.show(
+                  parentContext,
+                  message: 'Por favor ingresa el código',
+                  type: AppToastType.error,
                 );
                 return;
               }
@@ -259,18 +266,19 @@ class _HogarSelectorScreenState extends State<HogarSelectorScreen> {
                 await _loadHogares(); // Recargar lista
                 if (mounted) {
                   Navigator.of(parentContext).pop(); // Cerrar loading
-                  ScaffoldMessenger.of(parentContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('¡Te has unido al hogar!'),
-                      backgroundColor: Colors.green,
-                    ),
+                  AppToast.show(
+                    parentContext,
+                    message: '¡Te has unido al hogar!',
+                    type: AppToastType.success,
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   Navigator.of(parentContext).pop(); // Cerrar loading
-                  ScaffoldMessenger.of(parentContext).showSnackBar(
-                    SnackBar(content: Text('Error: $e')),
+                  AppToast.show(
+                    parentContext,
+                    message: 'Error: $e',
+                    type: AppToastType.error,
                   );
                 }
               }

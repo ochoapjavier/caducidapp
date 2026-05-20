@@ -6,6 +6,8 @@ import 'package:frontend/models/ubicacion.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/date_scanner_screen.dart';
 import 'package:intl/intl.dart';
+import 'package:frontend/widgets/app_toast.dart';
+import 'package:frontend/utils/date_parser.dart';
 
 class AddScannedItemScreen extends StatefulWidget {
   final String barcode;
@@ -90,6 +92,16 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
     setState(() {});
   }
 
+  void _applyParsedDate(String value) {
+    final parsed = parseExpirationDate(value);
+    if (parsed != null) {
+      setState(() {
+        _selectedDate = parsed;
+        _dateController.text = DateFormat('dd/MM/yyyy').format(parsed);
+      });
+    }
+  }
+
   void _presentDatePicker() async {
     final pickedDate = await showDatePicker(
       context: context,
@@ -121,9 +133,10 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
     final isValid = _formKey.currentState?.validate() ?? false;
     if (!isValid || _selectedDate == null) {
       if (_selectedDate == null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Por favor, selecciona una fecha de caducidad.')),
+        AppToast.show(
+          context,
+          message: 'Por favor, selecciona una fecha de caducidad.',
+          type: AppToastType.info,
         );
       }
       return;
@@ -162,9 +175,11 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
           );
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                content: Text('Error al actualizar el producto: ${e.toString()}'),
-                backgroundColor: Colors.red));
+            AppToast.show(
+              context,
+              message: 'Error al actualizar el producto: ${e.toString()}',
+              type: AppToastType.error,
+            );
             setState(() => _isLoading = false);
           }
           return;
@@ -185,20 +200,20 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-              content: Text('Producto añadido con éxito.'),
-              backgroundColor: Colors.green),
+        AppToast.show(
+          context,
+          message: 'Producto añadido con éxito.',
+          type: AppToastType.success,
         );
         // Cierra la pantalla de confirmación y la del escáner, volviendo a la principal.
         Navigator.of(context).pop(true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text('Error: ${e.toString()}'),
-              backgroundColor: Theme.of(context).colorScheme.error),
+        AppToast.show(
+          context,
+          message: 'Error: ${e.toString()}',
+          type: AppToastType.error,
         );
       }
     } finally {
@@ -304,24 +319,52 @@ class _AddScannedItemScreenState extends State<AddScannedItemScreen> {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  Expanded(child: TextFormField(
-                    controller: _dateController,
-                    decoration: const InputDecoration(
-                      hintText: 'Fecha de Caducidad *',
-                      prefixIcon: Icon(Icons.calendar_today),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _dateController,
+                      decoration: InputDecoration(
+                        hintText: 'Fecha de Caducidad *',
+                        prefixIcon: const Icon(Icons.calendar_today),
+                        suffixIcon: IconButton(
+                          icon: const Icon(Icons.date_range_outlined),
+                          onPressed: _presentDatePicker,
+                          tooltip: 'Elegir fecha',
+                        ),
+                      ),
+                      keyboardType: TextInputType.datetime,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(
+                          RegExp(r'[0-9/]'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        final parsed = parseExpirationDate(value);
+                        if (parsed != null) {
+                          _selectedDate = parsed;
+                        }
+                      },
+                      onFieldSubmitted: (value) {
+                        _applyParsedDate(value);
+                      },
+                      onEditingComplete: () {
+                        _applyParsedDate(_dateController.text);
+                      },
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Selecciona una fecha.';
+                        }
+                        if (parseExpirationDate(value) == null) {
+                          return 'Formato no valido.';
+                        }
+                        return null;
+                      },
                     ),
-                    readOnly: true,
-                    onTap: _presentDatePicker,
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return 'Selecciona una fecha.';
-                      return null;
-                    },
-                  )),
+                  ),
                   const SizedBox(width: 8),
                   IconButton(
                     icon: const Icon(Icons.camera_alt_outlined, size: 30),
                     onPressed: _scanDate,
-                    tooltip: 'Escanear fecha con la cámara',
+                    tooltip: 'Escanear fecha con la camara',
                   ),
                 ],
               ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/notification_service.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -59,17 +60,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Preferencias guardadas'),
-            duration: Duration(seconds: 1),
-          ),
+        AppToast.show(
+          context,
+          message: 'Preferencias guardadas',
+          type: AppToastType.success,
+          duration: const Duration(seconds: 1),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar: $e')),
+        AppToast.show(
+          context,
+          message: 'Error al guardar: $e',
+          type: AppToastType.error,
         );
       }
     } finally {

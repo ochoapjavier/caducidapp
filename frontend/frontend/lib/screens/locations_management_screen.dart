@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/location_service.dart';
 import '../widgets/error_view.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class LocationsManagementScreen extends StatefulWidget {
   final int hogarId;
@@ -95,8 +96,10 @@ class _LocationsManagementScreenState extends State<LocationsManagementScreen> {
                   _loadLocations(); // Reload list
                 } catch (e) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e')),
+                    AppToast.show(
+                      context,
+                      message: 'Error: $e',
+                      type: AppToastType.error,
                     );
                   }
                 }
@@ -132,8 +135,10 @@ class _LocationsManagementScreenState extends State<LocationsManagementScreen> {
         _loadLocations();
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error al eliminar: $e')),
+          AppToast.show(
+            context,
+            message: 'Error al eliminar: $e',
+            type: AppToastType.error,
           );
         }
       }

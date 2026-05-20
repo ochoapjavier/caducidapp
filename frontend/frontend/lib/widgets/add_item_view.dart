@@ -3,6 +3,7 @@ import 'package:frontend/screens/scanner_screen.dart';
 import 'package:frontend/screens/add_manual_item_screen.dart';
 import 'package:frontend/services/api_service.dart';
 import 'package:frontend/screens/add_scanned_item_screen.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class AddItemView extends StatelessWidget {
   final ScrollController? scrollController;
@@ -109,11 +110,11 @@ class AddItemView extends StatelessWidget {
                         }
                       } else if (context.mounted) {
                         // Producto no encontrado
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Producto no encontrado en la base de datos online. Intenta añadirlo manualmente.'), 
-                            backgroundColor: Colors.orange
-                          ),
+                        AppToast.show(
+                          context,
+                          message:
+                              'Producto no encontrado en la base de datos online. Intenta añadirlo manualmente.',
+                          type: AppToastType.info,
                         );
                       }
                     }

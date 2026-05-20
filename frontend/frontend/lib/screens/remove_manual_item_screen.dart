@@ -6,6 +6,7 @@ import 'package:frontend/services/hogar_service.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend/utils/expiry_utils.dart';
 import 'package:frontend/widgets/quantity_selection_dialog.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class RemoveManualItemScreen extends StatefulWidget {
   const RemoveManualItemScreen({super.key});
@@ -47,8 +48,10 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al cargar datos: ${e.toString()}')),
+        AppToast.show(
+          context,
+          message: 'Error al cargar datos: ${e.toString()}',
+          type: AppToastType.error,
         );
       }
     }
@@ -84,6 +87,30 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
     if (item != null) {
       _showQuantityModal(item);
     }
+  }
+
+  Widget _buildSectionCard({
+    required Widget child,
+  }) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.7),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: child,
+    );
   }
 
   void _showQuantityModal(dynamic item) {
@@ -129,13 +156,12 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
       }
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(addToShoppingList 
-              ? 'Eliminado y añadido a la lista.' 
-              : 'Stock actualizado.'),
-            backgroundColor: Colors.green,
-          ),
+        AppToast.show(
+          context,
+          message: addToShoppingList
+              ? 'Eliminado y añadido a la lista.'
+              : 'Stock actualizado.',
+          type: AppToastType.success,
         );
         
         // Limpiar selección
@@ -147,8 +173,10 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        AppToast.show(
+          context,
+          message: 'Error: $e',
+          type: AppToastType.error,
         );
         setState(() => _isLoading = false);
       }
@@ -165,25 +193,46 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
         ? const Center(child: CircularProgressIndicator())
         : Column(
         children: [
-          // Selector de Ubicación
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: DropdownButtonFormField<Ubicacion>(
-              value: _selectedUbicacion,
-              decoration: const InputDecoration(
-                labelText: 'Selecciona Ubicación',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.location_on_outlined),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: _buildSectionCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.logout_rounded,
+                          color: Theme.of(context).colorScheme.primary),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Selecciona ubicación',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<Ubicacion>(
+                    value: _selectedUbicacion,
+                    decoration: const InputDecoration(
+                      labelText: 'Ubicación',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.location_on_outlined),
+                    ),
+                    items: _ubicaciones
+                        .map((u) => DropdownMenuItem(
+                              value: u,
+                              child: Text(u.nombre),
+                            ))
+                        .toList(),
+                    onChanged: _onUbicacionChanged,
+                  ),
+                ],
               ),
-              items: _ubicaciones.map((u) => DropdownMenuItem(
-                value: u,
-                child: Text(u.nombre),
-              )).toList(),
-              onChanged: _onUbicacionChanged,
             ),
           ),
-          
-          // Lista de Productos
+
           Expanded(
             child: _selectedUbicacion == null
               ? Center(
@@ -199,7 +248,7 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
               : _itemsInLocation.isEmpty
                 ? const Center(child: Text('No hay productos aquí.'))
                 : ListView.separated(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
                     itemCount: _itemsInLocation.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
@@ -213,9 +262,16 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
                       final badgeColor = ExpiryUtils.getStateBadgeColor(estado);
                       final badgeLabel = ExpiryUtils.getStateLabel(estado);
                       
+                      final cardScheme = Theme.of(context).colorScheme;
                       return Card(
-                        elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        elevation: 0,
+                        color: cardScheme.surface,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(
+                            color: cardScheme.outlineVariant.withValues(alpha: 0.6),
+                          ),
+                        ),
                         child: InkWell(
                           onTap: () => _onStockItemChanged(item),
                           borderRadius: BorderRadius.circular(12),
@@ -242,17 +298,28 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
                                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                                       ),
                                       const SizedBox(height: 4),
-                                      Row(
+                                      Wrap(
+                                        spacing: 12,
+                                        runSpacing: 6,
+                                        crossAxisAlignment: WrapCrossAlignment.center,
                                         children: [
-                                          Icon(Icons.calendar_today, size: 14, color: Colors.grey[600]),
-                                          const SizedBox(width: 4),
-                                          Text('Cad: $fmtExpiry', style: TextStyle(color: Colors.grey[800], fontSize: 13)),
-                                          const SizedBox(width: 12),
-                                          Icon(Icons.numbers, size: 14, color: Colors.grey[600]),
-                                          const SizedBox(width: 4),
-                                          Text('Cant: $qty', style: TextStyle(color: Colors.grey[800], fontSize: 13)),
-                                          if (showBadge) ...[
-                                            const SizedBox(width: 12),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.calendar_today, size: 14, color: Colors.grey[600]),
+                                              const SizedBox(width: 4),
+                                              Text('Cad: $fmtExpiry', style: TextStyle(color: Colors.grey[800], fontSize: 13)),
+                                            ],
+                                          ),
+                                          Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.numbers, size: 14, color: Colors.grey[600]),
+                                              const SizedBox(width: 4),
+                                              Text('Cant: $qty', style: TextStyle(color: Colors.grey[800], fontSize: 13)),
+                                            ],
+                                          ),
+                                          if (showBadge)
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                               decoration: BoxDecoration(
@@ -269,7 +336,6 @@ class _RemoveManualItemScreenState extends State<RemoveManualItemScreen> {
                                                 ),
                                               ),
                                             ),
-                                          ],
                                         ],
                                       ),
                                     ],

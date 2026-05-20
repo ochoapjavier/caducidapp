@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../models/ubicacion.dart';
 import '../services/api_service.dart';
+import 'package:frontend/widgets/app_toast.dart';
 
 class UbicacionManager extends StatefulWidget {
   const UbicacionManager({super.key});
@@ -28,13 +29,10 @@ class _UbicacionManagerState extends State<UbicacionManager> {
   }
 
   void _showSnackbar(String message, {bool isError = false}) {
-    final scheme = Theme.of(context).colorScheme;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? scheme.error : scheme.primary,
-        behavior: SnackBarBehavior.floating,
-      ),
+    AppToast.show(
+      context,
+      message: message,
+      type: isError ? AppToastType.error : AppToastType.success,
     );
   }
 
