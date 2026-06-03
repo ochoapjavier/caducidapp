@@ -1,4 +1,4 @@
-﻿// frontend/lib/services/ticket_parser_service.dart
+// frontend/lib/services/ticket_parser_service.dart
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:frontend/models/ticket_item.dart';
 
@@ -6,6 +6,12 @@ class ParsedTicketResult {
   final String supermercado;
   final List<TicketItem> items;
   ParsedTicketResult({required this.supermercado, required this.items});
+}
+
+class _DiaTrigger {
+  final TextLine line;
+  final int priority;
+  const _DiaTrigger(this.line, this.priority);
 }
 
 class TicketParserService {
@@ -639,16 +645,12 @@ class TicketParserService {
   //   sin alcanzar el nombre del producto SIGUIENTE (Î”â‰¥200px).
   //
   // Fallback a _parseGeneric para tickets físicos DIA (sin cabecera DESCRIPCIÃ“N).
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-  // DIA PARSER
-  //
   // El PDF digital de DIA tiene una tabla con 4 columnas. ML Kit las devuelve
   // como TextLines individuales. Según los datos reales del OCR, las columnas
   // se distinguen por su coordenada X:
   //
   //   X <  500  â†’ Col1: Nombre del producto (1-3 líneas consecutivas)
-  //   X â‰ˆ 1050  â†’ Col2: Cantidad  "N ud"          â† TRIGGER de cada producto
+  //   X â‰ˆ 1050  â†’ Col2: Cantidad  "N ud"          â†  TRIGGER de cada producto
   //   X â‰ˆ 1400  â†’ Col3: Precio unitario
   //   X â‰ˆ 1770  â†’ Col4: Total (precio Ã— cantidad) + letra IVA
   //
@@ -665,6 +667,31 @@ class TicketParserService {
   // Fallback a _parseGeneric si no se encuentra la sección o no hay triggers.
   // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   static List<TicketItem> _parseDia(List<TextLine> lines) {
+    void debugDia(String message) {
+      if (_debugGeneric) {
+        print('DIA DEBUG: $message');
+      }
+    }
+
+    double estimateNameColumnMaxX(List<TextLine> zone) {
+      final xs = zone.map((l) => l.boundingBox.left.toDouble()).toList()
+        ..sort();
+      if (xs.length < 6) return 600;
+      double largestGap = 0;
+      double cutoff = 600;
+      for (var i = 1; i < xs.length; i++) {
+        final gap = xs[i] - xs[i - 1];
+        if (gap > largestGap) {
+          largestGap = gap;
+          cutoff = xs[i - 1] + gap / 2;
+        }
+      }
+      if (largestGap < 180) {
+        return 600;
+      }
+      return cutoff;
+    }
+
     final diaProductsSectionRegex = RegExp(
       r'PRODUCTOS\s+VENDIDOS\s+POR\s+D[1IÍL]A',
       caseSensitive: false,
@@ -677,6 +704,8 @@ class TicketParserService {
       RegExp(r'DATOS\s+DE\s+LA\s+OPERACI[Ã“O]N', caseSensitive: false),
       RegExp(r'OPERACI[Ã“O]N\s+CONTACTLESS', caseSensitive: false),
       RegExp(r'COMERCIAL\s+POSIPAR', caseSensitive: false),
+      // Linea de puntos de total DIA: "...... 39,55 euro"
+      RegExp(r'^\.{3,}', caseSensitive: false),
     ];
 
     final hasProductsSection = lines.any(
@@ -703,18 +732,15 @@ class TicketParserService {
 
     final zone = lines.sublist(startIndex, endIndex);
 
-    // â”€â”€ 2. Separar columna de nombre (X < 500) del resto â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-    // Umbral X calibrado con los datos reales: nombres en Xâ‰ˆ85-100, datos en Xâ‰ˆ1050+
-    const int nameColMaxX = 500;
-    const int quantityColMinX = 900;
-    const int quantityColMaxX = 1250;
+    // â”€â”€ 2. Separar columna de nombre del resto con umbral adaptativo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    final nameColMaxX = estimateNameColumnMaxX(zone);
 
     final nameLines = zone
-        .where((l) => l.boundingBox.left < nameColMaxX)
-        .toList();
+      .where((l) => l.boundingBox.left < nameColMaxX)
+      .toList();
     final dataLines = zone
-        .where((l) => l.boundingBox.left >= nameColMaxX)
-        .toList();
+      .where((l) => l.boundingBox.left >= nameColMaxX)
+      .toList();
     final zoneBottomY = zone.isEmpty
         ? double.maxFinite
         : zone
@@ -723,18 +749,79 @@ class TicketParserService {
 
     // â”€â”€ 3. Identificar triggers de la columna cantidad â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     final qtyRegex = RegExp(r'^(\d+)\s*uds?$', caseSensitive: false);
+    final qtyTokenRegex = RegExp(
+      r'(?:^|\b)(\d+)\s*U?D(?:S)?\b',
+      caseSensitive: false,
+    );
+    final qtyOnlyRegex = RegExp(r'^\s*U?D(?:S)?\s*$', caseSensitive: false);
     final weightQtyRegex = RegExp(
       r'^\d+[,\.]\d+\s*(KG|KGS|G|GR|GRS|L|ML)\b',
       caseSensitive: false,
     );
-    final triggers = dataLines.where((l) {
-      final text = l.text.trim();
-      final inQuantityColumn =
-          l.boundingBox.left >= quantityColMinX &&
-          l.boundingBox.left <= quantityColMaxX;
-      return inQuantityColumn &&
-          (qtyRegex.hasMatch(text) || weightQtyRegex.hasMatch(text));
-    }).toList();
+
+    double? parsePriceValue(String text) {
+      final matches = _priceRegex.allMatches(text.toUpperCase()).toList();
+      if (matches.isEmpty) return null;
+      final priceStr = matches.last
+          .group(1)!
+          .replaceAll(' ', '')
+          .replaceAll(',', '.');
+      return double.tryParse(priceStr);
+    }
+
+    final triggerCandidates = <_DiaTrigger>[];
+    for (final line in zone) {
+      final text = line.text.trim();
+      final upper = text.toUpperCase();
+      final isQty = qtyRegex.hasMatch(text) ||
+          qtyTokenRegex.hasMatch(text) ||
+          qtyOnlyRegex.hasMatch(text) ||
+          weightQtyRegex.hasMatch(text);
+      if (isQty) {
+        triggerCandidates.add(_DiaTrigger(line, 2));
+        continue;
+      }
+
+      final priceValue = parsePriceValue(upper);
+      if (priceValue != null && priceValue > 0) {
+        final isDiscount = _discountKw.any((kw) => upper.contains(kw));
+        final hasPercent = upper.contains('%');
+        if (!isDiscount && !hasPercent) {
+          triggerCandidates.add(_DiaTrigger(line, 1));
+        }
+      }
+    }
+
+    triggerCandidates.sort(
+      (a, b) => a.line.boundingBox.top.compareTo(b.line.boundingBox.top),
+    );
+
+    final triggers = <TextLine>[];
+    const triggerMergeThreshold = 35.0;
+    for (final candidate in triggerCandidates) {
+      if (triggers.isEmpty) {
+        triggers.add(candidate.line);
+        continue;
+      }
+      final last = triggers.last;
+      final yDelta =
+          (candidate.line.boundingBox.top - last.boundingBox.top).abs();
+      if (yDelta <= triggerMergeThreshold) {
+        final lastIsQty = qtyRegex.hasMatch(last.text.trim()) ||
+            qtyTokenRegex.hasMatch(last.text.trim()) ||
+            qtyOnlyRegex.hasMatch(last.text.trim()) ||
+            weightQtyRegex.hasMatch(last.text.trim());
+        if (!lastIsQty && candidate.priority > 1) {
+          triggers[triggers.length - 1] = candidate.line;
+        }
+        continue;
+      }
+      triggers.add(candidate.line);
+    }
+
+    debugDia(
+      'zoneLines=${zone.length} nameColMaxX=${nameColMaxX.round()} triggers=${triggers.length}',
+    );
 
     if (triggers.isEmpty) return _parseGeneric(lines);
 
@@ -743,6 +830,11 @@ class TicketParserService {
       if (upper.isEmpty) return true;
       if (RegExp(r'^DESCRIPCI[Ã“O]N$', caseSensitive: false).hasMatch(upper))
         return true;
+      // Solo filtra líneas de descuento DIA ("20% PATE NUESTRA ALACENA", etc.).
+      // Requiere ≥3 letras tras el % para no filtrar sufijos de nombre como "92% B".
+      if (RegExp(r'^\d{1,2}%\s+[A-ZÁÉÍÓÚÜÑ]{3,}').hasMatch(upper)) return true;
+      if (_discountKw.any((kw) => upper.contains(kw))) return true;
+      if (RegExp(r'-\s*\d+[,\.]\d{2}').hasMatch(upper)) return true;
       if (RegExp(
         r'^PRODUCTOS\s+VENDIDOS\s+POR\s+DIA$',
         caseSensitive: false,
@@ -761,6 +853,13 @@ class TicketParserService {
       return false;
     }
 
+    String normalizeDiaName(String raw) {
+      var normalized = raw.replaceAll(RegExp(r'\s+'), ' ').trim();
+      normalized = normalized
+          .replaceAll(RegExp(r'\bCABAL\s+IA\b'), 'CABALLA');
+      return normalized;
+    }
+
     // Precomputar las Y de todos los triggers
     final triggerYs = triggers
         .map((t) => t.boundingBox.top.toDouble())
@@ -768,38 +867,55 @@ class TicketParserService {
 
     final items = <TicketItem>[];
     const maxNameDistanceAboveTrigger = 180.0;
-    const maxNameDistanceBelowTrigger = 80.0;
+    const maxNameDistanceBelowTrigger = 150.0;
 
     for (int t = 0; t < triggers.length; t++) {
       final trig = triggers[t];
       final trigY = triggerYs[t];
       final triggerText = trig.text.trim().toUpperCase();
-      final qtyMatch = qtyRegex.firstMatch(triggerText);
-      final qty = qtyMatch == null
+        final qtyMatch =
+          qtyRegex.firstMatch(triggerText) ?? qtyTokenRegex.firstMatch(triggerText);
+        final qty = qtyMatch == null
           ? 1
           : (int.tryParse(qtyMatch.group(1)!) ?? 1);
       final requiresQuantityReview = weightQtyRegex.hasMatch(triggerText);
 
-      // â”€â”€ Precio total: línea de datos con X > 1700 y Y a Â±25px del trigger
-      final totalLine = dataLines
-          .where(
-            (l) =>
-                l.boundingBox.left > 1700 &&
-                (l.boundingBox.top - trigY).abs() <= 25,
-          )
-          .toList();
+      // â”€â”€ Precio total: línea con precio más a la derecha y Y cercana al trigger
+      final priceCandidates = dataLines
+          .where((l) {
+            final text = l.text.trim().toUpperCase();
+            if (!_priceRegex.hasMatch(text)) return false;
+            return (l.boundingBox.top - trigY).abs() <= 40;
+          })
+          .toList()
+        ..sort((a, b) => a.boundingBox.left.compareTo(b.boundingBox.left));
 
-      if (totalLine.isEmpty) continue;
+      if (priceCandidates.isEmpty) {
+        debugDia(
+          'TRIGGER y=${trigY.round()} text="${trig.text.trim()}" -> no price candidate',
+        );
+        continue;
+      }
 
-      final totalText = totalLine.last.text.trim().toUpperCase();
+      final totalText = priceCandidates.last.text.trim().toUpperCase();
       final priceMatches = _priceRegex.allMatches(totalText).toList();
-      if (priceMatches.isEmpty) continue;
+      if (priceMatches.isEmpty) {
+        debugDia(
+          'TRIGGER y=${trigY.round()} text="${trig.text.trim()}" -> price parse failed',
+        );
+        continue;
+      }
       final priceStr = priceMatches.last
           .group(1)!
           .replaceAll(' ', '')
           .replaceAll(',', '.');
       final parsedPrice = double.tryParse(priceStr) ?? 0.0;
-      if (parsedPrice <= 0) continue;
+      if (parsedPrice <= 0) {
+        debugDia(
+          'TRIGGER y=${trigY.round()} text="${trig.text.trim()}" -> parsedPrice=$parsedPrice',
+        );
+        continue;
+      }
 
       // â”€â”€ Nombre: líneas de nombre (X < 500) asignadas a ESTE trigger.
       //
@@ -845,10 +961,44 @@ class TicketParserService {
               .toList()
             ..sort((a, b) => a.boundingBox.top.compareTo(b.boundingBox.top));
 
-      final productName = nameParts
-          .map((l) => l.text.trim().toUpperCase())
-          .join(' ')
-          .trim();
+      if (nameParts.isEmpty) {
+        final fallbackNameParts = zone
+            .where((l) {
+              final y = l.boundingBox.top.toDouble();
+              if (y < nameLowerBound || y >= nameUpperBound) return false;
+              if (y < trigY - maxNameDistanceAboveTrigger) return false;
+              if (y > trigY + maxNameDistanceBelowTrigger) return false;
+              final text = l.text.trim().toUpperCase();
+              if (text.isEmpty) return false;
+              if (shouldSkipDiaNameLine(text)) return false;
+              if (qtyRegex.hasMatch(text) || weightQtyRegex.hasMatch(text)) {
+                return false;
+              }
+              if (_priceRegex.hasMatch(text)) return false;
+              return RegExp(r'[A-ZÁÉÍÓÚÜÑ]').hasMatch(text);
+            })
+            .toList()
+          ..sort((a, b) => a.boundingBox.top.compareTo(b.boundingBox.top));
+
+        if (fallbackNameParts.isNotEmpty) {
+          nameParts
+            ..clear()
+            ..addAll(fallbackNameParts);
+        }
+      }
+
+      final productName = normalizeDiaName(
+        nameParts
+            .map((l) => l.text.trim().toUpperCase())
+            .join(' ')
+            .trim(),
+      );
+
+      if (productName.isEmpty) {
+        debugDia(
+          'TRIGGER y=${trigY.round()} text="${trig.text.trim()}" -> empty name',
+        );
+      }
 
       if (productName.isNotEmpty && parsedPrice > 0) {
         items.add(
