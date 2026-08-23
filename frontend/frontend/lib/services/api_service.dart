@@ -11,22 +11,40 @@ import '../models/hogar.dart';
 import '../models/ticket_item.dart';
 import '../models/ticket_review_submission.dart';
 import '../models/supermercado.dart';
+import '../models/catalog_product.dart';
 import 'hogar_service.dart';
 import 'app_exceptions.dart';
 
 // --- 2. GESTIÓN DE ENTORNO AUTOMÁTICA ---
-// Usa la IP de tu máquina en la red local para pruebas en dispositivo físico.
-// Si usas el emulador de Android, la IP para referirte al localhost de tu PC es 10.0.2.2.
-const String _localBaseUrl =
-    'http://192.168.1.146:8000'; // <-- AJUSTA ESTA IP SI ES NECESARIO
+// Permite sobreescribir la URL al compilar: flutter run --dart-define=API_URL=https://tu-api.com
+const String _envBaseUrl = String.fromEnvironment('API_URL');
 const String _productionBaseUrl = 'https://caducidapp-api.onrender.com';
 
-// kDebugMode es `true` en `flutter run` y `false` en `flutter build --release`.
-const String baseUrl = kDebugMode ? _localBaseUrl : _productionBaseUrl;
-const String apiPrefix = '/api/v1/inventory';
-const String apiUrl = '$baseUrl$apiPrefix';
-const String apiV1Url =
-    '$baseUrl/api/v1'; // Base para otros servicios (ej. notificaciones)
+String get baseUrl {
+  if (_envBaseUrl.isNotEmpty) {
+    return _envBaseUrl;
+  }
+  if (kReleaseMode) {
+    return _productionBaseUrl;
+  }
+  // En modo desarrollo (kDebugMode):
+  if (kIsWeb) {
+    // Para Flutter Web en desarrollo local, conectar al localhost del backend
+    return 'http://localhost:8000';
+  }
+  if (defaultTargetPlatform == TargetPlatform.android) {
+    // Desarrollo local con Docker en PC. Usa adb reverse tcp:8000 tcp:8000 para redirección por USB sin importar la Wi-Fi
+    return 'http://127.0.0.1:8000';
+  }
+
+
+  return 'http://localhost:8000';
+}
+
+String get apiPrefix => '/api/v1/inventory';
+String get apiUrl => '$baseUrl$apiPrefix';
+String get apiV1Url => '$baseUrl/api/v1';
+
 
 // Wrapper global para manejar excepciones de red y servidor
 Future<T> safeApiCall<T>(Future<T> Function() apiCall) async {
@@ -723,3 +741,98 @@ Future<List<Map<String, dynamic>>> getDictionaryMemory() async {
     return jsonList.cast<Map<String, dynamic>>();
   });
 }
+
+// ============================================================================
+// CATÁLOGO DE PRODUCTOS Y SISTEMA DE VALORACIONES
+// ============================================================================
+
+/// Obtiene todos los productos del catálogo maestro con información agregada de stock y rating.
+Future<List<CatalogProduct>> fetchCatalogProducts({
+  String? search,
+  bool onlyFavorites = false,
+  bool onlyInStock = false,
+  double? minRating,
+  String sortBy = 'name_asc',
+}) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    var uri = Uri.parse('$apiUrl/catalog');
+
+    final queryParams = <String, String>{};
+    if (search != null && search.isNotEmpty) {
+      queryParams['search'] = search;
+    }
+    if (onlyFavorites) {
+      queryParams['only_favorites'] = 'true';
+    }
+    if (onlyInStock) {
+      queryParams['only_in_stock'] = 'true';
+    }
+    if (minRating != null && minRating > 0) {
+      queryParams['min_rating'] = minRating.toString();
+    }
+    if (sortBy.isNotEmpty) {
+      queryParams['sort_by'] = sortBy;
+    }
+
+    if (queryParams.isNotEmpty) {
+      uri = uri.replace(queryParameters: queryParams);
+    }
+
+    final response = await http.get(uri, headers: headers);
+    final List<dynamic> jsonList = _processResponse(response);
+    return jsonList.map((json) => CatalogProduct.fromJson(json)).toList();
+  });
+}
+
+/// Guarda o actualiza la valoración personal de un producto.
+Future<Map<String, dynamic>> rateCatalogProduct({
+  required int productId,
+  required double puntuacion,
+  bool esFavorito = false,
+  String? nota,
+  String? tags,
+}) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = jsonEncode({
+      'puntuacion': puntuacion,
+      'es_favorito': esFavorito,
+      'nota': nota,
+      'tags': tags,
+    });
+
+    final response = await http.post(
+      Uri.parse('$apiUrl/catalog/$productId/rate'),
+      headers: headers,
+      body: body,
+    );
+    return _processResponse(response);
+  });
+}
+
+/// Alterna el estado de favorito de un producto.
+Future<bool> toggleCatalogProductFavorite(int productId) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/catalog/$productId/favorite'),
+      headers: headers,
+    );
+    final data = _processResponse(response);
+    return data['es_favorito'] as bool? ?? false;
+  });
+}
+
+/// Elimina la valoración personal de un producto.
+Future<void> deleteCatalogProductRating(int productId) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.delete(
+      Uri.parse('$apiUrl/catalog/$productId/rate'),
+      headers: headers,
+    );
+    _processResponse(response);
+  });
+}
+

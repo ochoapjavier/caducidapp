@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/screens/home_screen.dart';
 import 'package:frontend/screens/inventory_management_screen.dart';
+import 'package:frontend/screens/catalog_screen.dart';
 import 'package:frontend/screens/shopping_list_screen.dart';
-import 'package:frontend/screens/profile_screen.dart'; // Importar ProfileScreen
+import 'package:frontend/screens/profile_screen.dart';
 
 class HogarShellScreen extends StatefulWidget {
   final int hogarId;
@@ -19,6 +20,7 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
   // Keys para forzar refresco
   final GlobalKey<dynamic> _homeKey = GlobalKey();
   final GlobalKey<dynamic> _inventoryKey = GlobalKey(); 
+  final GlobalKey<dynamic> _catalogKey = GlobalKey();
   final GlobalKey<dynamic> _shoppingListKey = GlobalKey();
   final GlobalKey<dynamic> _profileKey = GlobalKey();
 
@@ -30,6 +32,7 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
     _screens = [
       HomeScreen(key: _homeKey), // Inicio
       InventoryManagementScreen(key: _inventoryKey), // Inventario
+      const CatalogScreen(), // Catálogo Maestro & Ratings
       ShoppingListScreen(key: _shoppingListKey, hogarId: widget.hogarId), // Lista
       ProfileScreen(key: _profileKey, hogarId: widget.hogarId), // Perfil
     ];
@@ -44,14 +47,17 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
     final key = switch (index) {
       0 => _homeKey,
       1 => _inventoryKey,
-      2 => _shoppingListKey,
-      3 => _profileKey,
+      2 => _catalogKey,
+      3 => _shoppingListKey,
+      4 => _profileKey,
       _ => null,
     };
     if (key != null) {
       final state = key.currentState;
-      if (state != null) {
-        (state as dynamic).refresh();
+      if (state != null && state is dynamic) {
+        try {
+          (state as dynamic).refresh();
+        } catch (_) {}
       }
     }
   }
@@ -96,6 +102,11 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
               label: 'Inventario',
             ),
             NavigationDestination(
+              icon: Icon(Icons.menu_book_outlined),
+              selectedIcon: Icon(Icons.menu_book_rounded),
+              label: 'Catálogo',
+            ),
+            NavigationDestination(
               icon: Icon(Icons.shopping_cart_outlined),
               selectedIcon: Icon(Icons.shopping_cart),
               label: 'Lista',
@@ -111,3 +122,4 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
     );
   }
 }
+

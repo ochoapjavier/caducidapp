@@ -4,6 +4,7 @@ import 'package:frontend/widgets/inventory_view.dart';
 import 'package:frontend/widgets/remove_item_view.dart';
 import 'package:frontend/screens/ticket_scanner_screen.dart';
 import 'package:frontend/screens/matchmaker_screen.dart';
+import 'package:frontend/screens/catalog_screen.dart';
 import 'package:frontend/models/ticket_review_submission.dart';
 import 'package:frontend/services/ticket_parser_service.dart';
 import 'package:frontend/services/api_service.dart' as api;
@@ -117,7 +118,20 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Inventario')),
+      appBar: AppBar(
+        title: const Text('Inventario'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.menu_book_rounded),
+            tooltip: 'Catálogo de Productos',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (context) => const CatalogScreen()),
+              );
+            },
+          ),
+        ],
+      ),
       body: SafeArea(
         top: false,
         child: InventoryView(
@@ -130,3 +144,4 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
     );
   }
 }
+

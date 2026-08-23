@@ -7,7 +7,8 @@ import '../services/api_service.dart'; // Importar para usar baseUrl global y sa
 
 class ShoppingService {
   // Usamos la misma URL base que el resto de la app
-  final String baseUrl = '$apiV1Url'; 
+  String get baseUrl => apiV1Url;
+
 
   Future<List<ShoppingListItem>> getShoppingList(int hogarId) async {
     return safeApiCall(() async {

@@ -37,22 +37,25 @@ class _ShoppingListScreenState extends State<ShoppingListScreen> {
   }
 
   Future<void> _loadItems() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
       final items = await _shoppingService.getShoppingList(widget.hogarId);
+      if (!mounted) return;
       setState(() {
         _items = items;
         _isLoading = false;
         _error = null;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _error = e;
       });
-      // No mostramos SnackBar si ya mostramos la pantalla de error
     }
   }
+
 
   Future<void> _addItem(String nombre, {int? fkProducto}) async {
     if (nombre.isEmpty) return;
