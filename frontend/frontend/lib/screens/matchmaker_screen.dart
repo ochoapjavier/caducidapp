@@ -29,6 +29,11 @@ class MatchmakerScreen extends StatefulWidget {
 class _MatchmakerScreenState extends State<MatchmakerScreen> {
   static const Color _eanActionColor = Color(0xFF0B57D0);
 
+  final Map<String, TextEditingController> _expiryControllers = {};
+  final Map<String, FocusNode> _expiryFocusNodes = {};
+  // '' = no input yet, 'ok' = valid, 'error' = invalid
+  final Map<String, String> _expiryParseState = {};
+
   late List<TicketReviewLine> reviewLines;
 
   List<Supermercado> supermercados = [];
@@ -50,6 +55,19 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
         .toList();
     customSupermercadoNombre = widget.guessedSupermercado;
     _loadContext();
+  }
+
+  @override
+  void dispose() {
+    for (final controller in _expiryControllers.values) {
+      controller.dispose();
+    }
+    _expiryControllers.clear();
+    for (final fn in _expiryFocusNodes.values) {
+      fn.dispose();
+    }
+    _expiryFocusNodes.clear();
+    super.dispose();
   }
 
   TicketItem _cloneItem(TicketItem item) {
@@ -465,8 +483,12 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
     }
 
     setState(() {
-      reviewLines[lineIndex].allocations[allocationIndex].fechaCaducidad =
-          scannedDate;
+      final allocation = reviewLines[lineIndex].allocations[allocationIndex];
+      allocation.fechaCaducidad = scannedDate;
+      final controller = _expiryControllers[_expiryKey(allocation)];
+      if (controller != null) {
+        controller.text = _formatExpiryDate(scannedDate);
+      }
     });
   }
 
@@ -500,46 +522,125 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
       },
     );
 
-    final expiryField = InputDecorator(
-      decoration: InputDecoration(
-        labelText: 'Caducidad',
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: InkWell(
-              onTap: () => _pickExpiryDate(lineIndex, allocationIndex),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Text(
-                  allocation.fechaCaducidad == null
-                      ? 'Seleccionar'
-                      : DateFormat(
-                          'dd/MM/yyyy',
-                        ).format(allocation.fechaCaducidad!),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: textTheme.bodyMedium,
+    final expiryKey = _expiryKey(allocation);
+    final expiryController = _getExpiryController(
+      allocation: allocation,
+      currentDate: allocation.fechaCaducidad,
+    );
+    // Focus node: aplica la fecha al perder el foco
+    final expiryFocus = _expiryFocusNodes.putIfAbsent(
+      expiryKey,
+      () {
+        final fn = FocusNode();
+        fn.addListener(() {
+          if (!fn.hasFocus) {
+            _applyExpiryInput(lineIndex, allocationIndex);
+          }
+        });
+        return fn;
+      },
+    );
+    final parseState = _expiryParseState[expiryKey] ?? '';
+    final isError = parseState == 'error';
+    final isOk = parseState == 'ok';
+    final okColor = const Color(0xFF2E7D32);
+    final errorColor = Theme.of(context).colorScheme.error;
+    final expiryField = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        TextFormField(
+          controller: expiryController,
+          focusNode: expiryFocus,
+          keyboardType: TextInputType.datetime,
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9/.,\- ]')),
+            _SmartDateFormatter(),
+          ],
+          decoration: InputDecoration(
+            labelText: 'Caducidad',
+            hintText: 'd/m/aa',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: isOk
+                    ? okColor
+                    : isError
+                        ? errorColor
+                        : Theme.of(context).colorScheme.outline,
+                width: isOk || isError ? 2 : 1,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: isOk
+                    ? okColor
+                    : isError
+                        ? errorColor
+                        : Theme.of(context).colorScheme.primary,
+                width: 2,
+              ),
+            ),
+            contentPadding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
+            suffixIcon: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isOk)
+                  Icon(Icons.check_circle, color: okColor, size: 18)
+                else if (isError)
+                  Icon(Icons.error_outline, color: errorColor, size: 18),
+                IconButton(
+                  onPressed: () => _pickExpiryDate(lineIndex, allocationIndex),
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Elegir fecha',
+                  icon: const Icon(Icons.calendar_today, size: 18),
                 ),
+                IconButton(
+                  onPressed: () => _scanExpiryDate(lineIndex, allocationIndex),
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'Escanear caducidad',
+                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                ),
+              ],
+            ),
+          ),
+          onChanged: (value) {
+            final parsed = _parseFlexibleDate(value);
+            final now = DateTime.now();
+            final today = DateTime(now.year, now.month, now.day);
+            String newState;
+            if (value.trim().isEmpty) {
+              newState = '';
+            } else if (parsed != null && !parsed.isBefore(today)) {
+              newState = 'ok';
+            } else if (parsed != null && parsed.isBefore(today)) {
+              newState = 'error'; // fecha pasada
+            } else {
+              // texto incompleto: si tiene menos de 4 chars, no marcar error aún
+              newState = value.trim().length >= 4 ? 'error' : '';
+            }
+            if (_expiryParseState[expiryKey] != newState) {
+              setState(() => _expiryParseState[expiryKey] = newState);
+            }
+          },
+          onEditingComplete: () => _applyExpiryInput(lineIndex, allocationIndex),
+          onFieldSubmitted: (_) => _applyExpiryInput(lineIndex, allocationIndex),
+        ),
+        if (isOk && allocation.fechaCaducidad != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 3, left: 12),
+            child: Text(
+              '→ ${_formatExpiryDate(allocation.fechaCaducidad)}',
+              style: TextStyle(
+                fontSize: 11,
+                color: okColor,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
-          IconButton(
-            onPressed: () => _pickExpiryDate(lineIndex, allocationIndex),
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Elegir fecha',
-            icon: const Icon(Icons.calendar_today, size: 18),
-          ),
-          IconButton(
-            onPressed: () => _scanExpiryDate(lineIndex, allocationIndex),
-            visualDensity: VisualDensity.compact,
-            tooltip: 'Escanear caducidad',
-            icon: const Icon(Icons.photo_camera_outlined, size: 18),
-          ),
-        ],
-      ),
+      ],
     );
 
     return LayoutBuilder(
@@ -673,6 +774,113 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
     if (!mounted) return;
     AppToast.hide();
     AppToast.show(context, message: message);
+  }
+
+  String _expiryKey(TicketLineAllocation allocation) {
+    return identityHashCode(allocation).toString();
+  }
+
+  String _formatExpiryDate(DateTime? date) {
+    if (date == null) return '';
+    return DateFormat('dd/MM/yyyy').format(date);
+  }
+
+  TextEditingController _getExpiryController({
+    required TicketLineAllocation allocation,
+    required DateTime? currentDate,
+  }) {
+    final key = _expiryKey(allocation);
+    final formatted = _formatExpiryDate(currentDate);
+    if (!_expiryControllers.containsKey(key)) {
+      _expiryControllers[key] = TextEditingController(text: formatted);
+    } else if (formatted.isNotEmpty &&
+        _expiryControllers[key]!.text != formatted) {
+      _expiryControllers[key]!.text = formatted;
+    }
+    return _expiryControllers[key]!;
+  }
+
+  DateTime? _parseFlexibleDate(String input) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+    final normalized = trimmed.replaceAll('-', '/').replaceAll('.', '/');
+    final parts = normalized.split('/').map((p) => p.trim()).toList();
+
+    // Formato MM/YYYY o MM/YY (día = 1)
+    if (parts.length == 2) {
+      final month = int.tryParse(parts[0]);
+      final yearRaw = int.tryParse(parts[1]);
+      if (month == null || yearRaw == null) return null;
+      if (month < 1 || month > 12) return null;
+      final year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+      try {
+        return DateTime(year, month, 1);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    if (parts.length != 3) return null;
+    final day = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final yearRaw = int.tryParse(parts[2]);
+    if (day == null || month == null || yearRaw == null) return null;
+    final year = yearRaw < 100 ? 2000 + yearRaw : yearRaw;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+    try {
+      final parsed = DateTime(year, month, day);
+      if (parsed.year != year || parsed.month != month || parsed.day != day) {
+        return null;
+      }
+      return parsed;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _applyExpiryInput(int lineIndex, int allocationIndex) {
+    final allocation = reviewLines[lineIndex].allocations[allocationIndex];
+    final controller = _expiryControllers[_expiryKey(allocation)];
+    if (controller == null) return;
+    final text = controller.text.trim();
+    if (text.isEmpty) {
+      setState(() {
+        allocation.fechaCaducidad = null;
+      });
+      return;
+    }
+
+    final parsed = _parseFlexibleDate(text);
+    if (parsed == null) {
+      _showSnackBar('Formato de fecha no valido. Usa dd/mm/aa o dd/mm/aaaa.');
+      return;
+    }
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (parsed.isBefore(today)) {
+      _showSnackBar('La caducidad no puede ser anterior a hoy.');
+      return;
+    }
+
+    setState(() {
+      allocation.fechaCaducidad = parsed;
+      controller.text = _formatExpiryDate(parsed);
+    });
+  }
+
+  void _updateItemQuantity(int lineIndex, int newQuantity) {
+    if (newQuantity <= 0) {
+      _showSnackBar('La cantidad debe ser un numero entero positivo.');
+      return;
+    }
+
+    setState(() {
+      final line = reviewLines[lineIndex];
+      line.item.cantidad = newQuantity;
+      line.item.requiereRevisionCantidad = false;
+      _syncAllocationsWithItemQuantity(line);
+    });
   }
 
   Color _parseColor(String? colorHex, Color fallback) {
@@ -966,6 +1174,10 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
     if (pickedDate != null) {
       setState(() {
         allocation.fechaCaducidad = pickedDate;
+        final controller = _expiryControllers[_expiryKey(allocation)];
+        if (controller != null) {
+          controller.text = _formatExpiryDate(pickedDate);
+        }
       });
     }
   }
@@ -1838,27 +2050,67 @@ class _MatchmakerScreenState extends State<MatchmakerScreen> {
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        Text(
-                                          item.nombre,
-                                          style: textTheme.titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
+                                        Row(
+                                          children: [
+                                            Expanded(
+                                              child: Text(
+                                                item.nombre,
+                                                style: textTheme.titleMedium
+                                                    ?.copyWith(
+                                                  fontWeight: FontWeight.w700,
+                                                ),
                                               ),
+                                            ),
+                                            IconButton(
+                                              onPressed: () => _editItem(index),
+                                              icon: const Icon(Icons.edit_outlined),
+                                              tooltip: 'Editar linea',
+                                            ),
+                                          ],
                                         ),
                                         const SizedBox(height: 4),
-                                        Text(
-                                          'Cantidad ${item.cantidad} · ${item.precioUnitario.toStringAsFixed(2)} € / ud · ${item.precioTotal.toStringAsFixed(2)} € total',
-                                          style: textTheme.bodySmall?.copyWith(
-                                            color: colorScheme.onSurfaceVariant,
-                                          ),
+                                        Row(
+                                          children: [
+                                            IconButton(
+                                              onPressed: item.cantidad > 1
+                                                  ? () => _updateItemQuantity(
+                                                        index,
+                                                        item.cantidad - 1,
+                                                      )
+                                                  : null,
+                                              icon: const Icon(
+                                                Icons.remove_circle_outline,
+                                              ),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              tooltip: 'Reducir cantidad',
+                                            ),
+                                            Text(
+                                              '${item.cantidad} uds',
+                                              style: textTheme.bodySmall
+                                                  ?.copyWith(
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                            ),
+                                            IconButton(
+                                              onPressed: () =>
+                                                  _updateItemQuantity(
+                                                    index,
+                                                    item.cantidad + 1,
+                                                  ),
+                                              icon: const Icon(
+                                                Icons.add_circle_outline,
+                                              ),
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              tooltip: 'Aumentar cantidad',
+                                            ),
+                                          ],
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  IconButton(
-                                    onPressed: () => _editItem(index),
-                                    icon: const Icon(Icons.edit_outlined),
-                                    tooltip: 'Editar línea',
                                   ),
                                 ],
                               ),
@@ -2545,3 +2797,78 @@ class _ResolvedBarcodeProduct {
     required this.sourceLabel,
   });
 }
+
+/// Formateador inteligente para fechas de caducidad.
+/// - Acepta separadores: / . - (espacio)
+/// - Auto-inserta '/' después del día (2 dígitos) y del mes (2 dígitos)
+/// - Permite formato libre: 1/7/26, 01/07/2026, 1.7.2026, etc.
+class _SmartDateFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    // Normalizar separadores a '/'
+    var text = newValue.text.replaceAll(RegExp(r'[.\- ]'), '/');
+
+    // Si el usuario está borrando, no añadir separadores automáticamente
+    final isDeleting = newValue.text.length < oldValue.text.length;
+    if (isDeleting) {
+      // Eliminar '/' al final si queda tras borrar
+      if (text.endsWith('/')) {
+        text = text.substring(0, text.length - 1);
+      }
+      return newValue.copyWith(
+        text: text,
+        selection: TextSelection.collapsed(offset: text.length),
+      );
+    }
+
+    // Solo dígitos y '/'
+    final digitsOnly = text.replaceAll('/', '');
+
+    // No hacer nada si hay más de 8 dígitos (ddmmyyyy)
+    if (digitsOnly.length > 8) {
+      return oldValue;
+    }
+
+    // Reconstruir con separadores automáticos
+    // Formato: d[d]/m[m]/yy[yy]
+    final parts = text.split('/');
+    final dayStr = parts.isNotEmpty ? parts[0] : '';
+    final monthStr = parts.length > 1 ? parts[1] : null;
+    final yearStr = parts.length > 2 ? parts.sublist(2).join('/') : null;
+
+    String result = '';
+
+    // Parte del día
+    result += dayStr;
+
+    // Auto-insertar '/' tras 2 dígitos del día (solo si escribiendo y no hay '/' aún)
+    if (monthStr == null && dayStr.length == 2 && digitsOnly.length > 2) {
+      result += '/';
+    } else if (monthStr != null) {
+      result += '/';
+      result += monthStr;
+
+      // Auto-insertar '/' tras 2 dígitos del mes
+      if (yearStr == null && monthStr.length == 2 && digitsOnly.length > 4) {
+        result += '/';
+      } else if (yearStr != null) {
+        result += '/';
+        result += yearStr;
+      }
+    }
+
+    // Limitar longitud total razonable (dd/mm/yyyy = 10 chars)
+    if (result.length > 10) {
+      result = result.substring(0, 10);
+    }
+
+    return TextEditingValue(
+      text: result,
+      selection: TextSelection.collapsed(offset: result.length),
+    );
+  }
+}
+

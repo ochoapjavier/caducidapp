@@ -28,6 +28,12 @@ from .receipt import (
     SupermercadoCreate,
 )
 
+from .product_rating import (
+    ProductRatingCreate,
+    ProductRatingSchema,
+    CatalogProductSchema,
+)
+
 __all__ = [
     "Location",
     "LocationCreate",
@@ -63,4 +69,8 @@ __all__ = [
     "ReceiptDictionaryProductMatch",
     "SupermercadoSchema",
     "SupermercadoCreate",
+    "ProductRatingCreate",
+    "ProductRatingSchema",
+    "CatalogProductSchema",
 ]
+

@@ -18,24 +18,15 @@ from routers import supermercados as supermercados_router
 
 app = FastAPI(title="Core Inventory API (Modular)")
 
-# Configuración de CORS
-# En desarrollo, Flutter web puede usar cualquier puerto. Usamos una expresión regular
-# para permitir cualquier puerto en localhost.
-# En producción, deberías añadir aquí el dominio de tu aplicación web.
-origins = [
-    "http://localhost", # Para pruebas locales directas
-    "https://caducidapp-grrcy8u7q-ochoapjaviers-projects.vercel.app",  # Vercel deployment
-    "https://caducidapp.vercel.app",  # Vercel production domain (if configured)
-]
-
+# Configuración de CORS amplia para desarrollo y producción (Vercel, Localhost, Móvil)
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex=r'http://localhost:\d+', # Permite http://localhost:CUALQUIER_PUERTO
-    allow_origins=origins,  # Permite los dominios específicos de producción
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # Montamos el router principal de la API
 app.include_router(inventory_router, prefix="/api/v1")

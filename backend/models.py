@@ -1,5 +1,5 @@
 # backend/models.py
-from sqlalchemy import Column, Integer, String, Date, ForeignKey, UniqueConstraint, Index, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Date, ForeignKey, UniqueConstraint, Index, Boolean, DateTime, Float, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 from database import Base
@@ -108,9 +108,15 @@ class Product(Base):
         back_populates="producto_maestro",
         cascade="all, delete-orphan"
     )
+    valoraciones = relationship(
+        "ProductRating",
+        back_populates="producto",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"Product(id={self.id_producto}, nombre={self.nombre!r}, barcode={self.barcode!r}, hogar_id={self.hogar_id})"
+
 
 
 class InventoryStock(Base):
@@ -237,3 +243,32 @@ class DiccionarioTicketProducto(Base):
 
     def __repr__(self) -> str:
         return f"DiccionarioTicket(hogar={self.hogar_id}, ticket={self.ticket_nombre}, super={self.fk_supermercado})"
+
+
+class ProductRating(Base):
+    """User product ratings, reviews, tags and favorite flags."""
+    __tablename__ = 'producto_valoracion'
+    
+    id_valoracion = Column(Integer, primary_key=True, index=True)
+    fk_producto = Column(Integer, ForeignKey('producto_maestro.id_producto', ondelete='CASCADE'), nullable=False, index=True)
+    user_id = Column(String(255), nullable=False, index=True)  # Firebase UID
+    hogar_id = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
+    puntuacion = Column(Float, nullable=False)  # 1.0 to 5.0
+    es_favorito = Column(Boolean, default=False, nullable=False)
+    nota = Column(Text, nullable=True)
+    tags = Column(String(255), nullable=True)  # Comma-separated tags
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    
+    __table_args__ = (
+        UniqueConstraint('fk_producto', 'user_id', name='producto_valoracion_user_unique'),
+        Index('ix_producto_valoracion_favorito', 'hogar_id', 'user_id', 'es_favorito'),
+    )
+
+    # Relationships
+    producto = relationship("Product", back_populates="valoraciones")
+    hogar = relationship("Hogar")
+
+    def __repr__(self) -> str:
+        return f"ProductRating(producto={self.fk_producto}, user={self.user_id}, puntuacion={self.puntuacion})"
+
