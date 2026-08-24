@@ -88,7 +88,8 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
       }
     }
 
-    if (_product.barcode != null && _product.barcode!.isNotEmpty && _product.novaGroup == null) {
+    final needsNutritionSync = _product.nutrientes100g == null || !_product.nutrientes100g!.contains('iron_mg');
+    if (_product.barcode != null && _product.barcode!.isNotEmpty && needsNutritionSync) {
       _fetchNutritionData();
     }
   }
@@ -647,15 +648,25 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Icon(Icons.health_and_safety_rounded, size: 22, color: Colors.green),
-            const SizedBox(width: 8),
-            Text(
-              'Información Nutricional & Salud',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurface,
-              ),
+            Row(
+              children: [
+                const Icon(Icons.health_and_safety_rounded, size: 22, color: Colors.green),
+                const SizedBox(width: 8),
+                Text(
+                  'Información Nutricional & Salud',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+              ],
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit_note_rounded, size: 22),
+              tooltip: 'Editar clasificación (NOVA / Nutri-Score)',
+              onPressed: _showOverrideNutritionDialog,
             ),
           ],
         ),
@@ -666,10 +677,8 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
           spacing: 8,
           runSpacing: 8,
           children: [
-            if (product.novaGroup != null)
-              _buildNovaBadge(product.novaGroup!),
-            if (product.nutriscoreGrade != null && product.nutriscoreGrade!.isNotEmpty)
-              _buildNutriscoreBadge(product.nutriscoreGrade!),
+            _buildNovaBadge(product.novaGroup),
+            _buildNutriscoreBadge(product.nutriscoreGrade),
             if (product.aditivosCount > 0)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -689,6 +698,49 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
           ],
         ),
 
+        if (product.alergenos != null && product.alergenos!.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange.shade900),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Alérgenos presentes:',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.orange.shade900),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: product.alergenos!.split(',').map((a) {
+                    final clean = a.trim();
+                    if (clean.isEmpty) return const SizedBox.shrink();
+                    return Chip(
+                      label: Text(clean),
+                      visualDensity: VisualDensity.compact,
+                      backgroundColor: Colors.white,
+                      labelStyle: TextStyle(color: Colors.orange.shade900, fontWeight: FontWeight.bold, fontSize: 11),
+                      side: BorderSide(color: Colors.orange.shade300),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+        ],
 
         const SizedBox(height: 14),
 
@@ -715,9 +767,7 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
               // ⚡ Energía (kcal)
               _buildMacroItem(
                 label: '⚡ Energía',
-                value: nutrientes != null && nutrientes['energy_kcal'] != null
-                    ? '${nutrientes['energy_kcal']} kcal'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['energy_kcal'], 'kcal'),
                 isSub: false,
               ),
               const Divider(height: 12),
@@ -725,17 +775,13 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
               // 🍞 Hidratos de carbono
               _buildMacroItem(
                 label: '🍞 Hidratos de carbono',
-                value: nutrientes != null && nutrientes['carbohydrates'] != null
-                    ? '${nutrientes['carbohydrates']} g'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['carbohydrates'], 'g'),
                 isSub: false,
               ),
               // ↳ Azúcares (con semáforo)
               _buildMacroItem(
                 label: '    ↳ de los cuales Azúcares',
-                value: nutrientes != null && nutrientes['sugars'] != null
-                    ? '${nutrientes['sugars']} g'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['sugars'], 'g'),
                 level: _getSemaforoLevel(semaforo, 'sugars'),
                 isSub: true,
               ),
@@ -744,18 +790,14 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
               // 🥑 Grasas
               _buildMacroItem(
                 label: '🥑 Grasas',
-                value: nutrientes != null && nutrientes['fat'] != null
-                    ? '${nutrientes['fat']} g'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['fat'], 'g'),
                 level: _getSemaforoLevel(semaforo, 'fat'),
                 isSub: false,
               ),
               // ↳ Saturadas (con semáforo)
               _buildMacroItem(
                 label: '    ↳ de las cuales Saturadas',
-                value: nutrientes != null && (nutrientes['saturated_fat'] ?? nutrientes['saturated-fat']) != null
-                    ? '${nutrientes['saturated_fat'] ?? nutrientes['saturated-fat']} g'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['saturated_fat'] ?? nutrientes?['saturated-fat'], 'g'),
                 level: _getSemaforoLevel(semaforo, 'saturated_fat'),
                 isSub: true,
               ),
@@ -764,9 +806,7 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
               // 💪 Proteínas
               _buildMacroItem(
                 label: '💪 Proteínas',
-                value: nutrientes != null && nutrientes['proteins'] != null
-                    ? '${nutrientes['proteins']} g'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['proteins'], 'g'),
                 isSub: false,
               ),
               const Divider(height: 12),
@@ -774,9 +814,7 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
               // 🧂 Sal
               _buildMacroItem(
                 label: '🧂 Sal',
-                value: nutrientes != null && nutrientes['salt'] != null
-                    ? '${nutrientes['salt']} g'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['salt'], 'g'),
                 level: _getSemaforoLevel(semaforo, 'salt'),
                 isSub: false,
               ),
@@ -785,9 +823,7 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
               const Divider(height: 12),
               _buildMacroItem(
                 label: '🌾 Fibra alimentaria',
-                value: nutrientes != null && nutrientes['fiber'] != null
-                    ? '${nutrientes['fiber']} g'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['fiber'], 'g'),
                 customBadge: nutrientes != null ? _buildFiberBadge(nutrientes['fiber']) : null,
                 isSub: false,
               ),
@@ -796,9 +832,7 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
               const Divider(height: 12),
               _buildMacroItem(
                 label: '🩸 Hierro',
-                value: nutrientes != null && nutrientes['iron_mg'] != null
-                    ? '${nutrientes['iron_mg']} mg'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['iron_mg'], 'mg'),
                 customBadge: nutrientes != null ? _buildIronBadge(nutrientes['iron_mg']) : null,
                 isSub: false,
               ),
@@ -807,9 +841,7 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
               const Divider(height: 12),
               _buildMacroItem(
                 label: '🦴 Calcio',
-                value: nutrientes != null && nutrientes['calcium_mg'] != null
-                    ? '${nutrientes['calcium_mg']} mg'
-                    : 'Sin info',
+                value: _fmtVal(nutrientes?['calcium_mg'], 'mg'),
                 customBadge: nutrientes != null ? _buildCalciumBadge(nutrientes['calcium_mg']) : null,
                 isSub: false,
               ),
@@ -823,7 +855,112 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
     );
   }
 
-  Widget _buildNovaBadge(int nova) {
+  String _fmtVal(dynamic rawVal, String unit) {
+    if (rawVal == null) return 'Sin info';
+    final numVal = double.tryParse(rawVal.toString());
+    if (numVal == null) return '$rawVal $unit'.trim();
+    if (numVal == numVal.roundToDouble()) {
+      return '${numVal.toInt()} $unit';
+    }
+    final formatted = numVal.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+    return '$formatted $unit';
+  }
+
+  void _showOverrideNutritionDialog() {
+    int? selectedNova = _product.novaGroup;
+    String? selectedNutri = _product.nutriscoreGrade;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('Editar Clasificación Nutricional'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Grupo NOVA:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  DropdownButton<int>(
+                    value: selectedNova,
+                    isExpanded: true,
+                    hint: const Text('Sin clasificar (N/D)'),
+                    items: const [
+                      DropdownMenuItem(value: 1, child: Text('🟢 1 - Comida Real')),
+                      DropdownMenuItem(value: 2, child: Text('🟡 2 - Ingrediente Culinario')),
+                      DropdownMenuItem(value: 3, child: Text('🟡 3 - Buen Procesado')),
+                      DropdownMenuItem(value: 4, child: Text('🔴 4 - Ultraprocesado')),
+                    ],
+                    onChanged: (val) => setDialogState(() => selectedNova = val),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Nutri-Score:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  DropdownButton<String>(
+                    value: selectedNutri?.toLowerCase(),
+                    isExpanded: true,
+                    hint: const Text('Sin clasificar (N/D)'),
+                    items: const [
+                      DropdownMenuItem(value: 'a', child: Text('🟢 Nutri-Score A')),
+                      DropdownMenuItem(value: 'b', child: Text('🟢 Nutri-Score B')),
+                      DropdownMenuItem(value: 'c', child: Text('🟡 Nutri-Score C')),
+                      DropdownMenuItem(value: 'd', child: Text('🟠 Nutri-Score D')),
+                      DropdownMenuItem(value: 'e', child: Text('🔴 Nutri-Score E')),
+                    ],
+                    onChanged: (val) => setDialogState(() => selectedNutri = val),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    try {
+                      final res = await api.overrideCatalogProductNutrition(
+                        productId: _product.idProducto,
+                        novaGroup: selectedNova,
+                        nutriscoreGrade: selectedNutri,
+                      );
+                      if (res['status'] == 'success') {
+                        if (!mounted) return;
+                        setState(() {
+                          _product = _product.copyWith(
+                            novaGroup: selectedNova,
+                            nutriscoreGrade: selectedNutri,
+                          );
+                        });
+                        AppToast.show(
+                          this.context,
+                          message: 'Clasificación nutricional actualizada',
+                          type: AppToastType.success,
+                        );
+                      }
+                    } catch (e) {
+                      if (!mounted) return;
+                      AppToast.show(
+                        this.context,
+                        message: 'Error al actualizar clasificación: $e',
+                        type: AppToastType.error,
+                      );
+                    }
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildNovaBadge(int? nova) {
     String label;
     Color color;
     Color textColor;
@@ -840,10 +977,15 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
         color = Colors.amber.shade100;
         textColor = Colors.amber.shade900;
         break;
-      default:
+      case 4:
         label = '🔴 Ultraprocesado';
         color = Colors.red.shade100;
         textColor = Colors.red.shade900;
+        break;
+      default:
+        label = '⚪ NOVA: N/D';
+        color = Colors.grey.shade200;
+        textColor = Colors.grey.shade800;
         break;
     }
 
@@ -860,15 +1002,17 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
     );
   }
 
-  Widget _buildNutriscoreBadge(String grade) {
-    final clean = grade.toLowerCase();
+  Widget _buildNutriscoreBadge(String? grade) {
+    final clean = (grade ?? '').toLowerCase();
     Color bg;
+    String labelText;
     switch (clean) {
-      case 'a': bg = const Color(0xFF038141); break;
-      case 'b': bg = const Color(0xFF85BB2F); break;
-      case 'c': bg = const Color(0xFFFECB02); break;
-      case 'd': bg = const Color(0xFFEE8100); break;
-      default:  bg = const Color(0xFFE63E11); break;
+      case 'a': bg = const Color(0xFF038141); labelText = 'Nutri-Score A'; break;
+      case 'b': bg = const Color(0xFF85BB2F); labelText = 'Nutri-Score B'; break;
+      case 'c': bg = const Color(0xFFFECB02); labelText = 'Nutri-Score C'; break;
+      case 'd': bg = const Color(0xFFEE8100); labelText = 'Nutri-Score D'; break;
+      case 'e': bg = const Color(0xFFE63E11); labelText = 'Nutri-Score E'; break;
+      default:  bg = Colors.grey.shade600; labelText = 'Nutri-Score: N/D'; break;
     }
 
     return Container(
@@ -878,7 +1022,7 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
-        'Nutri-Score ${grade.toUpperCase()}',
+        labelText,
         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
       ),
     );

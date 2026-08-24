@@ -15,6 +15,17 @@ class NutriScanCard extends StatelessWidget {
     this.onSaveToCatalog,
   });
 
+  String _fmtVal(dynamic rawVal, String unit) {
+    if (rawVal == null) return 'Sin info';
+    final numVal = double.tryParse(rawVal.toString());
+    if (numVal == null) return '$rawVal $unit'.trim();
+    if (numVal == numVal.roundToDouble()) {
+      return '${numVal.toInt()} $unit';
+    }
+    final formatted = numVal.toStringAsFixed(2).replaceAll(RegExp(r'\.?0+$'), '');
+    return '$formatted $unit';
+  }
+
   String? _getSemaforoLevel(Map<String, dynamic>? semaforo, String key) {
     if (semaforo == null) return null;
     final val = semaforo[key] ??
@@ -137,9 +148,7 @@ class NutriScanCard extends StatelessWidget {
                 _buildMacroItem(
                   theme: theme,
                   label: '⚡ Energía',
-                  value: result.nutrientesMap?['energy_kcal'] != null
-                      ? '${result.nutrientesMap!['energy_kcal']} kcal'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['energy_kcal'], 'kcal'),
                   isSub: false,
                 ),
                 const Divider(height: 12),
@@ -147,17 +156,13 @@ class NutriScanCard extends StatelessWidget {
                 _buildMacroItem(
                   theme: theme,
                   label: '🍞 Hidratos de carbono',
-                  value: result.nutrientesMap?['carbohydrates'] != null
-                      ? '${result.nutrientesMap!['carbohydrates']} g'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['carbohydrates'], 'g'),
                   isSub: false,
                 ),
                 _buildMacroItem(
                   theme: theme,
                   label: '    ↳ de los cuales Azúcares',
-                  value: result.nutrientesMap?['sugars'] != null
-                      ? '${result.nutrientesMap!['sugars']} g'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['sugars'], 'g'),
                   level: _getSemaforoLevel(result.semaforoMap, 'sugars'),
                   isSub: true,
                 ),
@@ -166,18 +171,14 @@ class NutriScanCard extends StatelessWidget {
                 _buildMacroItem(
                   theme: theme,
                   label: '🥑 Grasas',
-                  value: result.nutrientesMap?['fat'] != null
-                      ? '${result.nutrientesMap!['fat']} g'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['fat'], 'g'),
                   level: _getSemaforoLevel(result.semaforoMap, 'fat'),
                   isSub: false,
                 ),
                 _buildMacroItem(
                   theme: theme,
                   label: '    ↳ de las cuales Saturadas',
-                  value: (result.nutrientesMap?['saturated_fat'] ?? result.nutrientesMap?['saturated-fat']) != null
-                      ? '${result.nutrientesMap!['saturated_fat'] ?? result.nutrientesMap!['saturated-fat']} g'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['saturated_fat'] ?? result.nutrientesMap?['saturated-fat'], 'g'),
                   level: _getSemaforoLevel(result.semaforoMap, 'saturated_fat'),
                   isSub: true,
                 ),
@@ -186,9 +187,7 @@ class NutriScanCard extends StatelessWidget {
                 _buildMacroItem(
                   theme: theme,
                   label: '💪 Proteínas',
-                  value: result.nutrientesMap?['proteins'] != null
-                      ? '${result.nutrientesMap!['proteins']} g'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['proteins'], 'g'),
                   isSub: false,
                 ),
                 const Divider(height: 12),
@@ -196,9 +195,7 @@ class NutriScanCard extends StatelessWidget {
                 _buildMacroItem(
                   theme: theme,
                   label: '🧂 Sal',
-                  value: result.nutrientesMap?['salt'] != null
-                      ? '${result.nutrientesMap!['salt']} g'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['salt'], 'g'),
                   level: _getSemaforoLevel(result.semaforoMap, 'salt'),
                   isSub: false,
                 ),
@@ -208,9 +205,7 @@ class NutriScanCard extends StatelessWidget {
                 _buildMacroItem(
                   theme: theme,
                   label: '🌾 Fibra alimentaria',
-                  value: result.nutrientesMap?['fiber'] != null
-                      ? '${result.nutrientesMap!['fiber']} g'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['fiber'], 'g'),
                   customBadge: _buildFiberBadge(result.nutrientesMap?['fiber']),
                   isSub: false,
                 ),
@@ -220,9 +215,7 @@ class NutriScanCard extends StatelessWidget {
                 _buildMacroItem(
                   theme: theme,
                   label: '🩸 Hierro',
-                  value: result.nutrientesMap?['iron_mg'] != null
-                      ? '${result.nutrientesMap!['iron_mg']} mg'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['iron_mg'], 'mg'),
                   customBadge: _buildIronBadge(result.nutrientesMap?['iron_mg']),
                   isSub: false,
                 ),
@@ -232,9 +225,7 @@ class NutriScanCard extends StatelessWidget {
                 _buildMacroItem(
                   theme: theme,
                   label: '🦴 Calcio',
-                  value: result.nutrientesMap?['calcium_mg'] != null
-                      ? '${result.nutrientesMap!['calcium_mg']} mg'
-                      : 'Sin info',
+                  value: _fmtVal(result.nutrientesMap?['calcium_mg'], 'mg'),
                   customBadge: _buildCalciumBadge(result.nutrientesMap?['calcium_mg']),
                   isSub: false,
                 ),
