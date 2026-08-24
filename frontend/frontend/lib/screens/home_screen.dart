@@ -7,7 +7,10 @@ import 'package:frontend/services/api_service.dart';
 import 'package:frontend/utils/expiry_utils.dart';
 import 'package:frontend/widgets/app_toast.dart';
 
+import 'package:frontend/screens/supermarket_scanner_screen.dart';
+
 class HomeScreen extends StatefulWidget {
+
   const HomeScreen({super.key});
 
   @override
@@ -612,7 +615,21 @@ class HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Inicio'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.greenAccent),
+            tooltip: 'NutriScanner Supermercado',
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const SupermarketScannerScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
+
       body: RefreshIndicator(
         onRefresh: refresh,
         child: LayoutBuilder(

@@ -96,10 +96,21 @@ class Product(Base):
     image_url = Column(String(512), nullable=True)
     dias_consumo_abierto = Column(Integer, nullable=True)  # Default days to consume after opening
     hogar_id = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
+    
+    # Nuevos campos de Nutrición, NOVA (MyRealFood) y Nutri-Score
+    nova_group = Column(Integer, nullable=True)                              # 1: Comida Real, 2/3: Buen Procesado, 4: Ultraprocesado
+    nutriscore_grade = Column(String(2), nullable=True)                     # 'a', 'b', 'c', 'd', 'e'
+    alergenos = Column(Text, nullable=True)                                  # JSON string list ["nuts", "milk"]
+    aditivos_count = Column(Integer, default=0, nullable=True)                # Conteo total de aditivos E-xxx
+    semaforo_nutricional = Column(Text, nullable=True)                       # JSON dict {"fat": "low", "saturated_fat": "low", ...}
+    nutrientes_100g = Column(Text, nullable=True)                            # JSON dict {"energy_kcal": 49, "carbohydrates": 13, ...}
+    nutricion_sync_at = Column(DateTime, nullable=True)                      # Fecha de actualización
+
     __table_args__ = (
         UniqueConstraint('barcode', 'hogar_id', name='producto_barcode_hogar_unique'),
         Index('ix_producto_hogar_nombre', 'hogar_id', 'nombre'),
     )
+
 
     # Relationships
     hogar = relationship("Hogar", back_populates="productos")

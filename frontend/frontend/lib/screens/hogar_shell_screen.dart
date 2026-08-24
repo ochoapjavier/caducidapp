@@ -32,10 +32,11 @@ class _HogarShellScreenState extends State<HogarShellScreen> {
     _screens = [
       HomeScreen(key: _homeKey), // Inicio
       InventoryManagementScreen(key: _inventoryKey), // Inventario
-      const CatalogScreen(), // Catálogo Maestro & Ratings
+      CatalogScreen(key: _catalogKey), // Catálogo Maestro & Ratings
       ShoppingListScreen(key: _shoppingListKey, hogarId: widget.hogarId), // Lista
       ProfileScreen(key: _profileKey, hogarId: widget.hogarId), // Perfil
     ];
+
   }
 
   void _onItemTapped(int index) {

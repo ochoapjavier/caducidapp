@@ -12,8 +12,10 @@ import '../models/ticket_item.dart';
 import '../models/ticket_review_submission.dart';
 import '../models/supermercado.dart';
 import '../models/catalog_product.dart';
+import '../models/nutri_scan_result.dart';
 import 'hogar_service.dart';
 import 'app_exceptions.dart';
+
 
 // --- 2. GESTIÓN DE ENTORNO AUTOMÁTICA ---
 // Permite sobreescribir la URL al compilar: flutter run --dart-define=API_URL=https://tu-api.com
@@ -282,6 +284,36 @@ Future<List<Map<String, dynamic>>> fetchMasterProducts(String query) async {
     return data.cast<Map<String, dynamic>>();
   });
 }
+
+/// Crea o actualiza un producto maestro por código de barras.
+Future<Map<String, dynamic>> createOrUpdateProductMaster({
+  required String barcode,
+  required String name,
+  String? brand,
+}) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/products/by-barcode/$barcode'),
+      headers: headers,
+      body: jsonEncode({'nombre': name, 'marca': brand}),
+    );
+    return _processResponse(response);
+  });
+}
+
+/// Consulta efímera en tiempo real para escaneo de supermercado sin guardar en BD.
+
+Future<NutriScanResult> lookupScanProduct(String barcode) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final uri = Uri.parse('$apiUrl/catalog/lookup-scan?barcode=${Uri.encodeComponent(barcode)}');
+    final response = await http.get(uri, headers: headers);
+    final data = _processResponse(response);
+    return NutriScanResult.fromJson(data);
+  });
+}
+
 
 /// Busca un producto en la API de Open Food Facts usando su código de barras.
 Future<Map<String, dynamic>?> fetchProductFromOpenFoodFacts(
@@ -751,6 +783,8 @@ Future<List<CatalogProduct>> fetchCatalogProducts({
   String? search,
   bool onlyFavorites = false,
   bool onlyInStock = false,
+  bool onlyRealfood = false,
+  bool onlyHighIron = false,
   double? minRating,
   String sortBy = 'name_asc',
 }) async {
@@ -768,9 +802,17 @@ Future<List<CatalogProduct>> fetchCatalogProducts({
     if (onlyInStock) {
       queryParams['only_in_stock'] = 'true';
     }
+    if (onlyRealfood) {
+      queryParams['only_realfood'] = 'true';
+    }
+    if (onlyHighIron) {
+      queryParams['only_high_iron'] = 'true';
+    }
     if (minRating != null && minRating > 0) {
       queryParams['min_rating'] = minRating.toString();
     }
+
+
     if (sortBy.isNotEmpty) {
       queryParams['sort_by'] = sortBy;
     }
@@ -835,4 +877,17 @@ Future<void> deleteCatalogProductRating(int productId) async {
     _processResponse(response);
   });
 }
+
+/// Sincroniza y obtiene la información nutricional de un producto desde OpenFoodFacts.
+Future<Map<String, dynamic>> fetchCatalogProductNutrition(int productId) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/catalog/$productId/fetch-nutrition'),
+      headers: headers,
+    );
+    return _processResponse(response);
+  });
+}
+
 

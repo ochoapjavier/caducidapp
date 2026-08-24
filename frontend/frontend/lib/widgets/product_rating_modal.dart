@@ -25,8 +25,12 @@ class ProductRatingModal extends StatefulWidget {
     return showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
+      enableDrag: true,
+      isDismissible: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Padding(
+
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
@@ -43,6 +47,7 @@ class ProductRatingModal extends StatefulWidget {
 }
 
 class _ProductRatingModalState extends State<ProductRatingModal> {
+  late CatalogProduct _product;
   late double _rating;
   late bool _isFavorite;
   late TextEditingController _noteController;
@@ -51,6 +56,7 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
   late List<String> _allAvailableTags;
   bool _isSaving = false;
   bool _isAddingToShopping = false;
+
 
   final List<String> _availableTags = const [
     '¡Recomendado!',
@@ -64,12 +70,13 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
   @override
   void initState() {
     super.initState();
-    _rating = widget.product.miPuntuacion ?? widget.product.ratingPromedio ?? 5.0;
-    _isFavorite = widget.product.esFavorito;
-    _noteController = TextEditingController(text: widget.product.miNota ?? '');
+    _product = widget.product;
+    _rating = _product.miPuntuacion ?? _product.ratingPromedio ?? 5.0;
+    _isFavorite = _product.esFavorito;
+    _noteController = TextEditingController(text: _product.miNota ?? '');
     _customTagController = TextEditingController();
     
-    final rawTags = widget.product.misTags ?? '';
+    final rawTags = _product.misTags ?? '';
     _selectedTags = rawTags.isNotEmpty
         ? rawTags.split(',').map((t) => t.trim()).where((t) => t.isNotEmpty).toList()
         : [];
@@ -80,7 +87,36 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
         _allAvailableTags.add(tag);
       }
     }
+
+    if (_product.barcode != null && _product.barcode!.isNotEmpty && _product.novaGroup == null) {
+      _fetchNutritionData();
+    }
   }
+
+  Future<void> _fetchNutritionData() async {
+    try {
+      final res = await api.fetchCatalogProductNutrition(_product.idProducto);
+      if (res['status'] == 'success' && res['nutrition'] != null) {
+        final nut = res['nutrition'];
+        if (!mounted) return;
+        setState(() {
+          _product = _product.copyWith(
+            novaGroup: nut['nova_group'] as int?,
+            nutriscoreGrade: nut['nutriscore_grade'] as String?,
+            alergenos: nut['alergenos'] as String?,
+            aditivosCount: nut['aditivos_count'] as int? ?? 0,
+            semaforoNutricional: nut['semaforo_nutricional'] as String?,
+            nutrientes100g: nut['nutrientes_100g'] as String?,
+            imageUrl: nut['image_url'] as String? ?? _product.imageUrl,
+          );
+        });
+      }
+    } catch (e) {
+      debugPrint('Error al auto-cargar nutrición de OpenFoodFacts: $e');
+    }
+  }
+
+
 
   @override
   void dispose() {
@@ -242,15 +278,27 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // Barra de agarre superior
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  margin: const EdgeInsets.only(bottom: 20),
-                  decoration: BoxDecoration(
-                    color: colorScheme.onSurfaceVariant.withOpacity(0.3),
-                    borderRadius: BorderRadius.circular(2),
+              // Barra de agarre superior deslizable e interactiva para cerrar
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onVerticalDragUpdate: (details) {
+                  if (details.primaryDelta != null && details.primaryDelta! > 4) {
+                    Navigator.of(context).pop();
+                  }
+                },
+                onTap: () => Navigator.of(context).pop(),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8.0),
+                  child: Center(
+                    child: Container(
+                      width: 48,
+                      height: 5,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: colorScheme.onSurfaceVariant.withOpacity(0.4),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -338,23 +386,38 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
                       ],
                     ),
                   ),
-                  // Botón Corazón Favorito
-                  IconButton.filledTonal(
-                    onPressed: () {
-                      setState(() => _isFavorite = !_isFavorite);
-                    },
-                    icon: Icon(
-                      _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                      color: _isFavorite ? Colors.red : colorScheme.onSurfaceVariant,
-                    ),
-                    style: IconButton.styleFrom(
-                      backgroundColor: _isFavorite
-                          ? Colors.red.withOpacity(0.15)
-                          : colorScheme.surfaceContainerHighest,
-                    ),
+                  // Botones Favorito y Cerrar X
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton.filledTonal(
+                        onPressed: () {
+                          setState(() => _isFavorite = !_isFavorite);
+                        },
+                        icon: Icon(
+                          _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                          color: _isFavorite ? Colors.red : colorScheme.onSurfaceVariant,
+                        ),
+                        style: IconButton.styleFrom(
+                          backgroundColor: _isFavorite
+                              ? Colors.red.withOpacity(0.15)
+                              : colorScheme.surfaceContainerHighest,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton.filledTonal(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: 'Cerrar modal',
+                        style: IconButton.styleFrom(
+                          backgroundColor: colorScheme.surfaceContainerHighest,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
+
 
               const SizedBox(height: 24),
               const Divider(height: 1),
@@ -492,7 +555,6 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
                 maxLines: 2,
                 decoration: InputDecoration(
                   labelText: 'Nota o comentario personal (Opcional)',
-
                   hintText: 'Ej. Comprar siempre marca hacendado, la versión 0% sabe mejor',
                   alignLabelWithHint: true,
                   border: OutlineInputBorder(
@@ -504,6 +566,14 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
               ),
 
               const SizedBox(height: 24),
+              const Divider(height: 1),
+              const SizedBox(height: 20),
+
+              // Sección Nutricional & Salud (MyRealFood + NutriScore + Tabla por 100g)
+              _buildNutritionSection(context),
+
+              const SizedBox(height: 24),
+
 
               // Botón Acción: Añadir a la Lista de la Compra
               OutlinedButton.icon(
@@ -564,4 +634,408 @@ class _ProductRatingModalState extends State<ProductRatingModal> {
       ),
     );
   }
+
+  Widget _buildNutritionSection(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+    final product = _product;
+    final nutrientes = product.nutrientesMap;
+    final semaforo = product.semaforoMap;
+
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.health_and_safety_rounded, size: 22, color: Colors.green),
+            const SizedBox(width: 8),
+            Text(
+              'Información Nutricional & Salud',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+
+        // Badges principales: MyRealFood (NOVA) + Nutri-Score (Wrap anti-overflow)
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            if (product.novaGroup != null)
+              _buildNovaBadge(product.novaGroup!),
+            if (product.nutriscoreGrade != null && product.nutriscoreGrade!.isNotEmpty)
+              _buildNutriscoreBadge(product.nutriscoreGrade!),
+            if (product.aditivosCount > 0)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade100,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.amber.shade400),
+                ),
+                child: Text(
+                  '⚠️ ${product.aditivosCount} Aditivos',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.amber.shade900,
+                  ),
+                ),
+              ),
+          ],
+        ),
+
+
+        const SizedBox(height: 14),
+
+        // Tabla de Valores por 100g
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colorScheme.outlineVariant.withOpacity(0.4)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Valores por 100 g',
+                style: theme.textTheme.labelMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.primary,
+                ),
+              ),
+              const SizedBox(height: 10),
+              
+              // ⚡ Energía (kcal)
+              _buildMacroItem(
+                label: '⚡ Energía',
+                value: nutrientes != null && nutrientes['energy_kcal'] != null
+                    ? '${nutrientes['energy_kcal']} kcal'
+                    : 'Sin info',
+                isSub: false,
+              ),
+              const Divider(height: 12),
+
+              // 🍞 Hidratos de carbono
+              _buildMacroItem(
+                label: '🍞 Hidratos de carbono',
+                value: nutrientes != null && nutrientes['carbohydrates'] != null
+                    ? '${nutrientes['carbohydrates']} g'
+                    : 'Sin info',
+                isSub: false,
+              ),
+              // ↳ Azúcares (con semáforo)
+              _buildMacroItem(
+                label: '    ↳ de los cuales Azúcares',
+                value: nutrientes != null && nutrientes['sugars'] != null
+                    ? '${nutrientes['sugars']} g'
+                    : 'Sin info',
+                level: _getSemaforoLevel(semaforo, 'sugars'),
+                isSub: true,
+              ),
+              const Divider(height: 12),
+
+              // 🥑 Grasas
+              _buildMacroItem(
+                label: '🥑 Grasas',
+                value: nutrientes != null && nutrientes['fat'] != null
+                    ? '${nutrientes['fat']} g'
+                    : 'Sin info',
+                level: _getSemaforoLevel(semaforo, 'fat'),
+                isSub: false,
+              ),
+              // ↳ Saturadas (con semáforo)
+              _buildMacroItem(
+                label: '    ↳ de las cuales Saturadas',
+                value: nutrientes != null && (nutrientes['saturated_fat'] ?? nutrientes['saturated-fat']) != null
+                    ? '${nutrientes['saturated_fat'] ?? nutrientes['saturated-fat']} g'
+                    : 'Sin info',
+                level: _getSemaforoLevel(semaforo, 'saturated_fat'),
+                isSub: true,
+              ),
+              const Divider(height: 12),
+
+              // 💪 Proteínas
+              _buildMacroItem(
+                label: '💪 Proteínas',
+                value: nutrientes != null && nutrientes['proteins'] != null
+                    ? '${nutrientes['proteins']} g'
+                    : 'Sin info',
+                isSub: false,
+              ),
+              const Divider(height: 12),
+
+              // 🧂 Sal
+              _buildMacroItem(
+                label: '🧂 Sal',
+                value: nutrientes != null && nutrientes['salt'] != null
+                    ? '${nutrientes['salt']} g'
+                    : 'Sin info',
+                level: _getSemaforoLevel(semaforo, 'salt'),
+                isSub: false,
+              ),
+
+              // 🌾 Fibra
+              const Divider(height: 12),
+              _buildMacroItem(
+                label: '🌾 Fibra alimentaria',
+                value: nutrientes != null && nutrientes['fiber'] != null
+                    ? '${nutrientes['fiber']} g'
+                    : 'Sin info',
+                customBadge: nutrientes != null ? _buildFiberBadge(nutrientes['fiber']) : null,
+                isSub: false,
+              ),
+
+              // 🩸 Hierro
+              const Divider(height: 12),
+              _buildMacroItem(
+                label: '🩸 Hierro',
+                value: nutrientes != null && nutrientes['iron_mg'] != null
+                    ? '${nutrientes['iron_mg']} mg'
+                    : 'Sin info',
+                customBadge: nutrientes != null ? _buildIronBadge(nutrientes['iron_mg']) : null,
+                isSub: false,
+              ),
+
+              // 🦴 Calcio
+              const Divider(height: 12),
+              _buildMacroItem(
+                label: '🦴 Calcio',
+                value: nutrientes != null && nutrientes['calcium_mg'] != null
+                    ? '${nutrientes['calcium_mg']} mg'
+                    : 'Sin info',
+                customBadge: nutrientes != null ? _buildCalciumBadge(nutrientes['calcium_mg']) : null,
+                isSub: false,
+              ),
+
+
+
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNovaBadge(int nova) {
+    String label;
+    Color color;
+    Color textColor;
+
+    switch (nova) {
+      case 1:
+        label = '🟢 Comida Real';
+        color = Colors.green.shade100;
+        textColor = Colors.green.shade900;
+        break;
+      case 2:
+      case 3:
+        label = '🟡 Buen Procesado';
+        color = Colors.amber.shade100;
+        textColor = Colors.amber.shade900;
+        break;
+      default:
+        label = '🔴 Ultraprocesado';
+        color = Colors.red.shade100;
+        textColor = Colors.red.shade900;
+        break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: textColor),
+      ),
+    );
+  }
+
+  Widget _buildNutriscoreBadge(String grade) {
+    final clean = grade.toLowerCase();
+    Color bg;
+    switch (clean) {
+      case 'a': bg = const Color(0xFF038141); break;
+      case 'b': bg = const Color(0xFF85BB2F); break;
+      case 'c': bg = const Color(0xFFFECB02); break;
+      case 'd': bg = const Color(0xFFEE8100); break;
+      default:  bg = const Color(0xFFE63E11); break;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Text(
+        'Nutri-Score ${grade.toUpperCase()}',
+        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.white),
+      ),
+    );
+  }
+
+  String? _getSemaforoLevel(Map<String, dynamic>? semaforo, String key) {
+    if (semaforo == null) return null;
+    final val = semaforo[key] ??
+        semaforo[key.replaceAll('_', '-')] ??
+        semaforo[key.replaceAll('-', '_')];
+    return val?.toString();
+  }
+
+  Widget? _buildIronBadge(dynamic rawIron) {
+    if (rawIron == null) return null;
+    final val = double.tryParse(rawIron.toString());
+    if (val == null) return null;
+    final vrn = ((val / 14.0) * 100).round();
+    if (val >= 4.2) {
+      return _buildMiniBadge('Alto 🌟 ($vrn% VRN)', Colors.purple.shade800, Colors.purple.shade50);
+    } else if (val >= 2.1) {
+      return _buildMiniBadge('Medio 🟢 ($vrn% VRN)', Colors.green.shade800, Colors.green.shade50);
+    } else if (val >= 0.7) {
+      return _buildMiniBadge('Moderado 🟡 ($vrn% VRN)', Colors.amber.shade900, Colors.amber.shade50);
+    }
+    return _buildMiniBadge('Bajo ⚪ ($vrn% VRN)', Colors.grey.shade700, Colors.grey.shade100);
+  }
+
+  Widget? _buildFiberBadge(dynamic rawFiber) {
+    if (rawFiber == null) return null;
+    final val = double.tryParse(rawFiber.toString());
+    if (val == null) return null;
+    if (val >= 6.0) {
+      return _buildMiniBadge('Alto 🌾 (${val}g)', Colors.brown.shade800, Colors.amber.shade50);
+    } else if (val >= 3.0) {
+      return _buildMiniBadge('Medio 🟢 (${val}g)', Colors.green.shade800, Colors.green.shade50);
+    } else if (val >= 1.5) {
+      return _buildMiniBadge('Moderado 🟡 (${val}g)', Colors.amber.shade900, Colors.amber.shade50);
+    }
+    return _buildMiniBadge('Bajo ⚪ (${val}g)', Colors.grey.shade700, Colors.grey.shade100);
+  }
+
+  Widget? _buildCalciumBadge(dynamic rawCalcium) {
+    if (rawCalcium == null) return null;
+    final val = double.tryParse(rawCalcium.toString());
+    if (val == null) return null;
+    final vrn = ((val / 800.0) * 100).round();
+    if (val >= 240) {
+      return _buildMiniBadge('Alto 🦴 ($vrn% VRN)', Colors.blue.shade900, Colors.blue.shade50);
+    } else if (val >= 120) {
+      return _buildMiniBadge('Medio 🟢 ($vrn% VRN)', Colors.teal.shade800, Colors.teal.shade50);
+    } else if (val >= 40) {
+      return _buildMiniBadge('Moderado 🟡 ($vrn% VRN)', Colors.amber.shade900, Colors.amber.shade50);
+    }
+    return _buildMiniBadge('Bajo ⚪ ($vrn% VRN)', Colors.grey.shade700, Colors.grey.shade100);
+  }
+
+
+  Widget _buildMiniBadge(String text, Color textColor, Color bgColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 10),
+      ),
+    );
+  }
+
+  Widget _buildMacroItem({
+    required String label,
+    required String value,
+    String? level,
+    Widget? customBadge,
+    required bool isSub,
+  }) {
+    Color? levelColor;
+    String? levelText;
+
+
+    if (level != null && level != 'unknown') {
+      switch (level.toLowerCase()) {
+        case 'low':
+          levelColor = Colors.green.shade700;
+          levelText = 'Bajo';
+          break;
+        case 'moderate':
+          levelColor = Colors.amber.shade800;
+          levelText = 'Medio';
+          break;
+        case 'high':
+          levelColor = Colors.red.shade700;
+          levelText = 'Alto';
+          break;
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: isSub ? 12 : 13,
+              fontWeight: isSub ? FontWeight.w500 : FontWeight.w600,
+              color: isSub ? Colors.grey.shade700 : null,
+            ),
+          ),
+          Row(
+            children: [
+              Text(
+                value,
+                style: value == 'Sin info'
+                    ? TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.normal,
+                        fontStyle: FontStyle.italic,
+                        color: Colors.grey.shade500,
+                      )
+                    : TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: levelColor,
+                      ),
+              ),
+              if (customBadge != null) ...[
+                const SizedBox(width: 6),
+                customBadge,
+              ] else if (levelText != null && levelColor != null) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: levelColor.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    levelText,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: levelColor,
+                    ),
+                  ),
+                ),
+              ],
+
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
+
