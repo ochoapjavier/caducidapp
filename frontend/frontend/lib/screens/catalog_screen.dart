@@ -9,6 +9,7 @@ import 'package:frontend/services/hogar_service.dart';
 import 'package:frontend/widgets/product_rating_modal.dart';
 import 'package:frontend/widgets/app_toast.dart';
 import 'package:frontend/widgets/error_view.dart';
+import 'package:frontend/screens/supermarket_scanner_screen.dart';
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -18,7 +19,10 @@ class CatalogScreen extends StatefulWidget {
 }
 
 class _CatalogScreenState extends State<CatalogScreen> {
+
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  double _savedScrollOffset = 0.0;
   Timer? _debounce;
   late Future<List<CatalogProduct>> _productsFuture;
 
@@ -38,6 +42,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   void dispose() {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
+    _scrollController.dispose();
     _debounce?.cancel();
     super.dispose();
   }
@@ -49,12 +54,20 @@ class _CatalogScreenState extends State<CatalogScreen> {
     });
   }
 
-  void _refreshProducts() {
+  void _refreshProducts({bool preserveScroll = false}) {
+    if (preserveScroll && _scrollController.hasClients) {
+      _savedScrollOffset = _scrollController.offset;
+    } else {
+      _savedScrollOffset = 0.0;
+    }
+
     setState(() {
       _productsFuture = api.fetchCatalogProducts(
         search: _searchController.text.trim(),
         onlyFavorites: _activeFilter == 'favoritos',
         onlyInStock: _activeFilter == 'stock',
+        onlyRealfood: _activeFilter == 'realfood',
+        onlyHighIron: _activeFilter == 'iron',
         minRating: _activeFilter == 'top' ? 4.0 : null,
         sortBy: _sortBy,
       );
@@ -72,7 +85,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
             : '${product.nombre} quitado de favoritos',
         type: AppToastType.info,
       );
-      _refreshProducts();
+      _refreshProducts(preserveScroll: true);
     } catch (e) {
       if (!mounted) return;
       AppToast.show(
@@ -112,13 +125,24 @@ class _CatalogScreenState extends State<CatalogScreen> {
     }
   }
 
-  void _openRatingModal(CatalogProduct product) {
-    ProductRatingModal.show(
+  /// Método de refresco público invocado al cambiar de pestaña o desde el exterior
+  void refresh() {
+    if (mounted) {
+      _refreshProducts(preserveScroll: true);
+    }
+  }
+
+  Future<void> _openRatingModal(CatalogProduct product) async {
+    await ProductRatingModal.show(
       context,
       product: product,
-      onRatingSaved: _refreshProducts,
+      onRatingSaved: () => _refreshProducts(preserveScroll: true),
     );
+    // Auto-refrescar siempre al cerrar la ficha, haya guardado o no, manteniendo la posición de scroll
+    _refreshProducts(preserveScroll: true);
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -130,7 +154,23 @@ class _CatalogScreenState extends State<CatalogScreen> {
         title: const Text('Catálogo de Productos'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.greenAccent),
+            tooltip: 'NutriScanner Supermercado',
+            onPressed: () async {
+              final activeHogarId = await HogarService().getHogarActivo();
+              if (context.mounted) {
+
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => SupermarketScannerScreen(hogarId: activeHogarId),
+                  ),
+                );
+              }
+            },
+          ),
+          IconButton(
             icon: Icon(_isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded),
+
             tooltip: _isGridView ? 'Vista lista' : 'Vista cuadrícula',
             onPressed: () => setState(() => _isGridView = !_isGridView),
           ),
@@ -245,8 +285,12 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     children: [
                       _buildSegmentFilter('todos', 'Todos', Icons.grid_view_rounded),
                       _buildSegmentFilter('favoritos', 'Favoritos ❤️', Icons.favorite_rounded),
+                      _buildSegmentFilter('realfood', 'Comida Real 🟢', Icons.eco_rounded),
+                      _buildSegmentFilter('iron', 'Rico en Hierro 🩸', Icons.bloodtype_rounded),
                       _buildSegmentFilter('stock', 'En Stock 📦', Icons.inventory_2_rounded),
                       _buildSegmentFilter('top', 'Top 4+ ⭐', Icons.star_rounded),
+
+
                     ],
                   ),
                 ),
@@ -374,12 +418,24 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     );
                   }
 
+                  if (_savedScrollOffset > 0) {
+
+
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (_scrollController.hasClients) {
+                        final maxScroll = _scrollController.position.maxScrollExtent;
+                        _scrollController.jumpTo(_savedScrollOffset.clamp(0.0, maxScroll));
+                      }
+                    });
+                  }
+
                   if (_isGridView) {
                     return GridView.builder(
-                      padding: const EdgeInsets.all(16),
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(12),
                       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount: 2,
-                        childAspectRatio: 0.62,
+                        childAspectRatio: 0.68,
                         crossAxisSpacing: 12,
                         mainAxisSpacing: 12,
                       ),
@@ -390,6 +446,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     );
                   } else {
                     return ListView.separated(
+                      controller: _scrollController,
                       padding: const EdgeInsets.all(16),
                       itemCount: products.length,
                       separatorBuilder: (_, __) => const SizedBox(height: 10),
@@ -398,6 +455,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                       },
                     );
                   }
+
                 },
               ),
             ),
@@ -455,202 +513,246 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 
   Widget _buildProductGridCard(BuildContext context, CatalogProduct product) {
-
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
     return Material(
       color: colorScheme.surface,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(18),
       elevation: 2,
-      shadowColor: Colors.black.withOpacity(0.08),
+      shadowColor: Colors.black.withValues(alpha: 0.06),
       child: InkWell(
         onTap: () => _openRatingModal(product),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         child: Container(
-          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color: colorScheme.outlineVariant.withOpacity(0.4),
+              color: colorScheme.outlineVariant.withValues(alpha: 0.4),
             ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Imagen y Botón Favorito
+              // 1. Imagen del producto (Cabecera destacada)
               Stack(
                 children: [
                   Container(
-                    height: 75,
+                    height: 105,
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
-                      borderRadius: BorderRadius.circular(14),
+                      color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(17)),
                     ),
-
-                    child: product.imageUrl != null && product.imageUrl!.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(14),
-                            child: Image.network(
-                              product.imageUrl!,
-                              fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Icon(
-                                Icons.inventory_2_outlined,
-                                size: 36,
-                                color: colorScheme.primary.withOpacity(0.7),
+                    child: Padding(
+                      padding: const EdgeInsets.all(6),
+                      child: product.imageUrl != null && product.imageUrl!.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                product.imageUrl!,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, __, ___) => Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 40,
+                                  color: colorScheme.primary.withValues(alpha: 0.7),
+                                ),
                               ),
+                            )
+                          : Icon(
+                              Icons.inventory_2_outlined,
+                              size: 40,
+                              color: colorScheme.primary.withValues(alpha: 0.7),
                             ),
-                          )
-                        : Icon(
-                            Icons.inventory_2_outlined,
-                            size: 36,
-                            color: colorScheme.primary.withOpacity(0.7),
-                          ),
+                    ),
                   ),
+
+                  // Botón Favorito Flotante
                   Positioned(
-                    top: 4,
-                    right: 4,
+                    top: 6,
+                    right: 6,
                     child: InkWell(
                       onTap: () => _toggleFavorite(product),
                       borderRadius: BorderRadius.circular(20),
                       child: Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.all(5),
                         decoration: BoxDecoration(
-                          color: colorScheme.surface.withOpacity(0.9),
+                          color: colorScheme.surface.withValues(alpha: 0.85),
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 4,
+                            ),
+                          ],
                         ),
                         child: Icon(
                           product.esFavorito ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                          size: 18,
+                          size: 16,
                           color: product.esFavorito ? Colors.red : colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ),
                   ),
-                  // Badge Stock
+
+                  // Badge de Stock
                   Positioned(
-                    bottom: 4,
-                    left: 4,
+                    bottom: 6,
+                    left: 6,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                       decoration: BoxDecoration(
                         color: product.stockActual > 0
-                            ? Colors.green.shade700
-                            : Colors.grey.shade600,
-                        borderRadius: BorderRadius.circular(6),
+                            ? Colors.green.shade800
+                            : Colors.grey.shade700,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      child: Text(
-                        product.stockActual > 0 ? '${product.stockActual} en stock' : 'Sin stock',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 10,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            product.stockActual > 0 ? Icons.check_circle_rounded : Icons.remove_circle_outline_rounded,
+                            size: 10,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            product.stockActual > 0 ? '${product.stockActual} disp.' : 'Sin stock',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 9.5,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
 
-              // Nombre
-              Text(
-                product.nombre,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              // 2. Información del Producto (Cuerpo compacto)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Marca
+                      if (product.marca != null && product.marca!.isNotEmpty)
+                        Text(
+                          product.marca!.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: colorScheme.primary,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 9.5,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
 
-              // Marca
-              if (product.marca != null && product.marca!.isNotEmpty)
-                Text(
-                  product.marca!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontSize: 11,
-                  ),
-                )
-              else
-                const SizedBox(height: 4),
+                      // Nombre (2 líneas)
+                      Text(
+                        product.nombre,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12.5,
+                          height: 1.15,
+                        ),
+                      ),
 
-              if (product.misTags != null && product.misTags!.isNotEmpty) ...[
-                const SizedBox(height: 2),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: product.misTags!.split(',').map((t) {
-                      final tag = t.trim();
-                      if (tag.isEmpty) return const SizedBox.shrink();
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 4),
-                        child: InkWell(
-                          onTap: () {
-                            _searchController.text = tag;
-                            _refreshProducts();
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                            decoration: BoxDecoration(
-                              color: colorScheme.primaryContainer.withValues(alpha: 0.5),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              '#$tag',
-                              style: theme.textTheme.labelSmall?.copyWith(
-                                fontSize: 9,
-                                color: colorScheme.onPrimaryContainer,
-                                fontWeight: FontWeight.w600,
+                      const SizedBox(height: 4),
+
+                      // Insignias de Salud (NOVA, NutriScore, Micronutrientes)
+                      _buildMiniHealthBadges(product),
+
+                      // Tags si existen
+                      if (product.misTags != null && product.misTags!.isNotEmpty) ...[
+                        const SizedBox(height: 3),
+                        SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: product.misTags!.split(',').map((t) {
+                              final tag = t.trim();
+                              if (tag.isEmpty) return const SizedBox.shrink();
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 4),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer.withValues(alpha: 0.4),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    '#$tag',
+                                    style: TextStyle(
+                                      fontSize: 8.5,
+                                      color: colorScheme.onPrimaryContainer,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ],
+
+                      const Spacer(),
+
+                      // Bar de Calificación y Acción Rápida
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              const Icon(Icons.star_rounded, size: 15, color: Colors.amber),
+                              const SizedBox(width: 2),
+                              Text(
+                                product.ratingPromedio != null
+                                    ? product.ratingPromedio!.toStringAsFixed(1)
+                                    : 'Sin nota',
+                                style: theme.textTheme.labelSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 11,
+                                ),
+                              ),
+                              if (product.totalValoraciones > 0)
+                                Text(
+                                  ' (${product.totalValoraciones})',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontSize: 9.5,
+                                  ),
+                                ),
+                            ],
+                          ),
+
+                          // Botón rápido de añadir a la lista de compra
+                          Material(
+                            color: colorScheme.primaryContainer.withValues(alpha: 0.6),
+                            borderRadius: BorderRadius.circular(8),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () => _quickAddToShoppingList(product),
+                              child: Padding(
+                                padding: const EdgeInsets.all(5),
+                                child: Icon(
+                                  Icons.add_shopping_cart_rounded,
+                                  size: 15,
+                                  color: colorScheme.onPrimaryContainer,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    }).toList(),
-                  ),
-                ),
-              ],
-
-              const Spacer(),
-
-              // Puntuación Estrellas y botón rápido
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(Icons.star_rounded, size: 16, color: Colors.amber),
-                      const SizedBox(width: 2),
-                      Text(
-                        product.ratingPromedio != null
-                            ? product.ratingPromedio!.toStringAsFixed(1)
-                            : '-',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                        ],
                       ),
-                      if (product.totalValoraciones > 0)
-                        Text(
-                          ' (${product.totalValoraciones})',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            fontSize: 10,
-                          ),
-                        ),
                     ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.add_shopping_cart_rounded, size: 18),
-                    tooltip: 'Añadir a la lista',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    onPressed: () => _quickAddToShoppingList(product),
-                  ),
-                ],
+                ),
               ),
             ],
           ),
@@ -660,6 +762,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 
   Widget _buildProductListTile(BuildContext context, CatalogProduct product) {
+
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -734,6 +837,8 @@ class _CatalogScreenState extends State<CatalogScreen> {
                         ),
                       ),
                     ],
+                    _buildMiniHealthBadges(product),
+
                     if (product.misTags != null && product.misTags!.isNotEmpty) ...[
                       const SizedBox(height: 4),
                       Wrap(
@@ -837,4 +942,91 @@ class _CatalogScreenState extends State<CatalogScreen> {
       ),
     );
   }
+
+  Widget _buildMiniHealthBadges(CatalogProduct product) {
+    final hasNova = product.novaGroup != null;
+    final hasNutriscore = product.nutriscoreGrade != null && product.nutriscoreGrade!.isNotEmpty;
+
+    if (!hasNova && !hasNutriscore) return const SizedBox.shrink();
+
+    String novaText = '';
+    Color novaBg = Colors.grey;
+    Color novaTextCol = Colors.white;
+
+    if (hasNova) {
+      switch (product.novaGroup) {
+        case 1:
+          novaText = '🟢 Real';
+          novaBg = Colors.green.shade100;
+          novaTextCol = Colors.green.shade900;
+          break;
+        case 2:
+        case 3:
+          novaText = '🟡 Procesado';
+          novaBg = Colors.amber.shade100;
+          novaTextCol = Colors.amber.shade900;
+          break;
+        default:
+          novaText = '🔴 Ultraprocesado';
+          novaBg = Colors.red.shade100;
+          novaTextCol = Colors.red.shade900;
+          break;
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 3, bottom: 3),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: [
+          if (hasNova) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: novaBg,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                novaText,
+                style: TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: novaTextCol,
+                ),
+              ),
+            ),
+          ],
+          if (hasNutriscore) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: _getNutriscoreColor(product.nutriscoreGrade!),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Nutri ${product.nutriscoreGrade!.toUpperCase()}',
+                style: const TextStyle(
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _getNutriscoreColor(String grade) {
+    switch (grade.toLowerCase()) {
+      case 'a': return const Color(0xFF038141);
+      case 'b': return const Color(0xFF85BB2F);
+      case 'c': return const Color(0xFFFECB02);
+      case 'd': return const Color(0xFFEE8100);
+      default: return const Color(0xFFE63E11);
+    }
+  }
 }
+

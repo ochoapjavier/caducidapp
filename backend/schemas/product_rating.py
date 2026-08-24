@@ -45,5 +45,14 @@ class CatalogProductSchema(BaseModel):
     mi_nota: str | None = None
     mis_tags: str | None = None
 
+    # Datos Nutricionales (OpenFoodFacts / MyRealFood / Nutri-Score)
+    nova_group: int | None = None
+    nutriscore_grade: str | None = None
+    alergenos: str | None = None
+    aditivos_count: int = 0
+    semaforo_nutricional: str | None = None
+    nutrientes_100g: str | None = None
+
     class Config:
+
         from_attributes = True

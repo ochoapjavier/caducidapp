@@ -22,7 +22,24 @@ def get_product_by_barcode(
         raise HTTPException(status_code=404, detail="Producto no encontrado en el catálogo del hogar.")
     return product
 
+@router.post("/by-barcode/{barcode}", response_model=ProductSchema)
+def create_or_get_product_by_barcode(
+    barcode: str, 
+    product_data: ProductUpdate, 
+    db: Session = Depends(get_db),
+    hogar_id: int = Depends(get_active_hogar_id)
+):
+    """Get or create a master product by barcode in the household."""
+    repo = ProductRepository(db)
+    return repo.get_or_create_by_barcode(
+        barcode=barcode,
+        name=product_data.nombre,
+        brand=product_data.marca,
+        hogar_id=hogar_id
+    )
+
 @router.put("/by-barcode/{barcode}", response_model=ProductSchema)
+
 def update_product_by_barcode(
     barcode: str, 
     product_update: ProductUpdate, 

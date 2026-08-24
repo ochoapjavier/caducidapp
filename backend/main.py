@@ -1,4 +1,12 @@
 # backend/main.py
+# Reload trigger for strict API nutrition extraction without category inferences - updated 2026-08-24 15:32
+
+
+
+
+
+
+
 from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 

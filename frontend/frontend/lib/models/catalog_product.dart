@@ -1,4 +1,4 @@
-// frontend/lib/models/catalog_product.dart
+import 'dart:convert';
 
 class CatalogProduct {
   final int idProducto;
@@ -16,6 +16,14 @@ class CatalogProduct {
   final String? miNota;
   final String? misTags;
 
+  // Campos Nutricionales (MyRealFood / OpenFoodFacts / NutriScore)
+  final int? novaGroup;
+  final String? nutriscoreGrade;
+  final String? alergenos;
+  final int aditivosCount;
+  final String? semaforoNutricional;
+  final String? nutrientes100g;
+
   CatalogProduct({
     required this.idProducto,
     this.barcode,
@@ -31,7 +39,41 @@ class CatalogProduct {
     required this.esFavorito,
     this.miNota,
     this.misTags,
+    this.novaGroup,
+    this.nutriscoreGrade,
+    this.alergenos,
+    this.aditivosCount = 0,
+    this.semaforoNutricional,
+    this.nutrientes100g,
   });
+
+  Map<String, dynamic>? get nutrientesMap {
+    if (nutrientes100g == null || nutrientes100g!.isEmpty) return null;
+    try {
+      return jsonDecode(nutrientes100g!);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Map<String, dynamic>? get semaforoMap {
+    if (semaforoNutricional == null || semaforoNutricional!.isEmpty) return null;
+    try {
+      return jsonDecode(semaforoNutricional!);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<String> get alergenosList {
+    if (alergenos == null || alergenos!.isEmpty) return [];
+    try {
+      final List<dynamic> decoded = jsonDecode(alergenos!);
+      return decoded.map((e) => e.toString()).toList();
+    } catch (_) {
+      return [];
+    }
+  }
 
   factory CatalogProduct.fromJson(Map<String, dynamic> json) {
     return CatalogProduct(
@@ -49,6 +91,12 @@ class CatalogProduct {
       esFavorito: json['es_favorito'] as bool? ?? false,
       miNota: json['mi_nota'] as String?,
       misTags: json['mis_tags'] as String?,
+      novaGroup: json['nova_group'] as int?,
+      nutriscoreGrade: json['nutriscore_grade'] as String?,
+      alergenos: json['alergenos'] as String?,
+      aditivosCount: json['aditivos_count'] as int? ?? 0,
+      semaforoNutricional: json['semaforo_nutricional'] as String?,
+      nutrientes100g: json['nutrientes_100g'] as String?,
     );
   }
 
@@ -67,6 +115,12 @@ class CatalogProduct {
     bool? esFavorito,
     String? miNota,
     String? misTags,
+    int? novaGroup,
+    String? nutriscoreGrade,
+    String? alergenos,
+    int? aditivosCount,
+    String? semaforoNutricional,
+    String? nutrientes100g,
   }) {
     return CatalogProduct(
       idProducto: idProducto ?? this.idProducto,
@@ -83,6 +137,13 @@ class CatalogProduct {
       esFavorito: esFavorito ?? this.esFavorito,
       miNota: miNota ?? this.miNota,
       misTags: misTags ?? this.misTags,
+      novaGroup: novaGroup ?? this.novaGroup,
+      nutriscoreGrade: nutriscoreGrade ?? this.nutriscoreGrade,
+      alergenos: alergenos ?? this.alergenos,
+      aditivosCount: aditivosCount ?? this.aditivosCount,
+      semaforoNutricional: semaforoNutricional ?? this.semaforoNutricional,
+      nutrientes100g: nutrientes100g ?? this.nutrientes100g,
     );
   }
 }
+
