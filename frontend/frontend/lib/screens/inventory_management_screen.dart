@@ -123,7 +123,7 @@ class _InventoryManagementScreenState extends State<InventoryManagementScreen> {
         actions: [
           IconButton(
             icon: const Icon(Icons.menu_book_rounded),
-            tooltip: 'Catálogo de Productos',
+            tooltip: 'Catálogo',
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(builder: (context) => const CatalogScreen()),

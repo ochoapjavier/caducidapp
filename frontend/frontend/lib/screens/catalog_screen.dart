@@ -25,11 +25,55 @@ class _CatalogScreenState extends State<CatalogScreen> {
   double _savedScrollOffset = 0.0;
   Timer? _debounce;
   late Future<List<CatalogProduct>> _productsFuture;
+  late Future<Map<String, dynamic>> _healthSummaryFuture;
 
-  // Filtros y ordenación
-  String _activeFilter = 'todos'; // 'todos', 'favoritos', 'stock', 'top'
+  // Filtros agrupados
+  String _tabFilter = 'todos'; // 'todos', 'stock', 'favoritos'
+  String _healthFilter = 'ninguno'; // 'ninguno', 'realfood', 'iron', 'protein', 'low_sugar', 'high_fiber'
+  double _ratingFilter = 0.0; // 0.0, 4.0, 3.0
   String _sortBy = 'name_asc'; // 'name_asc', 'rating_desc', 'rating_asc', 'stock_desc'
   bool _isGridView = true;
+  bool _isSyncingNutrition = false;
+  bool _showHealthDashboard = true;
+  bool _healthSummaryOnlyInStock = true;
+
+  Future<void> _triggerBulkNutritionSync() async {
+    setState(() => _isSyncingNutrition = true);
+    AppToast.show(
+      context,
+      message: 'Sincronizando información nutricional...',
+      type: AppToastType.info,
+    );
+    try {
+      final count = await api.syncBulkNutrition();
+      if (!mounted) return;
+      if (count > 0) {
+        AppToast.show(
+          context,
+          message: '¡Nutrición actualizada en $count productos!',
+          type: AppToastType.success,
+        );
+        _refreshProducts();
+      } else {
+        AppToast.show(
+          context,
+          message: 'Todos los productos ya tienen nutrición al día',
+          type: AppToastType.success,
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        message: 'Error al sincronizar nutrición: $e',
+        type: AppToastType.error,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isSyncingNutrition = false);
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -64,13 +108,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
     setState(() {
       _productsFuture = api.fetchCatalogProducts(
         search: _searchController.text.trim(),
-        onlyFavorites: _activeFilter == 'favoritos',
-        onlyInStock: _activeFilter == 'stock',
-        onlyRealfood: _activeFilter == 'realfood',
-        onlyHighIron: _activeFilter == 'iron',
-        minRating: _activeFilter == 'top' ? 4.0 : null,
+        onlyFavorites: _tabFilter == 'favoritos',
+        onlyInStock: _tabFilter == 'stock',
+        onlyRealfood: _healthFilter == 'realfood',
+        onlyHighIron: _healthFilter == 'iron',
+        onlyHighProtein: _healthFilter == 'protein',
+        onlyLowSugar: _healthFilter == 'low_sugar',
+        onlyHighFiber: _healthFilter == 'high_fiber',
+        minRating: _ratingFilter > 0 ? _ratingFilter : null,
         sortBy: _sortBy,
       );
+      _healthSummaryFuture = api.fetchCatalogHealthSummary(onlyInStock: _healthSummaryOnlyInStock);
     });
   }
 
@@ -151,7 +199,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Catálogo de Productos'),
+        title: const Text('Catálogo'),
         actions: [
           IconButton(
             icon: const Icon(Icons.qr_code_scanner_rounded, color: Colors.greenAccent),
@@ -167,6 +215,17 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 );
               }
             },
+          ),
+          IconButton(
+            icon: _isSyncingNutrition
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.sync_rounded),
+            tooltip: 'Sincronizar nutrición del catálogo',
+            onPressed: _isSyncingNutrition ? null : _triggerBulkNutritionSync,
           ),
           IconButton(
             icon: Icon(_isGridView ? Icons.view_list_rounded : Icons.grid_view_rounded),
@@ -270,33 +329,128 @@ class _CatalogScreenState extends State<CatalogScreen> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                // Barra de Filtros Rápida Estilo Segmented Control
+                // 1. Pestañas de Estado / Navegación Principal
                 Container(
-
-                  height: 40,
+                  height: 38,
                   decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest.withOpacity(0.5),
+                    color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: ListView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const BouncingScrollPhysics(),
-                    padding: const EdgeInsets.all(3),
+                  child: Row(
                     children: [
-                      _buildSegmentFilter('todos', 'Todos', Icons.grid_view_rounded),
-                      _buildSegmentFilter('favoritos', 'Favoritos ❤️', Icons.favorite_rounded),
-                      _buildSegmentFilter('realfood', 'Comida Real 🟢', Icons.eco_rounded),
-                      _buildSegmentFilter('iron', 'Rico en Hierro 🩸', Icons.bloodtype_rounded),
-                      _buildSegmentFilter('stock', 'En Stock 📦', Icons.inventory_2_rounded),
-                      _buildSegmentFilter('top', 'Top 4+ ⭐', Icons.star_rounded),
-
-
+                      Expanded(child: _buildTabFilter('todos', 'Todos', Icons.grid_view_rounded)),
+                      Expanded(child: _buildTabFilter('stock', 'En Stock 📦', Icons.inventory_2_rounded)),
+                      Expanded(child: _buildTabFilter('favoritos', 'Favoritos ❤️', Icons.favorite_rounded)),
                     ],
                   ),
                 ),
                 const SizedBox(height: 8),
 
-                // Tira de Sugerencias de Tags Rápidos
+                // 2. Filtros Desplegables Agrupados (Salud / Valoración)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  child: Row(
+                    children: [
+                      // Desplegable Salud & Nutrición
+                      PopupMenuButton<String>(
+                        onSelected: (val) {
+                          setState(() {
+                            _healthFilter = val;
+                            _refreshProducts();
+                          });
+                        },
+                        itemBuilder: (ctx) => [
+                          const PopupMenuItem(value: 'ninguno', child: Text('Ver toda la nutrición')),
+                          const PopupMenuItem(value: 'realfood', child: Text('🟢 Comida Real (NOVA 1)')),
+                          const PopupMenuItem(value: 'iron', child: Text('🩸 Rico en Hierro (>= 2.1 mg)')),
+                          const PopupMenuItem(value: 'protein', child: Text('💪 Alto en Proteínas (>= 10g)')),
+                          const PopupMenuItem(value: 'low_sugar', child: Text('🚫🍬 Bajo en Azúcar (<= 5g)')),
+                          const PopupMenuItem(value: 'high_fiber', child: Text('🌾 Alto en Fibra (>= 3g)')),
+                        ],
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _healthFilter != 'ninguno'
+                                ? colorScheme.primaryContainer
+                                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _healthFilter != 'ninguno' ? colorScheme.primary : Colors.transparent,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.health_and_safety_rounded,
+                                size: 16,
+                                color: _healthFilter != 'ninguno' ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _getHealthFilterLabel(),
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  fontWeight: _healthFilter != 'ninguno' ? FontWeight.bold : FontWeight.normal,
+                                  color: _healthFilter != 'ninguno' ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const Icon(Icons.arrow_drop_down_rounded, size: 18),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+
+                      // Desplegable Valoración ⭐
+                      PopupMenuButton<double>(
+                        onSelected: (val) {
+                          setState(() {
+                            _ratingFilter = val;
+                            _refreshProducts();
+                          });
+                        },
+                        itemBuilder: (ctx) => [
+                          const PopupMenuItem(value: 0.0, child: Text('Cualquier valoración')),
+                          const PopupMenuItem(value: 4.0, child: Text('Top 4+ ⭐')),
+                          const PopupMenuItem(value: 3.0, child: Text('Top 3+ ⭐')),
+                        ],
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: _ratingFilter > 0
+                                ? Colors.amber.shade100
+                                : colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: _ratingFilter > 0 ? Colors.amber : Colors.transparent,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(
+                                Icons.star_rounded,
+                                size: 16,
+                                color: _ratingFilter > 0 ? Colors.amber.shade800 : colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                _ratingFilter > 0 ? 'Top ${_ratingFilter.toInt()}+ ⭐' : 'Valoración ⭐',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  fontWeight: _ratingFilter > 0 ? FontWeight.bold : FontWeight.normal,
+                                  color: _ratingFilter > 0 ? Colors.amber.shade900 : colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                              const Icon(Icons.arrow_drop_down_rounded, size: 18),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // 3. Tira de Sugerencias de Tags Rápidos
+                const SizedBox(height: 6),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
@@ -347,6 +501,9 @@ class _CatalogScreenState extends State<CatalogScreen> {
               ],
             ),
           ),
+
+          // Dashboard de Salud del Hogar (Collapsible)
+          _buildHealthDashboardCard(),
 
           // Lista / Grid de Productos
           Expanded(
@@ -465,50 +622,435 @@ class _CatalogScreenState extends State<CatalogScreen> {
     );
   }
 
-  Widget _buildSegmentFilter(String value, String label, IconData icon) {
+  Widget _buildTabFilter(String value, String label, IconData icon) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isSelected = _activeFilter == value;
+    final isSelected = _tabFilter == value;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        child: Material(
-          color: isSelected ? colorScheme.primary : Colors.transparent,
+      padding: const EdgeInsets.all(2),
+      child: Material(
+        color: isSelected ? colorScheme.primary : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
           borderRadius: BorderRadius.circular(10),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(10),
-            onTap: () {
-              setState(() {
-                _activeFilter = value;
-                _refreshProducts();
-              });
-            },
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    icon,
-                    size: 16,
+          onTap: () {
+            setState(() {
+              _tabFilter = value;
+              _refreshProducts();
+            });
+          },
+          child: Center(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  icon,
+                  size: 15,
+                  color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                     color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(width: 6),
-                  Text(
-                    label,
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: isSelected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
-                      fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  String _getHealthFilterLabel() {
+    switch (_healthFilter) {
+      case 'realfood': return 'Comida Real 🟢';
+      case 'iron': return 'Rico en Hierro 🩸';
+      case 'protein': return 'Alto en Proteínas 💪';
+      case 'low_sugar': return 'Bajo en Azúcar 🚫🍬';
+      case 'high_fiber': return 'Alto en Fibra 🌾';
+      default: return 'Salud & Nutrición 🥗';
+    }
+  }
+
+  Widget _buildHealthSummaryChip(String label, String filterKey) {
+    final isSelected = _healthFilter == filterKey;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _healthFilter = isSelected ? 'ninguno' : filterKey;
+          _refreshProducts();
+        });
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected ? colorScheme.primaryContainer : colorScheme.surface,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: isSelected ? colorScheme.primary : colorScheme.outlineVariant),
+        ),
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected ? colorScheme.onPrimaryContainer : colorScheme.onSurface,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showHealthExplanationDialog() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.health_and_safety_rounded, color: Colors.green, size: 24),
+            SizedBox(width: 8),
+            Text('Salud del Hogar', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '🎓 Modelo Nutricional Oficial:',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'El índice se calcula combinando dos estándares internacionales avalados por la OMS (Organización Mundial de la Salud) y la FAO:',
+                style: TextStyle(fontSize: 13, color: colorScheme.onSurfaceVariant),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '1️⃣ Escala FSAn-NPS (Nutri-Score Oficial):',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 2),
+              const Text('Asigna puntos según el perfil de nutrientes (A=10 pts, B=8 pts, C=6 pts, D=4 pts, E=2 pts).'),
+              const SizedBox(height: 10),
+              const Text(
+                '2️⃣ Clasificación NOVA (FAO / OMS):',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 2),
+              const Text('Valora el grado de procesamiento industrial (NOVA 1 Comida Real=10 pts, NOVA 2 Culinario=7.5 pts, NOVA 3 Procesado=5 pts, NOVA 4 Ultraprocesado=1.5 pts).'),
+              const SizedBox(height: 14),
+              const Text(
+                '🧮 Cálculo de la Puntuación (0 a 10):',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Text(
+                  'Puntuación = Media aritmética del valor Nutri-Score y NOVA de todos los productos seleccionados.\n\n• 10/10: Despensa 100% Comida Real (Nutri-Score A / NOVA 1).\n• 1.5/10: Despensa compuesta íntegramente por ultraprocesados.',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Text(
+                '🔄 Filtro por Alcance (Toggle superior):',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+              ),
+              const SizedBox(height: 4),
+              const Text('• 📦 En Stock (Predeterminado): Evalúa únicamente los productos guardados físicamente en tu despensa ahora mismo.'),
+              const SizedBox(height: 4),
+              const Text('• 📚 Todo el Catálogo: Evalúa el histórico completo de productos de tu hogar.'),
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Entendido'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHealthHeaderRow({
+    required bool isExpanded,
+    required int total,
+    required double score,
+    required ThemeData theme,
+    required ColorScheme colorScheme,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Flexible(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.health_and_safety_rounded, color: Colors.green, size: 18),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'Salud del Hogar',
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              IconButton(
+                icon: Icon(Icons.info_outline_rounded, size: 16, color: colorScheme.onSurfaceVariant),
+                tooltip: '¿Cómo se calcula?',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(),
+                onPressed: _showHealthExplanationDialog,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 4),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+              decoration: BoxDecoration(
+                color: score >= 7.0 ? Colors.green.shade100 : Colors.amber.shade100,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '$score/10 💚',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                  color: score >= 7.0 ? Colors.green.shade900 : Colors.amber.shade900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 4),
+            IconButton(
+              icon: Icon(
+                isExpanded ? Icons.visibility_rounded : Icons.visibility_off_rounded,
+                size: 18,
+                color: colorScheme.onSurfaceVariant,
+              ),
+              tooltip: isExpanded ? 'Ocultar dashboard' : 'Ver dashboard',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+              onPressed: () => setState(() => _showHealthDashboard = !isExpanded),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHealthDashboardCard() {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    if (!_showHealthDashboard) {
+      return FutureBuilder<Map<String, dynamic>>(
+        future: _healthSummaryFuture,
+        builder: (context, snapshot) {
+          final data = snapshot.data;
+          final total = data?['total_products'] as int? ?? 0;
+          final score = (data?['health_score'] as num? ?? 7.0).toDouble();
+
+          return Container(
+            margin: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+            child: Material(
+              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: () => setState(() => _showHealthDashboard = true),
+                borderRadius: BorderRadius.circular(12),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  child: _buildHealthHeaderRow(
+                    isExpanded: false,
+                    total: total,
+                    score: score,
+                    theme: theme,
+                    colorScheme: colorScheme,
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    return FutureBuilder<Map<String, dynamic>>(
+      future: _healthSummaryFuture,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final data = snapshot.data!;
+        final total = data['total_products'] as int? ?? 0;
+        if (total == 0) return const SizedBox.shrink();
+
+        final rfPct = (data['realfood_pct'] as num? ?? 0.0).toDouble();
+        final prPct = (data['processed_pct'] as num? ?? 0.0).toDouble();
+        final upPct = (data['ultraprocessed_pct'] as num? ?? 0.0).toDouble();
+        final score = (data['health_score'] as num? ?? 10.0).toDouble();
+
+        final ironCount = data['high_iron_count'] as int? ?? 0;
+        final proteinCount = data['high_protein_count'] as int? ?? 0;
+        final fiberCount = data['high_fiber_count'] as int? ?? 0;
+
+        return Container(
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                colorScheme.primaryContainer.withValues(alpha: 0.35),
+                colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: colorScheme.outlineVariant.withValues(alpha: 0.4)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildHealthHeaderRow(
+                isExpanded: true,
+                total: total,
+                score: score,
+                theme: theme,
+                colorScheme: colorScheme,
+              ),
+              const SizedBox(height: 8),
+
+              // Selector de Alcance (Toggle En Stock vs Todo el Catálogo)
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        if (!_healthSummaryOnlyInStock) {
+                          setState(() {
+                            _healthSummaryOnlyInStock = true;
+                            _healthSummaryFuture = api.fetchCatalogHealthSummary(onlyInStock: true);
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _healthSummaryOnlyInStock ? colorScheme.primary : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: _healthSummaryOnlyInStock ? Colors.transparent : colorScheme.outlineVariant.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Text(
+                          '📦 En Stock ($total)',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: _healthSummaryOnlyInStock ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    InkWell(
+                      onTap: () {
+                        if (_healthSummaryOnlyInStock) {
+                          setState(() {
+                            _healthSummaryOnlyInStock = false;
+                            _healthSummaryFuture = api.fetchCatalogHealthSummary(onlyInStock: false);
+                          });
+                        }
+                      },
+                      borderRadius: BorderRadius.circular(8),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: !_healthSummaryOnlyInStock ? colorScheme.primary : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: !_healthSummaryOnlyInStock ? Colors.transparent : colorScheme.outlineVariant.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Text(
+                          '📚 Todo el Catálogo',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: !_healthSummaryOnlyInStock ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Tríada Progress Bar
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: SizedBox(
+                  height: 8,
+                  child: Row(
+                    children: [
+                      if (rfPct > 0) Expanded(flex: (rfPct * 10).toInt(), child: Container(color: Colors.green)),
+                      if (prPct > 0) Expanded(flex: (prPct * 10).toInt(), child: Container(color: Colors.amber.shade700)),
+                      if (upPct > 0) Expanded(flex: (upPct * 10).toInt(), child: Container(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('🟢 Real: ${rfPct.toStringAsFixed(0)}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green)),
+                  Text('🟡 Procesado: ${prPct.toStringAsFixed(0)}%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                  Text('🔴 Ultra: ${upPct.toStringAsFixed(0)}%', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red)),
+                ],
+              ),
+              const SizedBox(height: 8),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildHealthSummaryChip('🩸 $ironCount Hierro', 'iron'),
+                    const SizedBox(width: 6),
+                    _buildHealthSummaryChip('💪 $proteinCount Proteínas', 'protein'),
+                    const SizedBox(width: 6),
+                    _buildHealthSummaryChip('🌾 $fiberCount Fibra', 'high_fiber'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -947,7 +1489,49 @@ class _CatalogScreenState extends State<CatalogScreen> {
     final hasNova = product.novaGroup != null;
     final hasNutriscore = product.nutriscoreGrade != null && product.nutriscoreGrade!.isNotEmpty;
 
-    if (!hasNova && !hasNutriscore) return const SizedBox.shrink();
+    if (!hasNova && !hasNutriscore) {
+      if (product.barcode != null && product.barcode!.isNotEmpty) {
+        return Padding(
+          padding: const EdgeInsets.only(top: 4, bottom: 2),
+          child: InkWell(
+            onTap: () async {
+              AppToast.show(context, message: 'Descargando datos nutricionales...', type: AppToastType.info);
+              try {
+                final res = await api.fetchCatalogProductNutrition(product.idProducto);
+                if (res['status'] == 'success') {
+                  if (!mounted) return;
+                  AppToast.show(context, message: '¡Nutrición actualizada!', type: AppToastType.success);
+                  _refreshProducts(preserveScroll: true);
+                }
+              } catch (e) {
+                if (!mounted) return;
+                AppToast.show(context, message: 'Sin información nutricional en OpenFoodFacts', type: AppToastType.error);
+              }
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.sync_rounded, size: 12, color: Colors.blue.shade800),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Obtener nutrición',
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+      return const SizedBox.shrink();
+    }
 
     String novaText = '';
     Color novaBg = Colors.grey;

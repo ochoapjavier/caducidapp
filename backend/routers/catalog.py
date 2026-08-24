@@ -22,6 +22,9 @@ def get_catalog(
     only_in_stock: bool = Query(False, description="Filtrar solo productos con unidades en stock"),
     only_realfood: bool = Query(False, description="Filtrar solo productos Comida Real (NOVA 1)"),
     only_high_iron: bool = Query(False, description="Filtrar solo productos altos/fuente de hierro (>= 2.1 mg/100g)"),
+    only_high_protein: bool = Query(False, description="Filtrar solo productos altos en proteína (>= 10g/100g)"),
+    only_low_sugar: bool = Query(False, description="Filtrar solo productos bajos en azúcar (<= 5g/100g)"),
+    only_high_fiber: bool = Query(False, description="Filtrar solo productos altos en fibra (>= 3g/100g)"),
     min_rating: float | None = Query(None, ge=1.0, le=5.0, description="Puntuación promedio mínima"),
     sort_by: str = Query("name_asc", description="Ordenación: name_asc, rating_desc, rating_asc, stock_desc"),
     db: Session = Depends(get_db),
@@ -38,12 +41,26 @@ def get_catalog(
         only_in_stock=only_in_stock,
         only_realfood=only_realfood,
         only_high_iron=only_high_iron,
+        only_high_protein=only_high_protein,
+        only_low_sugar=only_low_sugar,
+        only_high_fiber=only_high_fiber,
         min_rating=min_rating,
         sort_by=sort_by,
     )
 
     background_tasks.add_task(OpenFoodFactsService.sync_missing_nutrition_for_hogar, None, hogar_id)
     return items
+
+
+@router.get("/health-summary")
+def get_catalog_health_summary(
+    only_in_stock: bool = Query(True, description="Calcular métricas solo sobre productos en stock (default: True)"),
+    db: Session = Depends(get_db),
+    hogar_id: int = Depends(get_active_hogar_id),
+):
+    """Obtiene las métricas consolidadas de salud y distribución de NOVA del inventario del hogar."""
+    product_repo = ProductRepository(db)
+    return product_repo.get_hogar_health_summary(hogar_id=hogar_id, only_in_stock=only_in_stock)
 
 
 @router.get("/lookup-scan")
@@ -163,4 +180,57 @@ async def fetch_product_nutrition_endpoint(
 
     updated = product_repo.update_product_nutrition(product_id, nutrition_data)
     return {"status": "success", "updated": updated, "nutrition": nutrition_data}
+
+
+@router.post("/sync-bulk-nutrition")
+async def sync_bulk_nutrition_endpoint(
+    db: Session = Depends(get_db),
+    hogar_id: int = Depends(get_active_hogar_id),
+):
+    """Ejecuta un barrido masivo de información nutricional en OpenFoodFacts para todos los productos del hogar."""
+    from services.openfoodfacts_service import OpenFoodFactsService
+    updated_count = await OpenFoodFactsService.sync_all_missing_nutrition_for_hogar(db, hogar_id)
+    return {"status": "success", "updated_count": updated_count}
+
+
+from pydantic import BaseModel
+
+class NutritionOverrideSchema(BaseModel):
+    nova_group: int | None = None
+    nutriscore_grade: str | None = None
+
+
+@router.post("/{product_id}/override-nutrition")
+def override_product_nutrition_endpoint(
+    product_id: int,
+    override_data: NutritionOverrideSchema,
+    db: Session = Depends(get_db),
+    hogar_id: int = Depends(get_active_hogar_id),
+):
+    """Permite al usuario asignar o modificar manualmente el grupo NOVA y Nutri-Score de un producto."""
+    product_repo = ProductRepository(db)
+    product = product_repo.get_by_id(product_id)
+
+    if not product or product.hogar_id != hogar_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Producto no encontrado en este hogar."
+        )
+
+    data_to_update = {}
+    if override_data.nova_group is not None:
+        data_to_update["nova_group"] = override_data.nova_group
+    if override_data.nutriscore_grade is not None:
+        clean_ns = override_data.nutriscore_grade.strip().lower()
+        if clean_ns in ["a", "b", "c", "d", "e"]:
+            data_to_update["nutriscore_grade"] = clean_ns
+
+    updated = product_repo.update_product_nutrition(product_id, data_to_update)
+    return {
+        "status": "success",
+        "updated": updated,
+        "nova_group": product.nova_group,
+        "nutriscore_grade": product.nutriscore_grade
+    }
+
 

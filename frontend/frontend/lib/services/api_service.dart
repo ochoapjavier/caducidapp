@@ -785,6 +785,9 @@ Future<List<CatalogProduct>> fetchCatalogProducts({
   bool onlyInStock = false,
   bool onlyRealfood = false,
   bool onlyHighIron = false,
+  bool onlyHighProtein = false,
+  bool onlyLowSugar = false,
+  bool onlyHighFiber = false,
   double? minRating,
   String sortBy = 'name_asc',
 }) async {
@@ -808,6 +811,15 @@ Future<List<CatalogProduct>> fetchCatalogProducts({
     if (onlyHighIron) {
       queryParams['only_high_iron'] = 'true';
     }
+    if (onlyHighProtein) {
+      queryParams['only_high_protein'] = 'true';
+    }
+    if (onlyLowSugar) {
+      queryParams['only_low_sugar'] = 'true';
+    }
+    if (onlyHighFiber) {
+      queryParams['only_high_fiber'] = 'true';
+    }
     if (minRating != null && minRating > 0) {
       queryParams['min_rating'] = minRating.toString();
     }
@@ -824,6 +836,19 @@ Future<List<CatalogProduct>> fetchCatalogProducts({
     final response = await http.get(uri, headers: headers);
     final List<dynamic> jsonList = _processResponse(response);
     return jsonList.map((json) => CatalogProduct.fromJson(json)).toList();
+  });
+}
+
+/// Obtiene el resumen de métricas de salud del hogar.
+Future<Map<String, dynamic>> fetchCatalogHealthSummary({bool onlyInStock = true}) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final uri = Uri.parse('$apiUrl/catalog/health-summary?only_in_stock=$onlyInStock');
+    final response = await http.get(
+      uri,
+      headers: headers,
+    );
+    return _processResponse(response);
   });
 }
 
@@ -889,5 +914,41 @@ Future<Map<String, dynamic>> fetchCatalogProductNutrition(int productId) async {
     return _processResponse(response);
   });
 }
+
+/// Realiza un barrido masivo de información nutricional para todos los productos del hogar.
+Future<int> syncBulkNutrition() async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final response = await http.post(
+      Uri.parse('$apiUrl/catalog/sync-bulk-nutrition'),
+      headers: headers,
+    );
+    final data = _processResponse(response);
+    return data['updated_count'] as int? ?? 0;
+  });
+}
+
+/// Permite la asignación o modificación manual de NOVA / NutriScore.
+Future<Map<String, dynamic>> overrideCatalogProductNutrition({
+  required int productId,
+  int? novaGroup,
+  String? nutriscoreGrade,
+}) async {
+  return safeApiCall(() async {
+    final headers = await getAuthHeaders();
+    final body = jsonEncode({
+      if (novaGroup != null) 'nova_group': novaGroup,
+      if (nutriscoreGrade != null) 'nutriscore_grade': nutriscoreGrade,
+    });
+
+    final response = await http.post(
+      Uri.parse('$apiUrl/catalog/$productId/override-nutrition'),
+      headers: headers,
+      body: body,
+    );
+    return _processResponse(response);
+  });
+}
+
 
 

@@ -234,6 +234,9 @@ class ProductRepository:
         only_in_stock: bool = False,
         only_realfood: bool = False,
         only_high_iron: bool = False,
+        only_high_protein: bool = False,
+        only_low_sugar: bool = False,
+        only_high_fiber: bool = False,
         min_rating: float | None = None,
         sort_by: str = "name_asc"
     ) -> list[dict]:
@@ -383,8 +386,7 @@ class ProductRepository:
                 "nutrientes_100g": row.nutrientes_100g,
             })
 
-        if only_high_iron:
-
+        if only_high_iron or only_high_protein or only_low_sugar or only_high_fiber:
             filtered = []
             import json
             for item in catalog_items:
@@ -392,14 +394,137 @@ class ProductRepository:
                 if raw_n:
                     try:
                         n_map = json.loads(raw_n) if isinstance(raw_n, str) else raw_n
-                        iron_mg = n_map.get("iron_mg")
-                        if iron_mg is not None and float(iron_mg) >= 2.1:
+                        match = True
+                        if only_high_iron:
+                            iron_mg = n_map.get("iron_mg")
+                            if iron_mg is None or float(iron_mg) < 2.1:
+                                match = False
+                        if only_high_protein:
+                            proteins = n_map.get("proteins")
+                            if proteins is None or float(proteins) < 10.0:
+                                match = False
+                        if only_low_sugar:
+                            sugars = n_map.get("sugars")
+                            if sugars is None or float(sugars) > 5.0:
+                                match = False
+                        if only_high_fiber:
+                            fiber = n_map.get("fiber")
+                            if fiber is None or float(fiber) < 3.0:
+                                match = False
+
+                        if match:
                             filtered.append(item)
                     except Exception:
                         pass
             catalog_items = filtered
 
         return catalog_items
+
+    def get_hogar_health_summary(self, hogar_id: int, only_in_stock: bool = True) -> dict:
+        """Calcula las métricas globales de salud y distribución NOVA del stock del hogar."""
+        if only_in_stock:
+            stock_subquery = (
+                self.db.query(
+                    InventoryStock.fk_producto_maestro.label("id_producto"),
+                    func.coalesce(func.sum(InventoryStock.cantidad_actual), 0).label("stock_actual")
+                )
+                .filter(InventoryStock.hogar_id == hogar_id)
+                .group_by(InventoryStock.fk_producto_maestro)
+                .subquery()
+            )
+            products = (
+                self.db.query(Product)
+                .join(stock_subquery, Product.id_producto == stock_subquery.c.id_producto)
+                .filter(Product.hogar_id == hogar_id, stock_subquery.c.stock_actual > 0)
+                .all()
+            )
+        else:
+            products = self.db.query(Product).filter(Product.hogar_id == hogar_id).all()
+
+        total_products = len(products)
+        if total_products == 0:
+            return {
+                "total_products": 0,
+                "realfood_count": 0,
+                "processed_count": 0,
+                "ultraprocessed_count": 0,
+                "realfood_pct": 0.0,
+                "processed_pct": 0.0,
+                "ultraprocessed_pct": 0.0,
+                "health_score": 10.0,
+                "high_iron_count": 0,
+                "high_protein_count": 0,
+                "high_fiber_count": 0,
+            }
+
+        realfood_count = 0
+        processed_count = 0
+        ultraprocessed_count = 0
+        high_iron_count = 0
+        high_protein_count = 0
+        high_fiber_count = 0
+
+        import json
+        for p in products:
+            if p.nova_group == 1:
+                realfood_count += 1
+            elif p.nova_group in [2, 3]:
+                processed_count += 1
+            elif p.nova_group == 4:
+                ultraprocessed_count += 1
+
+            if p.nutrientes_100g:
+                try:
+                    n_map = json.loads(p.nutrientes_100g) if isinstance(p.nutrientes_100g, str) else p.nutrientes_100g
+                    if n_map.get("iron_mg") is not None and float(n_map["iron_mg"]) >= 2.1:
+                        high_iron_count += 1
+                    if n_map.get("proteins") is not None and float(n_map["proteins"]) >= 10.0:
+                        high_protein_count += 1
+                    if n_map.get("fiber") is not None and float(n_map["fiber"]) >= 3.0:
+                        high_fiber_count += 1
+                except Exception:
+                    pass
+
+        total_classified = realfood_count + processed_count + ultraprocessed_count
+        base = total_classified if total_classified > 0 else 1
+        rf_pct = round((realfood_count / base) * 100, 1)
+        pr_pct = round((processed_count / base) * 100, 1)
+        up_pct = round((ultraprocessed_count / base) * 100, 1)
+
+        # Mapeo oficial Nutri-Score (Escala FSAn-NPS / OMS)
+        ns_map = {'a': 10.0, 'b': 8.0, 'c': 6.0, 'd': 4.0, 'e': 2.0}
+        # Mapeo oficial clasificación NOVA (Grado de procesamiento industrial OMS/FAO)
+        nova_map = {1: 10.0, 2: 7.5, 3: 5.0, 4: 1.5}
+
+        scores = []
+        for p in products:
+            p_scores = []
+            if p.nutriscore_grade and p.nutriscore_grade.lower() in ns_map:
+                p_scores.append(ns_map[p.nutriscore_grade.lower()])
+            if p.nova_group and p.nova_group in nova_map:
+                p_scores.append(nova_map[p.nova_group])
+
+            if p_scores:
+                scores.append(sum(p_scores) / len(p_scores))
+
+        if scores:
+            health_score = round(sum(scores) / len(scores), 1)
+        else:
+            health_score = 7.0
+
+        return {
+            "total_products": total_products,
+            "realfood_count": realfood_count,
+            "processed_count": processed_count,
+            "ultraprocessed_count": ultraprocessed_count,
+            "realfood_pct": rf_pct,
+            "processed_pct": pr_pct,
+            "ultraprocessed_pct": up_pct,
+            "health_score": health_score,
+            "high_iron_count": high_iron_count,
+            "high_protein_count": high_protein_count,
+            "high_fiber_count": high_fiber_count,
+        }
 
 
     def update_product_nutrition(self, product_id: int, nutrition_data: dict) -> bool:
