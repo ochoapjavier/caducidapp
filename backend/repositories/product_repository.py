@@ -132,7 +132,10 @@ class ProductRepository:
                             
                             ns = payload.get("nutriscore_grade") or payload.get("nutrition_grades")
                             if ns:
-                                product.nutriscore_grade = str(ns).strip().lower()
+                                clean_ns = str(ns).strip().lower()
+                                product.nutriscore_grade = clean_ns if clean_ns in ["a", "b", "c", "d", "e"] else None
+                            else:
+                                product.nutriscore_grade = None
 
                             raw_a = payload.get("allergens_tags", []) or []
                             allergens = [str(a).replace("en:", "").replace("es:", "").strip() for a in raw_a if str(a) != "none"]
@@ -535,8 +538,13 @@ class ProductRepository:
 
         if "nova_group" in nutrition_data and nutrition_data["nova_group"] is not None:
             product.nova_group = nutrition_data["nova_group"]
-        if "nutriscore_grade" in nutrition_data and nutrition_data["nutriscore_grade"] is not None:
-            product.nutriscore_grade = nutrition_data["nutriscore_grade"]
+        if "nutriscore_grade" in nutrition_data:
+            ns = nutrition_data["nutriscore_grade"]
+            if ns is not None:
+                clean_ns = str(ns).strip().lower()
+                product.nutriscore_grade = clean_ns if clean_ns in ["a", "b", "c", "d", "e"] else None
+            else:
+                product.nutriscore_grade = None
         if "alergenos" in nutrition_data:
             product.alergenos = nutrition_data["alergenos"]
         if "aditivos_count" in nutrition_data:
