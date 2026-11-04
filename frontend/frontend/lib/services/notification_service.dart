@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -11,40 +12,43 @@ class NotificationService {
   NotificationService._internal();
 
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  StreamSubscription<String>? _tokenRefreshSubscription;
+  String? _initializedUserId;
 
   Future<void> initialize() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null || !user.emailVerified) return;
+    if (_initializedUserId == user.uid) return;
+
     // Request permission
-    NotificationSettings settings = await _firebaseMessaging.requestPermission(
+    final settings = await _firebaseMessaging.requestPermission(
       alert: true,
       badge: true,
       sound: true,
     );
 
     if (settings.authorizationStatus == AuthorizationStatus.authorized) {
-      print('User granted permission');
-      
+      debugPrint('Permiso de notificaciones concedido.');
+
       // Get token
-      String? token = await _firebaseMessaging.getToken();
+      final token = await _firebaseMessaging.getToken();
       if (token != null) {
-        print('FCM Token: $token');
         await _registerDevice(token);
       }
 
       // Listen for token refresh
-      _firebaseMessaging.onTokenRefresh.listen(_registerDevice);
-      
+      await _tokenRefreshSubscription?.cancel();
+      _tokenRefreshSubscription = _firebaseMessaging.onTokenRefresh.listen(
+        _registerDevice,
+      );
+
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        print('Got a message whilst in the foreground!');
-        print('Message data: ${message.data}');
-
-        if (message.notification != null) {
-          print('Message also contained a notification: ${message.notification!.title}');
-          // TODO: Show a dialog or snackbar?
-        }
+        debugPrint('FCM notification received in foreground: ${message.data}');
       });
+      _initializedUserId = user.uid;
     } else {
-      print('User declined or has not accepted permission');
+      debugPrint('Notification permission was not granted.');
     }
   }
 
@@ -54,7 +58,9 @@ class NotificationService {
 
     try {
       final idToken = await user.getIdToken();
-      final platform = kIsWeb ? 'web' : defaultTargetPlatform.name.toLowerCase();
+      final platform = kIsWeb
+          ? 'web'
+          : defaultTargetPlatform.name.toLowerCase();
 
       final response = await http.post(
         Uri.parse('$apiV1Url/notifications/device'),
@@ -62,28 +68,26 @@ class NotificationService {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-        body: jsonEncode({
-          'fcm_token': token,
-          'platform': platform,
-        }),
+        body: jsonEncode({'fcm_token': token, 'platform': platform}),
       );
-      
+
       if (response.statusCode == 201 || response.statusCode == 200) {
-        print('Device registered successfully');
+        debugPrint('Dispositivo registrado para notificaciones.');
       } else {
-        print('Failed to register device: ${response.body}');
+        debugPrint(
+          'No se pudo registrar el dispositivo: ${response.statusCode}',
+        );
       }
     } catch (e) {
-      print('Error registering device: $e');
+      debugPrint('Error registrando dispositivo: $e');
     }
   }
-  
+
   Future<void> updatePreferences(bool enabled, String time, int offset) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
-    
+
     final idToken = await user.getIdToken();
-    
     final response = await http.post(
       Uri.parse('$apiV1Url/notifications/preferences'),
       headers: {
@@ -96,18 +100,17 @@ class NotificationService {
         'timezone_offset': offset,
       }),
     );
-    
+
     if (response.statusCode != 200) {
       throw Exception('Failed to update preferences');
     }
   }
-  
+
   Future<Map<String, dynamic>> getPreferences() async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) throw Exception('User not logged in');
-    
+
     final idToken = await user.getIdToken();
-    
     final response = await http.get(
       Uri.parse('$apiV1Url/notifications/preferences'),
       headers: {
@@ -115,7 +118,7 @@ class NotificationService {
         'Authorization': 'Bearer $idToken',
       },
     );
-    
+
     if (response.statusCode == 200) {
       return json.decode(response.body);
     } else {

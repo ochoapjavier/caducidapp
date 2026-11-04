@@ -1,5 +1,5 @@
 # backend/schemas/hogar.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from datetime import datetime
 from typing import Optional
 
@@ -27,9 +27,8 @@ class MiembroInfo(BaseModel):
     rol: str
     apodo: Optional[str] = None
     fecha_union: datetime
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HogarSchema(HogarBase):
@@ -40,17 +39,15 @@ class HogarSchema(HogarBase):
     codigo_invitacion: str
     miembros_count: int = Field(default=0, description="Number of members")
     mi_rol: Optional[str] = Field(None, description="Current user's role in this household")
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HogarDetalle(HogarSchema):
     """Detailed household schema including members list."""
     miembros: list[MiembroInfo] = []
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class HogarMiembroBase(BaseModel):
@@ -77,9 +74,8 @@ class HogarMiembroSchema(HogarMiembroBase):
     """Complete member schema."""
     id_miembro: int
     fecha_union: datetime
-    
-    class Config:
-        from_attributes = True
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class InvitacionResponse(BaseModel):

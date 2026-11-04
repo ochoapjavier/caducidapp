@@ -1,5 +1,5 @@
 # backend/schemas/location.py
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 
 class LocationBase(BaseModel):
@@ -14,5 +14,4 @@ class LocationCreate(LocationBase):
 class Location(LocationBase):
     id_ubicacion: int
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

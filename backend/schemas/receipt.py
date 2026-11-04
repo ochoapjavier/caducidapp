@@ -1,7 +1,6 @@
 from datetime import date
-
-from pydantic import BaseModel, Field
 from typing import List
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class TicketAllocation(BaseModel):
@@ -20,6 +19,7 @@ class ReceiptDictionaryProductMatch(BaseModel):
     brand: str | None = None
     image_url: str | None = None
 
+
 class TicketParsedItem(BaseModel):
     nombre: str
     precioUnitario: float
@@ -36,10 +36,12 @@ class ReceiptDictionaryEntry(BaseModel):
     eans: List[str]
     matches: List[ReceiptDictionaryProductMatch]
 
+
 class SupermercadoCreate(BaseModel):
     nombre: str
     logo_url: str | None = None
     color_hex: str | None = None
+
 
 class SupermercadoSchema(BaseModel):
     id_supermercado: int
@@ -47,13 +49,11 @@ class SupermercadoSchema(BaseModel):
     logo_url: str | None = None
     color_hex: str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 class TicketMatchRequest(BaseModel):
     items: List[TicketParsedItem]
     ubicacion_id: int | None = None
     supermercado_id: int | None = None
     supermercado_nombre: str = "Desconocido"
-    # For now we won't strictly enforce an insertion into inventory,
-    # but we will save the dictionary matches.

@@ -6,8 +6,7 @@ Schemas for product state management actions:
 - Unfreezing products
 - Relocating products
 """
-from pydantic import BaseModel, Field
-from datetime import date
+from pydantic import BaseModel, Field, ConfigDict
 from typing import Optional
 
 
@@ -18,8 +17,8 @@ class OpenProductRequest(BaseModel):
     mantener_fecha_caducidad: bool = Field(True, description="Keep original expiration date (True) or recalculate (False)")
     dias_vida_util: int = Field(4, ge=1, le=30, description="Shelf life days once opened (only used if mantener_fecha_caducidad=False)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "cantidad": 1,
                 "nueva_ubicacion_id": 2,
@@ -27,6 +26,7 @@ class OpenProductRequest(BaseModel):
                 "dias_vida_util": 4
             }
         }
+    )
 
 
 class FreezeProductRequest(BaseModel):
@@ -34,13 +34,14 @@ class FreezeProductRequest(BaseModel):
     cantidad: int = Field(..., gt=0, description="Number of units to freeze")
     ubicacion_congelador_id: int = Field(..., description="Freezer location ID")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "cantidad": 1,
                 "ubicacion_congelador_id": 3
             }
         }
+    )
 
 
 class UnfreezeProductRequest(BaseModel):
@@ -49,14 +50,15 @@ class UnfreezeProductRequest(BaseModel):
     nueva_ubicacion_id: int = Field(..., description="New location ID (typically fridge)")
     dias_vida_util: int = Field(2, ge=1, le=7, description="Days to consume after unfreezing (default: 2)")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "cantidad": 1,
                 "nueva_ubicacion_id": 2,
                 "dias_vida_util": 2
             }
         }
+    )
 
 
 class RelocateProductRequest(BaseModel):
@@ -64,13 +66,14 @@ class RelocateProductRequest(BaseModel):
     cantidad: int = Field(..., gt=0, description="Number of units to move")
     nueva_ubicacion_id: int = Field(..., description="New location ID")
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "cantidad": 2,
                 "nueva_ubicacion_id": 4
             }
         }
+    )
 
 
 class ProductActionResponse(BaseModel):
@@ -80,8 +83,8 @@ class ProductActionResponse(BaseModel):
     item_nuevo_id: Optional[int] = None
     cantidad_procesada: int
 
-    class Config:
-        json_schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "message": "Producto abierto exitosamente",
                 "item_original_id": 15,
@@ -89,3 +92,4 @@ class ProductActionResponse(BaseModel):
                 "cantidad_procesada": 1
             }
         }
+    )
