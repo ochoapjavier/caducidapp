@@ -180,6 +180,10 @@ class UserDevice(Base):
     fcm_token = Column(String, nullable=False)
     platform = Column(String(50))  # android, web, ios
     last_active = Column(DateTime, default=utc_now)
+    installation_id = Column(String(128), nullable=True, index=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    last_error_code = Column(String(100), nullable=True)
+    last_error_at = Column(DateTime, nullable=True)
     
     __table_args__ = (
         UniqueConstraint('user_id', 'fcm_token', name='user_device_unique'),
@@ -195,10 +199,36 @@ class UserPreference(Base):
     user_id = Column(String(255), primary_key=True)
     notifications_enabled = Column(Boolean, default=True)
     notification_time = Column(String(8), default='09:00:00')  # Stored as string HH:MM:SS for simplicity
-    timezone_offset = Column(Integer, default=0)  # Offset in minutes
+    timezone_offset = Column(Integer, default=0)  # Legacy offset in minutes
+    timezone = Column(String(64), nullable=False, default='Europe/Madrid')
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"UserPreference(user={self.user_id}, enabled={self.notifications_enabled})"
+
+
+class NotificationDelivery(Base):
+    """Idempotency record for scheduled user notifications."""
+    __tablename__ = 'notification_deliveries'
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(String(255), nullable=False, index=True)
+    notification_type = Column(String(80), nullable=False)
+    reference_date = Column(Date, nullable=False)
+    status = Column(String(20), nullable=False, default='pending')
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    attempted_at = Column(DateTime, nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+    provider_message_id = Column(String(255), nullable=True)
+    error_code = Column(String(100), nullable=True)
+    error_message = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=utc_now, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(
+            'user_id', 'notification_type', 'reference_date',
+            name='notification_delivery_unique',
+        ),
+    )
 
 
 class ShoppingListItem(Base):
