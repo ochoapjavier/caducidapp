@@ -84,7 +84,7 @@ class StockService:
             )
         
         # Return complete response object
-        return StockItem.from_orm(new_stock_item)
+        return StockItem.model_validate(new_stock_item)
 
     def process_scan_stock(self, item_data: StockItemCreateFromScan, hogar_id: int, user_id: str) -> StockItem:
         """Process scanned barcode stock item for a household."""
@@ -134,12 +134,12 @@ class StockService:
             )
         
         # Return complete response object
-        return StockItem.from_orm(new_stock_item)
+        return StockItem.model_validate(new_stock_item)
 
     def get_stock_for_hogar(self, hogar_id: int, search: str | None, status_filter: List[str] | None = None, sort_by: str | None = None) -> List[StockItem]:
         """Get all stock items for a household."""
         stock_items = self.stock_repo.get_all_stock_for_hogar(hogar_id, search, status_filter, sort_by)
-        return [StockItem.from_orm(item) for item in stock_items]
+        return [StockItem.model_validate(item) for item in stock_items]
 
     def consume_stock_item(self, id_stock: int, hogar_id: int) -> dict:
         """Consume one unit of a stock item."""
@@ -228,7 +228,7 @@ class StockService:
         self.db.commit()
         self.db.refresh(item)
         self.db.refresh(producto_maestro)
-        return StockItem.from_orm(item)
+        return StockItem.model_validate(item)
 
     def transfer_stock_between_households(self, id_stock: int, current_hogar_id: int, target_hogar_id: int, target_ubicacion_id: int, cantidad_transferir: int) -> dict:
         """Transfer stock from one household to another."""

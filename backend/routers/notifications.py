@@ -1,11 +1,14 @@
 # backend/routers/notifications.py
+import hmac
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session
-from database import get_db
+
 from auth.firebase_auth import get_current_user_id
-from services.notification_service import NotificationService
+from database import get_db
 from schemas.notification import DeviceRegisterRequest, PreferenceUpdateRequest, PreferenceResponse
-import os
+from services.notification_service import NotificationService
 
 router = APIRouter()
 
@@ -56,11 +59,19 @@ def trigger_notifications(
     Protected by CRON_SECRET env var.
     Intended to be called by GitHub Actions or external scheduler.
     """
-    cron_secret = os.getenv("CRON_SECRET", "default_secret_change_me")
+    cron_secret = os.getenv("CRON_SECRET")
+    if not cron_secret:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Cron notifications are not configured",
+        )
+
     expected_header = f"Bearer {cron_secret}"
-    
-    if not authorization or authorization != expected_header:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid Cron Secret")
+    if not authorization or not hmac.compare_digest(authorization, expected_header):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Cron Secret",
+        )
     
     service = NotificationService(db)
     result = service.trigger_daily_notifications()
