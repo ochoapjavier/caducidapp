@@ -1,2 +1,5 @@
 backend/secrets/serviceAccountKey.json
 .vscode/mcp.json
+*.pyc
+*.pyd
+*.pyo

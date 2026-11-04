@@ -27,6 +27,7 @@ def get_catalog(
     only_high_fiber: bool = Query(False, description="Filtrar solo productos altos en fibra (>= 3g/100g)"),
     min_rating: float | None = Query(None, ge=1.0, le=5.0, description="Puntuación promedio mínima"),
     sort_by: str = Query("name_asc", description="Ordenación: name_asc, rating_desc, rating_asc, stock_desc"),
+    auto_sync: bool = Query(False, description="Sincronizar nutrición en segundo plano si faltan datos"),
     db: Session = Depends(get_db),
     hogar_id: int = Depends(get_active_hogar_id),
     user_id: str = Depends(get_current_user_id),
@@ -48,7 +49,8 @@ def get_catalog(
         sort_by=sort_by,
     )
 
-    background_tasks.add_task(OpenFoodFactsService.sync_missing_nutrition_for_hogar, None, hogar_id)
+    if auto_sync:
+        background_tasks.add_task(OpenFoodFactsService.sync_missing_nutrition_for_hogar, None, hogar_id)
     return items
 
 

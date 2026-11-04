@@ -1,6 +1,7 @@
 # backend/schemas/product_rating.py
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from datetime import datetime
+
 
 class ProductRatingBase(BaseModel):
     puntuacion: float = Field(..., ge=1.0, le=5.0, description="Puntuación de 1.0 a 5.0 estrellas")
@@ -21,8 +22,7 @@ class ProductRatingSchema(ProductRatingBase):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CatalogProductSchema(BaseModel):
@@ -33,12 +33,12 @@ class CatalogProductSchema(BaseModel):
     image_url: str | None = None
     dias_consumo_abierto: int | None = None
     hogar_id: int
-    
+
     # Métricas agregadas
     stock_actual: int = 0
     rating_promedio: float | None = None
     total_valoraciones: int = 0
-    
+
     # Datos específicos del usuario actual
     mi_puntuacion: float | None = None
     es_favorito: bool = False
@@ -53,6 +53,4 @@ class CatalogProductSchema(BaseModel):
     semaforo_nutricional: str | None = None
     nutrientes_100g: str | None = None
 
-    class Config:
-
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

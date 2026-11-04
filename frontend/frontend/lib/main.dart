@@ -29,6 +29,13 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   await ThemeService().loadSettings();
+  FirebaseAuth.instance.authStateChanges().listen((user) {
+    if (user != null && user.emailVerified) {
+      NotificationService().initialize().catchError((error) {
+        debugPrint('No se pudo inicializar FCM: $error');
+      });
+    }
+  });
   runApp(const MyApp());
 }
 

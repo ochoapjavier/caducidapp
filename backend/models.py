@@ -1,7 +1,10 @@
 # backend/models.py
 from sqlalchemy import Column, Integer, String, Date, ForeignKey, UniqueConstraint, Index, Boolean, DateTime, Float, Text
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
+
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc)
 from database import Base
 
 
@@ -15,7 +18,7 @@ class Hogar(Base):
     id_hogar = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(200), nullable=False)
     created_by = Column(String(255), nullable=False, index=True)  # Firebase UID of creator
-    fecha_creacion = Column(DateTime, default=datetime.utcnow, nullable=False)
+    fecha_creacion = Column(DateTime, default=utc_now, nullable=False)
     icono = Column(String(50), default='home', nullable=False)  # Icon identifier
     codigo_invitacion = Column(String(8), unique=True, nullable=False, index=True)  # Invitation code
     
@@ -43,7 +46,7 @@ class HogarMiembro(Base):
     fk_hogar = Column(Integer, ForeignKey('hogares.id_hogar', ondelete='CASCADE'), nullable=False, index=True)
     user_id = Column(String(255), nullable=False, index=True)  # Firebase UID
     rol = Column(String(50), default='miembro', nullable=False, index=True)  # admin, miembro, invitado
-    fecha_union = Column(DateTime, default=datetime.utcnow, nullable=False)
+    fecha_union = Column(DateTime, default=utc_now, nullable=False)
     apodo = Column(String(100), nullable=True)  # Friendly nickname within household
     
     __table_args__ = (
@@ -176,7 +179,7 @@ class UserDevice(Base):
     user_id = Column(String(255), nullable=False, index=True)
     fcm_token = Column(String, nullable=False)
     platform = Column(String(50))  # android, web, ios
-    last_active = Column(DateTime, default=datetime.utcnow)
+    last_active = Column(DateTime, default=utc_now)
     
     __table_args__ = (
         UniqueConstraint('user_id', 'fcm_token', name='user_device_unique'),
@@ -209,8 +212,8 @@ class ShoppingListItem(Base):
     cantidad = Column(Integer, default=1, nullable=False)
     completado = Column(Boolean, default=False, nullable=False, index=True)
     added_by = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=utc_now)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now)
 
     # Relationships
     hogar = relationship("Hogar", back_populates="shopping_list_items")
@@ -268,8 +271,8 @@ class ProductRating(Base):
     es_favorito = Column(Boolean, default=False, nullable=False)
     nota = Column(Text, nullable=True)
     tags = Column(String(255), nullable=True)  # Comma-separated tags
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
     
     __table_args__ = (
         UniqueConstraint('fk_producto', 'user_id', name='producto_valoracion_user_unique'),

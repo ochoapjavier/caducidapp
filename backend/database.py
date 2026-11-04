@@ -2,16 +2,19 @@
 
 import os
 from sqlalchemy import NullPool, create_engine
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, declarative_base
 
-# Obtener la URL de conexión del entorno (definida en docker-compose.yml)
+# Obtener la URL de conexión del entorno
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/receipt_inventory")
 
-# Creamos el motor de la base de datos con la opción pool_pre_ping.
-# Esto verifica que la conexión a la base de datos esté activa antes de usarla,
-# lo que evita errores de "conexión cerrada" cuando el servicio se despierta
-# después de un período de inactividad (típico en los free tiers de Render).
+# Normalizar esquema a postgresql+psycopg2:// si viene como postgresql:// o postgres://
+# Esto garantiza compatibilidad universal entre Render, Supabase, Docker y SQLAlchemy 2.0
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+elif DATABASE_URL.startswith("postgresql://") and not DATABASE_URL.startswith("postgresql+"):
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
+# Creamos el motor de la base de datos con pool_pre_ping.
 engine = create_engine(
     DATABASE_URL,
     poolclass=NullPool,
@@ -29,7 +32,7 @@ def get_db():
     try:
         yield db
     except Exception:
-        db.rollback() # Rollback en caso de excepción
+        db.rollback()  # Rollback en caso de excepción
         raise
     finally:
         db.close()
