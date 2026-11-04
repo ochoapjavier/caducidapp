@@ -87,17 +87,45 @@ CREATE TABLE IF NOT EXISTS user_devices (
     fcm_token TEXT NOT NULL,
     platform VARCHAR(50),
     last_active TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    installation_id VARCHAR(128),
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    last_error_code VARCHAR(100),
+    last_error_at TIMESTAMP WITHOUT TIME ZONE,
     CONSTRAINT user_device_unique UNIQUE (user_id, fcm_token)
 );
 CREATE INDEX IF NOT EXISTS ix_user_devices_user_id ON user_devices(user_id);
+CREATE INDEX IF NOT EXISTS ix_user_devices_installation_id ON user_devices(installation_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_devices_user_installation ON user_devices(user_id, installation_id) WHERE installation_id IS NOT NULL;
 
 -- 7. Preferencias de Notificación
 CREATE TABLE IF NOT EXISTS user_preferences (
     user_id VARCHAR(255) PRIMARY KEY,
     notifications_enabled BOOLEAN DEFAULT TRUE,
     notification_time VARCHAR(8) DEFAULT '09:00:00',
-    timezone_offset INTEGER DEFAULT 0
+    timezone_offset INTEGER DEFAULT 0,
+    timezone VARCHAR(64) DEFAULT 'Europe/Madrid' NOT NULL
 );
+
+-- 8. Entregas de notificaciones (idempotencia diaria)
+CREATE TABLE IF NOT EXISTS notification_deliveries (
+    id BIGSERIAL PRIMARY KEY,
+    user_id VARCHAR(255) NOT NULL,
+    notification_type VARCHAR(80) NOT NULL,
+    reference_date DATE NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    attempted_at TIMESTAMP WITHOUT TIME ZONE,
+    sent_at TIMESTAMP WITHOUT TIME ZONE,
+    provider_message_id VARCHAR(255),
+    error_code VARCHAR(100),
+    error_message TEXT,
+    updated_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP NOT NULL,
+    CONSTRAINT notification_delivery_status_check CHECK (status IN ('pending', 'sent', 'failed')),
+    CONSTRAINT notification_delivery_unique UNIQUE (user_id, notification_type, reference_date)
+);
+CREATE INDEX IF NOT EXISTS ix_notification_deliveries_user ON notification_deliveries(user_id);
+CREATE INDEX IF NOT EXISTS ix_notification_deliveries_status ON notification_deliveries(status);
+CREATE INDEX IF NOT EXISTS ix_notification_deliveries_reference_date ON notification_deliveries(reference_date);
 
 -- 8. Lista de la Compra
 CREATE TABLE IF NOT EXISTS shopping_list_items (

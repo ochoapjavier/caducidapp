@@ -20,7 +20,9 @@ def register_device(
 ):
     """Register a user device for push notifications."""
     service = NotificationService(db)
-    service.register_device(user_id, request.fcm_token, request.platform)
+    service.register_device(
+        user_id, request.fcm_token, request.platform, request.installation_id
+    )
     return {"status": "registered"}
 
 @router.post("/preferences")
@@ -35,7 +37,8 @@ def update_preferences(
         user_id, 
         request.notifications_enabled, 
         request.notification_time, 
-        request.timezone_offset
+        request.timezone_offset,
+        request.timezone,
     )
     return {"status": "updated"}
 

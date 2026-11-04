@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:math';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'api_service.dart';
 
@@ -14,6 +16,7 @@ class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
   StreamSubscription<String>? _tokenRefreshSubscription;
   String? _initializedUserId;
+  static const _installationIdKey = 'notification_installation_id';
 
   Future<void> initialize() async {
     final user = FirebaseAuth.instance.currentUser;
@@ -62,13 +65,19 @@ class NotificationService {
           ? 'web'
           : defaultTargetPlatform.name.toLowerCase();
 
+      final preferences = await SharedPreferences.getInstance();
+      final installationId = await _getInstallationId(preferences);
       final response = await http.post(
         Uri.parse('$apiV1Url/notifications/device'),
         headers: {
           'Content-Type': 'application/json',
           'Authorization': 'Bearer $idToken',
         },
-        body: jsonEncode({'fcm_token': token, 'platform': platform}),
+        body: jsonEncode({
+          'fcm_token': token,
+          'platform': platform,
+          'installation_id': installationId,
+        }),
       );
 
       if (response.statusCode == 201 || response.statusCode == 200) {
@@ -81,6 +90,18 @@ class NotificationService {
     } catch (e) {
       debugPrint('Error registrando dispositivo: $e');
     }
+  }
+
+  Future<String> _getInstallationId(SharedPreferences preferences) async {
+    final existing = preferences.getString(_installationIdKey);
+    if (existing != null && existing.isNotEmpty) return existing;
+
+    final random = Random();
+    final value =
+        '${DateTime.now().microsecondsSinceEpoch}-'
+        '${List.generate(12, (_) => random.nextInt(16).toRadixString(16)).join()}';
+    await preferences.setString(_installationIdKey, value);
+    return value;
   }
 
   Future<void> updatePreferences(bool enabled, String time, int offset) async {
@@ -98,6 +119,7 @@ class NotificationService {
         'notifications_enabled': enabled,
         'notification_time': time,
         'timezone_offset': offset,
+        'timezone': 'Europe/Madrid',
       }),
     );
 
